@@ -1,40 +1,48 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::path::Path;
-use uuid::Uuid;
+use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
-    pub id: String,
-    pub path: String,
+    pub doc_id: String,        // SHA256 hash of absolute path - stable per file
+    pub rev_id: String,        // xxHash of content - changes with content
+    pub abs_path: String,      // Full absolute path
+    pub rel_path: String,      // Relative path from docs root
     pub title: String,
     pub content: String,
-    pub content_hash: String,
     pub metadata: DocumentMetadata,
     pub chunks: Vec<DocumentChunk>,
+    pub schema_version: u32,   // For future migrations
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentMetadata {
     pub file_type: String,
     pub size: u64,
+    pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
-    pub section: String, // e.g., "adr", "model-host/artefacts"
-    pub doc_type: String, // e.g., "blueprint", "adr", "whitepaper"
+    pub section: String,         // e.g., "adr", "model-host/artefacts"
+    pub doc_type: String,        // e.g., "blueprint", "adr", "whitepaper"
     pub tags: Vec<String>,
+    pub embedding_model: String, // Track which model was used
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentChunk {
-    pub id: String,
-    pub document_id: String,
+    pub chunk_id: String,      // Format: "doc_id:NNNNN" for stable ordering
+    pub document_id: String,   // References parent document
     pub content: String,
-    pub start_line: usize,
-    pub end_line: usize,
-    pub heading: Option<String>,
+    pub start_byte: usize,     // Byte offset in original document
+    pub end_byte: usize,       // End byte offset
+    pub chunk_index: usize,    // Sequential index within document
+    pub chunk_total: usize,    // Total chunks in document
     pub chunk_type: ChunkType,
+    pub h_path: Vec<String>,   // Heading breadcrumb path
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,64 +54,121 @@ pub enum ChunkType {
     Table,
 }
 
-pub struct DocumentProcessor {}
+pub struct DocumentProcessor {
+    docs_root: std::path::PathBuf,
+    schema_version: u32,
+}
+
+const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 impl DocumentProcessor {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(docs_root: std::path::PathBuf) -> Self {
+        Self {
+            docs_root,
+            schema_version: CURRENT_SCHEMA_VERSION,
+        }
     }
 
-    pub fn process_document(&self, path: &Path, content: &str) -> Result<Document> {
-        let id = self.generate_document_id(path);
-        let path_str = path.to_string_lossy().to_string();
+    /// Generate stable document ID from absolute path using SHA256
+    pub fn generate_doc_id(&self, abs_path: &Path) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(abs_path.to_string_lossy().as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    /// Generate content revision ID using xxHash (fast)
+    pub fn generate_rev_id(&self, content: &str) -> String {
+        format!("{:016x}", xxh3_64(content.as_bytes()))
+    }
+
+    /// Generate chunk ID in format "doc_id:NNNNN"
+    pub fn generate_chunk_id(&self, doc_id: &str, chunk_index: usize) -> String {
+        format!("{}:{:05}", doc_id, chunk_index)
+    }
+
+    /// Get relative path from docs root
+    pub fn get_relative_path(&self, abs_path: &Path) -> Result<String> {
+        let rel_path = abs_path.strip_prefix(&self.docs_root)
+            .map_err(|_| anyhow::anyhow!("Path is not under docs root: {}", abs_path.display()))?;
+        Ok(rel_path.to_string_lossy().to_string())
+    }
+
+    pub fn process_document(&self, abs_path: &Path, content: &str) -> Result<Document> {
+        let doc_id = self.generate_doc_id(abs_path);
+        let rev_id = self.generate_rev_id(content);
+        let abs_path_str = abs_path.to_string_lossy().to_string();
+        let rel_path = self.get_relative_path(abs_path)?;
         
         // Extract title from first heading or filename
-        let title = self.extract_title(content, path);
+        let title = self.extract_title(content, abs_path);
         
         // Get file metadata
-        let metadata = std::fs::metadata(path)?;
-        let modified_at = metadata.modified()?
+        let file_metadata = std::fs::metadata(abs_path)?;
+        let modified_at = file_metadata.modified()?
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
         let modified_at = DateTime::from_timestamp(modified_at as i64, 0)
             .unwrap_or_else(Utc::now);
         
+        let created_at = file_metadata.created()
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs())
+            .map(|s| DateTime::from_timestamp(s as i64, 0).unwrap_or_else(Utc::now))
+            .unwrap_or_else(|_| modified_at);
+        
         // Extract document metadata
-        let file_metadata = std::fs::metadata(path)?;
         let doc_metadata = DocumentMetadata {
             file_type: "markdown".to_string(),
             size: file_metadata.len(),
+            created_at,
             modified_at,
-            section: "General".to_string(),
-            doc_type: "markdown".to_string(),
-            tags: vec![],
+            section: self.extract_section_from_path(abs_path),
+            doc_type: self.determine_doc_type(abs_path, content),
+            tags: self.extract_tags(content),
+            embedding_model: "gte-small".to_string(), // Will be configurable later
         };
         
-        // Process content into chunks - simplified for now
-        let chunks = vec![DocumentChunk {
-            id: Uuid::new_v4().to_string(),
-            document_id: id.clone(),
-            content: content.to_string(),
-            start_line: 1,
-            end_line: content.lines().count(),
-            chunk_type: ChunkType::Paragraph,
-            heading: None,
-        }];
+        // Process content into chunks with proper indexing
+        let chunks = self.create_simple_chunks(content, &doc_id)?;
         
         Ok(Document {
-            id,
-            path: path_str,
+            doc_id,
+            rev_id,
+            abs_path: abs_path_str,
+            rel_path,
             title,
             content: content.to_string(),
-            chunks,
             metadata: doc_metadata,
-            content_hash: format!("{:x}", md5::compute(content)),
+            chunks,
+            schema_version: self.schema_version,
         })
     }
 
+    /// Create simple chunks for now - will be enhanced in step 2
+    fn create_simple_chunks(&self, content: &str, doc_id: &str) -> Result<Vec<DocumentChunk>> {
+        let now = Utc::now();
+        let content_bytes = content.as_bytes();
+        let chunk_id = self.generate_chunk_id(doc_id, 0);
+        
+        let chunk = DocumentChunk {
+            chunk_id,
+            document_id: doc_id.to_string(),
+            content: content.to_string(),
+            start_byte: 0,
+            end_byte: content_bytes.len(),
+            chunk_index: 0,
+            chunk_total: 1,
+            chunk_type: ChunkType::Paragraph,
+            h_path: vec![],
+            created_at: now,
+            updated_at: now,
+        };
+        
+        Ok(vec![chunk])
+    }
+
     pub fn generate_document_id(&self, path: &Path) -> String {
-        let path_str = path.to_string_lossy();
-        format!("{:x}", md5::compute(path_str.as_bytes()))
+        // Legacy method for compatibility - delegates to generate_doc_id
+        self.generate_doc_id(path)
     }
 
     fn extract_title(&self, content: &str, file_path: &std::path::Path) -> String {
@@ -146,15 +211,20 @@ impl DocumentProcessor {
         Ok(DocumentMetadata {
             file_type: "markdown".to_string(),
             size: file_size,
+            created_at: modified_at, // Use modified_at as fallback for created_at
             modified_at,
             section,
             doc_type,
             tags,
+            embedding_model: "gte-small".to_string(),
         })
     }
 
     fn extract_section_from_path(&self, file_path: &std::path::Path) -> String {
-        let components: Vec<_> = file_path.components()
+        let relative_path = file_path.strip_prefix(&self.docs_root)
+            .unwrap_or(file_path);
+        
+        let components: Vec<_> = relative_path.components()
             .map(|c| c.as_os_str().to_string_lossy())
             .collect();
         
@@ -233,7 +303,7 @@ impl DocumentProcessor {
         tags
     }
 
-    fn chunk_document(&self, content: &str, title: &str) -> Result<Vec<DocumentChunk>> {
+    fn chunk_document(&self, content: &str, title: &str, doc_id: &str) -> Result<Vec<DocumentChunk>> {
         let mut chunks = Vec::new();
         let lines: Vec<&str> = content.lines().collect();
         
@@ -262,13 +332,17 @@ impl DocumentProcessor {
                     let chunk_content = lines[current_chunk_start..line_idx].join("\n");
                     if !chunk_content.trim().is_empty() {
                         chunks.push(DocumentChunk {
-                            id: Uuid::new_v4().to_string(),
-                            document_id: "".to_string(), // Will be set later
+                            chunk_id: format!("{}:{:05}", doc_id, chunks.len()),
+                            document_id: doc_id.to_string(),
                             content: chunk_content.trim().to_string(),
-                            start_line: current_chunk_start + 1,
-                            end_line: line_idx,
-                            heading: current_heading.clone(),
+                            start_byte: 0, // TODO: Calculate actual byte offset
+                            end_byte: 0,   // TODO: Calculate actual byte offset
+                            chunk_index: chunks.len(),
+                            chunk_total: 0, // Will be updated at the end
                             chunk_type: ChunkType::Paragraph,
+                            h_path: current_heading.clone().map(|h| vec![h]).unwrap_or_default(),
+                            created_at: Utc::now(),
+                            updated_at: Utc::now(),
                         });
                     }
                 }
@@ -284,13 +358,17 @@ impl DocumentProcessor {
             let chunk_content = lines[current_chunk_start..].join("\n");
             if !chunk_content.trim().is_empty() {
                 chunks.push(DocumentChunk {
-                    id: Uuid::new_v4().to_string(),
-                    document_id: "".to_string(),
+                    chunk_id: format!("{}:{:05}", doc_id, chunks.len()),
+                    document_id: doc_id.to_string(),
                     content: chunk_content.trim().to_string(),
-                    start_line: current_chunk_start + 1,
-                    end_line: lines.len(),
-                    heading: current_heading,
+                    start_byte: 0, // TODO: Calculate actual byte offset
+                    end_byte: 0,   // TODO: Calculate actual byte offset
+                    chunk_index: chunks.len(),
+                    chunk_total: 0, // Will be updated at the end
                     chunk_type: ChunkType::Paragraph,
+                    h_path: current_heading.clone().map(|h| vec![h]).unwrap_or_default(),
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
                 });
             }
         }
@@ -298,14 +376,24 @@ impl DocumentProcessor {
         // If no chunks were created, create one with the entire content
         if chunks.is_empty() && !content.trim().is_empty() {
             chunks.push(DocumentChunk {
-                id: Uuid::new_v4().to_string(),
-                document_id: "".to_string(),
+                chunk_id: format!("{}:{:05}", doc_id, 0),
+                document_id: doc_id.to_string(),
                 content: content.trim().to_string(),
-                start_line: 1,
-                end_line: lines.len(),
-                heading: Some(title.to_string()),
+                start_byte: 0,
+                end_byte: content.len(),
+                chunk_index: 0,
+                chunk_total: 1,
                 chunk_type: ChunkType::Paragraph,
+                h_path: vec![title.to_string()],
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
             });
+        }
+
+        // Update chunk_total for all chunks
+        let total_chunks = chunks.len();
+        for chunk in &mut chunks {
+            chunk.chunk_total = total_chunks;
         }
 
         Ok(chunks)

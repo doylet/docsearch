@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
-use std::path::{Path};
-use std::time::Duration;
+use std::path::Path;
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 use walkdir::WalkDir;
@@ -10,42 +9,41 @@ use walkdir::WalkDir;
 use crate::config::Config;
 use crate::document::{Document, DocumentProcessor};
 use crate::vectordb_simple::{SearchResult, VectorDB};
-use crate::watcher::{DocumentWatcher, FileEvent};
+use crate::watcher_v2::{DocumentWatcher, FileEvent};
 
 pub struct DocumentIndexer {
     config: Config,
-    vector_db: VectorDB,
-    document_processor: DocumentProcessor,
+    processor: DocumentProcessor,
+    vectordb: std::sync::Arc<tokio::sync::Mutex<VectorDB>>,
 }
 
 impl DocumentIndexer {
     pub async fn new(config: Config) -> Result<Self> {
-        let vector_db = VectorDB::new(&config.qdrant_url, config.collection_name.clone())
-            .await
+        let docs_root = config.docs_directory.clone();
+        let processor = DocumentProcessor::new(docs_root);
+        let vectordb = VectorDB::new(&config.qdrant_url, config.collection_name.clone()).await
             .context("Failed to initialize vector database")?;
 
         // Ensure collection exists
-        vector_db
+        vectordb
             .ensure_collection_exists()
             .await
             .context("Failed to ensure collection exists")?;
 
-        let document_processor = DocumentProcessor::new();
-
         Ok(Self {
             config,
-            vector_db,
-            document_processor,
+            processor,
+            vectordb: std::sync::Arc::new(tokio::sync::Mutex::new(vectordb)),
         })
     }
 
     pub async fn index_all_documents(&self) -> Result<()> {
-        info!("Starting initial indexing of all documents in: {}", self.config.docs_path.display());
+        info!("Starting initial indexing of all documents in: {}", self.config.docs_directory.display());
 
         let mut indexed_count = 0;
         let mut error_count = 0;
 
-        for entry in WalkDir::new(&self.config.docs_path)
+        for entry in WalkDir::new(&self.config.docs_directory)
             .follow_links(true)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -71,11 +69,11 @@ impl DocumentIndexer {
         );
 
         // Log collection stats
-        match self.vector_db.get_collection_info().await {
+        match self.vectordb.lock().await.get_collection_info().await {
             Ok(info) => {
                 info!(
-                    "Collection '{}' now contains {} points ({} vectors)",
-                    info.name, info.points_count, info.vectors_count
+                    "Collection '{}' now contains {} active documents, {} tombstoned",
+                    self.config.collection_name, info.active_documents, info.tombstoned_documents
                 );
             }
             Err(e) => warn!("Failed to get collection info: {}", e),
@@ -85,13 +83,12 @@ impl DocumentIndexer {
     }
 
     pub async fn start_watching(&self) -> Result<()> {
-        info!("Starting file watcher for: {}", self.config.docs_path.display());
+        info!("Starting file watcher for: {}", self.config.docs_directory.display());
 
-        let (watcher, mut rx) = DocumentWatcher::new(self.config.docs_path.clone())
-            .context("Failed to create document watcher")?;
+        let (_watcher, mut event_rx) = DocumentWatcher::new(self.config.docs_directory.clone())?;
 
         // Process file events
-        while let Some(event) = rx.recv().await {
+        while let Some(event) = event_rx.recv().await {
             match event {
                 FileEvent::Created(path) | FileEvent::Modified(path) => {
                     if let Err(e) = self.index_document(&path).await {
@@ -110,7 +107,6 @@ impl DocumentIndexer {
             }
         }
 
-        watcher.stop().await;
         Ok(())
     }
 
@@ -119,20 +115,26 @@ impl DocumentIndexer {
             .await
             .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
-        let document = self.document_processor.process_document(path, &content)?;
+        let document = self.processor.process_document(path, &content)?;
+        
+        // Check if document needs reprocessing
+        if !self.vectordb.lock().await.needs_reprocessing(&document.doc_id, &document.rev_id).await {
+            debug!("Document {} is up to date, skipping", path.display());
+            return Ok(());
+        }
         
         // Generate embeddings for all chunks
         let embeddings = self.generate_embeddings(&document).await?;
         
         // Store in vector database
-        self.vector_db.upsert_document(&document, &embeddings).await?;
+        self.vectordb.lock().await.upsert_document(&document, &embeddings).await?;
 
         Ok(())
     }
 
     async fn remove_document(&self, path: &Path) -> Result<()> {
-        let document_id = self.document_processor.generate_document_id(path);
-        self.vector_db.delete_document(&document_id).await?;
+        let doc_id = self.processor.generate_document_id(path);
+        self.vectordb.lock().await.delete_document(&doc_id).await?;
         Ok(())
     }
 
@@ -164,7 +166,7 @@ impl DocumentIndexer {
         
         // Search in vector database
         let results = self
-            .vector_db
+            .vectordb.lock().await
             .search(&query_embedding, limit.unwrap_or(10), filters)
             .await?;
 
@@ -172,10 +174,10 @@ impl DocumentIndexer {
     }
 
     pub async fn get_collection_stats(&self) -> Result<String> {
-        let info = self.vector_db.get_collection_info().await?;
+        let info = self.vectordb.lock().await.get_collection_info().await?;
         Ok(format!(
-            "Collection '{}': {} documents, {} vectors",
-            info.name, info.points_count, info.vectors_count
+            "Collection '{}': {} active documents, {} tombstoned",
+            self.config.collection_name, info.active_documents, info.tombstoned_documents
         ))
     }
 }
@@ -195,10 +197,10 @@ mod tests {
 
     async fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        let docs_path = temp_dir.path().to_path_buf();
+        let docs_directory = temp_dir.path().to_path_buf();
         
         let config = Config {
-            docs_path,
+            docs_directory,
             qdrant_url: "http://localhost:6333".to_string(),
             collection_name: "test_docs".to_string(),
             openai_api_key: None,
