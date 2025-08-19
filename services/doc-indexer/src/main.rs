@@ -6,7 +6,7 @@ use tracing::{info};
 mod config;
 mod document;
 mod vectordb_simple;
-mod watcher;
+mod watcher_v2;
 mod indexer;
 
 use config::Config;
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
 
     // Create config
     let config = Config {
-        docs_path: cli.docs_path,
+        docs_directory: cli.docs_path,
         qdrant_url: cli.qdrant_url,
         collection_name: cli.collection_name,
         openai_api_key: cli.openai_api_key,
