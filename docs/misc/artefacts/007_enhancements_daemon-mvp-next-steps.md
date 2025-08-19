@@ -1,4 +1,11 @@
-# 0) Ground rules (foundations you’ll want right now)
+---
+**📝 STRATEGIC NOTE (Aug 20, 2025)**: This enhancement plan has been validated as the primary development guide following Step 4 completion. The execution order (section 9) is now the official roadmap, prioritizing user-value delivery over technical completeness. See `020_strategy_revision_user-value-first-approach.md` for full rationale.
+---
+
+# 0) Ground rules (foundations you'll want right now)
+- **Content IDs & versioning**
+  - `doc_id`: stable per file (hash of absolute path).
+  - `rev_id`: content hash (e.g., xxHash of bytes). Upsert only when `rev_id` changes. Ground rules (foundations you’ll want right now)
 - **Content IDs & versioning**
   - `doc_id`: stable per file (hash of absolute path).
   - `rev_id`: content hash (e.g., xxHash of bytes). Upsert only when `rev_id` changes.

@@ -4,6 +4,10 @@
 **Current Status:** Step 4 Local Embeddings ✅ COMPLETE  
 **Next Phase:** Production MVP Development
 
+---
+**🔄 STRATEGIC UPDATE (Aug 20, 2025)**: This roadmap has been superseded by the user-value-first approach outlined in `007_enhancements_daemon-mvp-next-steps.md`. The technical analysis below remains valuable for implementation details, but development priorities now follow the original enhancement plan execution order. See `020_strategy_revision_user-value-first-approach.md` for complete rationale.
+---
+
 ## 🎯 Current Position Analysis
 
 ### ✅ **Completed Foundation (Step 4)**
