@@ -108,3 +108,86 @@ Permit **Local Host** for tenants needing **offline** use or **<50 ms** tool loo
 ## Review & Revisit
 
 Quarterly review or upon SLO breach/major customer requirements.
+
+---
+# Addendum — Device‑Initiated MCP Bridge (clarifies production transport)
+
+**What this clarifies:** In production, the Model Host is **remote (cloud)** and the MCP server is **local (device)**. Tool calls traverse a **device‑initiated MCP Bridge** made of a **local Device Bridge** (desktop/daemon) and a **cloud Tool Relay**. Dev/CI may still use **stdio** from Host ↔ MCP on the same machine.
+
+---
+
+## Updated Topology
+
+```
+Client UI → BFF (cloud) ⇄ Model Host (cloud)
+                              ⇅
+                        Tool Relay (cloud)
+                              ⇅  (device‑initiated WebSocket/TLS, persistent)
+                     Device Bridge (local on device)
+                              ⇅  (stdio)
+                     Swift MCP Server (native tools, sandboxed)
+```
+
+---
+
+## Scope Corrections (Roadmap)
+
+- **Must‑Have (prod):** Remote transport via **Device Bridge (local)** ↔ **Tool Relay (cloud)** over **WebSocket/TLS** (or SSE).  
+- **Dev/CI:** Keep direct **stdio** path for local development.  
+- **Per‑device catalogs:** Device sends **device.hello** (tool name, version, schema digests).  
+- **Policy & receipts:** Include `device_id`; enforce caps; record relay timings in receipts.
+
+---
+
+## Minimal Protocol Frames
+
+**Device Hello**
+```json
+{
+  "type": "device.hello",
+  "device_id": "mac-123",
+  "tenant": "acme",
+  "catalog": [
+    { "name": "fs.read", "version": "1.2.0",
+      "schema": { "args": "urn:zl:fs.read:1.2.0:args", "result": "urn:zl:fs.read:1.2.0:result" } }
+  ]
+}
+```
+
+**Tool Request → Device**
+```json
+{
+  "type": "tool.call.start",
+  "correlation_id": "uuid",
+  "tenant": "acme",
+  "device_id": "mac-123",
+  "tool": { "name": "fs.read", "version": "1.2.0" },
+  "args": { },
+  "caps": { "timeoutMs": 5000, "maxBytes": 1048576 },
+  "policy_id": "bundle-2025-08-19"
+}
+```
+
+**Streaming Responses ← Device**
+```json
+{ "type": "tool.call.delta", "correlation_id": "uuid", "chunk": "..." }
+{ "type": "tool.call.completed", "correlation_id": "uuid", "result": { }, "elapsed_ms": 43 }
+{ "type": "tool.call.error", "correlation_id": "uuid", "code": "TIMEOUT", "message": "..." }
+```
+
+---
+
+## Latency & SLOs (unchanged targets)
+
+- **Bridge overhead per tool call**: p95 ≤ **100 ms**, p99 ≤ **150 ms**.  
+- **TTFT (no tools)**: p95 ≤ **800 ms**.  
+- Mitigations: persistent WS, Host+Relay same region, streaming deltas, optional edge PoPs, binary framing.
+
+---
+
+## Operational Notes
+
+- Outbound‑only from devices (no inbound ports).  
+- Short‑lived device tokens; optional mTLS/attestation.  
+- Sticky routing; idempotent correlators for reconnects.  
+- Cache policy bundles on device; degrade sensitive tools on expiry; queue audit until reconnect.
