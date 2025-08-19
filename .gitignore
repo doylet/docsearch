@@ -1,0 +1,29 @@
+# Node / JS
+node_modules/
+.pnpm-store/
+dist/
+build/
+*.log
+
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+
+# Rust
+target/
+
+# macOS / Xcode
+.DS_Store
+*.xcuserdatad/
+DerivedData/
+
+# Env & local
+**/.env
+**/.env.local
+**/.env.*.local
+.envrc
+
+# Tooling caches
+.vscode/
+.idea/
