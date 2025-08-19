@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use xxhash_rust::xxh3::xxh3_64;
+use crate::chunking::ChunkingConfig;
+use crate::advanced_chunker::AdvancedChunker;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
@@ -57,16 +59,34 @@ pub enum ChunkType {
 pub struct DocumentProcessor {
     docs_root: std::path::PathBuf,
     schema_version: u32,
+    chunking_config: ChunkingConfig,
+    chunker: AdvancedChunker,
 }
 
 const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 impl DocumentProcessor {
-    pub fn new(docs_root: std::path::PathBuf) -> Self {
-        Self {
+    pub fn new(docs_root: std::path::PathBuf) -> Result<Self> {
+        let chunking_config = ChunkingConfig::for_documentation();
+        let chunker = AdvancedChunker::new(chunking_config.clone())?;
+        
+        Ok(Self {
             docs_root,
             schema_version: CURRENT_SCHEMA_VERSION,
-        }
+            chunking_config,
+            chunker,
+        })
+    }
+
+    pub fn with_chunking_config(docs_root: std::path::PathBuf, chunking_config: ChunkingConfig) -> Result<Self> {
+        let chunker = AdvancedChunker::new(chunking_config.clone())?;
+        
+        Ok(Self {
+            docs_root,
+            schema_version: CURRENT_SCHEMA_VERSION,
+            chunking_config,
+            chunker,
+        })
     }
 
     /// Generate stable document ID from absolute path using SHA256
@@ -127,8 +147,8 @@ impl DocumentProcessor {
             embedding_model: "gte-small".to_string(), // Will be configurable later
         };
         
-        // Process content into chunks with proper indexing
-        let chunks = self.create_simple_chunks(content, &doc_id)?;
+        // Process content into chunks using advanced chunker
+        let chunks = self.chunker.chunk_document(content, &doc_id)?;
         
         Ok(Document {
             doc_id,
