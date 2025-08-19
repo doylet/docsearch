@@ -5,11 +5,13 @@ use tracing::{info};
 
 mod config;
 mod document;
-mod vector_db_trait;
-mod vectordb_simple;
-mod qdrant_client;
-mod watcher_v2;
 mod indexer;
+mod vectordb_simple;
+mod watcher_v2;
+mod vector_db_trait;
+mod qdrant_client;
+mod chunking;
+mod advanced_chunker;
 
 use config::Config;
 use indexer::DocumentIndexer;

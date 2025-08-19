@@ -22,7 +22,7 @@ pub struct DocumentIndexer {
 impl DocumentIndexer {
     pub async fn new(config: Config) -> Result<Self> {
         let docs_root = config.docs_directory.clone();
-        let processor = DocumentProcessor::new(docs_root);
+                let processor = DocumentProcessor::new(config.docs_directory.clone())?;
         
         // Choose between mock and real Qdrant based on URL
         let vectordb: Box<dyn VectorDatabase> = if config.qdrant_url.contains("mock") {
