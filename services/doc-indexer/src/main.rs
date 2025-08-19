@@ -5,7 +5,9 @@ use tracing::{info};
 
 mod config;
 mod document;
+mod vector_db_trait;
 mod vectordb_simple;
+mod qdrant_client;
 mod watcher_v2;
 mod indexer;
 
