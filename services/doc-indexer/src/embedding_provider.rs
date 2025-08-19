@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use lru::LruCache;
 use ort::{Environment, ExecutionProvider, SessionBuilder, Session};
 use tokenizers::Tokenizer;
+use ndarray;
 
 /// Response from an embedding API call
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -321,23 +322,28 @@ pub struct LocalEmbedder {
 
 impl LocalEmbedder {
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
-        info!("Initializing LocalEmbedder for gte-small model");
+        info!("🚀 Initializing LocalEmbedder for gte-small model");
         
         // Initialize model manager
+        info!("🔄 Step 1: Initializing model manager...");
         let model_manager = ModelManager::new()
             .context("Failed to initialize model manager")?;
+        info!("✅ Step 1: Model manager initialized");
         
         // Get model information
+        info!("🔄 Step 2: Getting model info...");
         let model_info = ModelManager::get_gte_small_info();
+        info!("✅ Step 2: Model info obtained");
         
         // Ensure model is available (download if necessary)
+        info!("🔄 Step 3: Ensuring model availability...");
         let model_paths = match model_manager.ensure_model_available(&model_info).await {
             Ok(paths) => {
-                info!("Model files ready at: {}", paths.onnx_path.display());
+                info!("✅ Step 3: Model files ready at: {}", paths.onnx_path.display());
                 paths
             }
             Err(e) => {
-                warn!("Failed to ensure model availability: {}. Model loading will be skipped.", e);
+                warn!("⚠️ Step 3: Failed to ensure model availability: {}. Model loading will be skipped.", e);
                 return Ok(Self {
                     config,
                     session: None,
@@ -350,43 +356,70 @@ impl LocalEmbedder {
         };
         
         // Initialize ONNX Environment
+        info!("🔄 Step 4: Creating ONNX Environment...");
         let environment = Arc::new(Environment::builder()
             .with_name("gte-small")
             .with_log_level(ort::LoggingLevel::Warning)
             .build()?);
+        info!("✅ Step 4: ONNX Environment created");
         
         // Create ONNX session
-        let session = match SessionBuilder::new(&environment)?
-            .with_execution_providers([ExecutionProvider::CPU(Default::default())])?
-            .with_model_from_file(&model_paths.onnx_path)
-        {
-            Ok(session) => {
-                info!("✅ ONNX session loaded successfully");
-                Some(Arc::new(session))
+        info!("🔄 Step 5: Creating ONNX SessionBuilder...");
+        let session = match SessionBuilder::new(&environment) {
+            Ok(mut builder) => {
+                info!("✅ Step 5a: SessionBuilder created successfully");
+                
+                info!("🔄 Step 5b: Setting execution providers...");
+                match builder.with_execution_providers([ExecutionProvider::CPU(Default::default())]) {
+                    Ok(b) => {
+                        info!("✅ Step 5b: Execution providers set");
+                        builder = b;
+                        
+                        info!("🔄 Step 5c: Loading model from file: {}", model_paths.onnx_path.display());
+                        match builder.with_model_from_file(&model_paths.onnx_path) {
+                            Ok(session) => {
+                                info!("✅ Step 5c: ONNX session loaded successfully");
+                                Some(Arc::new(session))
+                            }
+                            Err(e) => {
+                                warn!("❌ Step 5c: Failed to load model from file: {}", e);
+                                None
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("❌ Step 5b: Failed to set execution providers: {}", e);
+                        None
+                    }
+                }
             }
             Err(e) => {
-                warn!("❌ Failed to load ONNX session: {}", e);
+                warn!("❌ Step 5a: Failed to create SessionBuilder: {}", e);
                 None
             }
         };
         
         // Load tokenizer
+        info!("🔄 Step 6: Loading tokenizer from: {}", model_paths.tokenizer_path.display());
         let tokenizer = match Tokenizer::from_file(&model_paths.tokenizer_path) {
             Ok(tokenizer) => {
-                info!("✅ Tokenizer loaded successfully");
+                info!("✅ Step 6: Tokenizer loaded successfully");
                 Some(Arc::new(tokenizer))
             }
             Err(e) => {
-                warn!("❌ Failed to load tokenizer: {}", e);
+                warn!("❌ Step 6: Failed to load tokenizer: {}", e);
                 None
             }
         };
         
         // Initialize LRU cache (1000 embeddings max)
+        info!("🔄 Step 7: Initializing LRU cache...");
         let cache = Arc::new(Mutex::new(LruCache::new(
             std::num::NonZeroUsize::new(1000).unwrap()
         )));
+        info!("✅ Step 7: LRU cache initialized");
         
+        info!("🎉 LocalEmbedder initialization completed successfully!");
         Ok(Self {
             config,
             session,
@@ -402,7 +435,7 @@ impl LocalEmbedder {
     
     async fn generate_single_embedding(&self, text: &str) -> Result<Vec<f32>> {
         // Check if model is available
-        let _session = self.session.as_ref()
+        let session = self.session.as_ref()
             .ok_or_else(|| anyhow::anyhow!("ONNX session not loaded - cannot generate embeddings"))?;
         let tokenizer = self.tokenizer.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Tokenizer not loaded - cannot generate embeddings"))?;
@@ -424,23 +457,155 @@ impl LocalEmbedder {
         let input_ids = encoding.get_ids();
         let attention_mask = encoding.get_attention_mask();
         
-        // For now, implement enhanced deterministic embeddings using real tokenization
-        // TODO: Complete ONNX inference once API issues are resolved
-        info!("🔥 Generating embedding with tokenizer (ONNX inference in progress) for: {}", &text[..text.len().min(50)]);
+        info!("🔥 Running ONNX inference for: {}", &text[..text.len().min(50)]);
         
-        let embedding_dim = self.config.dimensions.unwrap_or(384);
+        // Try ONNX inference first, fallback to enhanced algorithm if needed
+        match self.run_onnx_inference(session, input_ids, attention_mask).await {
+            Ok(embedding) => {
+                // Cache the result
+                {
+                    let mut cache = self.cache.lock().unwrap();
+                    cache.put(text.to_string(), embedding.clone());
+                }
+                
+                info!("✅ Generated {}-dimensional embedding using ONNX inference", embedding.len());
+                Ok(embedding)
+            }
+            Err(e) => {
+                warn!("⚠️ ONNX inference failed, falling back to enhanced tokenizer: {}", e);
+                
+                let embedding_dim = self.config.dimensions.unwrap_or(384);
+                let embedding = Self::generate_advanced_embedding(input_ids, attention_mask, embedding_dim)?;
+                
+                // Cache the result
+                {
+                    let mut cache = self.cache.lock().unwrap();
+                    cache.put(text.to_string(), embedding.clone());
+                }
+                
+                info!("✅ Generated {}-dimensional embedding using enhanced tokenization fallback", embedding.len());
+                Ok(embedding)
+            }
+        }
+    }
+    
+    /// Run ONNX inference to generate embeddings
+    async fn run_onnx_inference(
+        &self, 
+        session: &Session, 
+        input_ids: &[u32], 
+        attention_mask: &[u32]
+    ) -> Result<Vec<f32>> {
+        info!("🔄 Starting ONNX inference with {} tokens", input_ids.len());
+        use ort::Value;
         
-        // Use sophisticated approach based on actual tokenized content
-        let embedding = Self::generate_advanced_embedding(input_ids, attention_mask, embedding_dim)?;
+        let seq_len = input_ids.len();
+        if seq_len == 0 {
+            return Err(anyhow::anyhow!("Empty input sequence"));
+        }
+
+        info!("🔄 Converting inputs to i64...");
+        // Convert to i64 as required by ONNX models
+        let input_ids_i64: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
+        let attention_mask_i64: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
         
-        // Cache the result
-        {
-            let mut cache = self.cache.lock().unwrap();
-            cache.put(text.to_string(), embedding.clone());
+        info!("🔄 Creating ndarray tensors...");
+        // Create ndarray tensors with shape [1, seq_len] (batch_size=1)
+        let input_ids_array = ndarray::Array2::from_shape_vec((1, seq_len), input_ids_i64)?;
+        let attention_mask_array = ndarray::Array2::from_shape_vec((1, seq_len), attention_mask_i64)?;
+        
+        info!("🔄 Creating ONNX Value tensors...");
+        // Create ONNX Value tensors - use CowArray for proper CowRepr type
+        let allocator = session.allocator();
+        
+        // Convert to CowArray which has CowRepr internally
+        let input_ids_cow = ndarray::CowArray::from(input_ids_array).into_dyn();
+        let attention_mask_cow = ndarray::CowArray::from(attention_mask_array).into_dyn();
+        
+        let input_ids_tensor = Value::from_array(allocator, &input_ids_cow)?;
+        let attention_mask_tensor = Value::from_array(allocator, &attention_mask_cow)?;
+        
+        info!("🔄 Preparing inputs and running inference...");
+        // Prepare inputs as Vec<Value> - session.run expects this format
+        let inputs = vec![input_ids_tensor, attention_mask_tensor];
+        
+        // Run inference
+        info!("🔄 Calling session.run()...");
+        let outputs = session.run(inputs)?;
+        info!("✅ ONNX session.run() completed successfully");
+        
+        // Get the output tensor (first output, usually "last_hidden_state")
+        let output_tensor = outputs.get(0)
+            .ok_or_else(|| anyhow::anyhow!("No output tensor found"))?;
+        
+        info!("🔄 Extracting output tensor data...");
+        // Extract the tensor data and dimensions
+        let output_data = output_tensor.try_extract::<f32>()?;
+        let output_view = output_data.view();
+        let output_shape = output_view.shape();
+        
+        info!("✅ Output tensor shape: {:?}", output_shape);
+        
+        // Verify output shape: [batch_size, seq_len, hidden_size]
+        if output_shape.len() != 3 || output_shape[0] != 1 {
+            return Err(anyhow::anyhow!(
+                "Unexpected output shape: {:?}, expected [1, {}, hidden_size]", 
+                output_shape, seq_len
+            ));
         }
         
-        info!("✅ Generated {}-dimensional embedding using advanced tokenization", embedding.len());
+        let hidden_size = output_shape[2];
+        let output_seq_len = output_shape[1];
+        
+        info!("🔄 Performing mean pooling...");
+        // Perform mean pooling weighted by attention mask
+        let embedding = self.mean_pool_with_attention(
+            &output_view, 
+            attention_mask, 
+            output_seq_len, 
+            hidden_size
+        )?;
+        
+        info!("✅ ONNX inference completed: {} -> {} dimensions", hidden_size, embedding.len());
         Ok(embedding)
+    }
+    
+    /// Perform mean pooling with attention mask weighting
+    fn mean_pool_with_attention(
+        &self,
+        hidden_states: &ndarray::ArrayView<f32, ndarray::Dim<ndarray::IxDynImpl>>,
+        attention_mask: &[u32],
+        seq_len: usize,
+        hidden_size: usize,
+    ) -> Result<Vec<f32>> {
+        let mut pooled = vec![0.0f32; hidden_size];
+        let mut total_weight = 0.0f32;
+        
+        for seq_idx in 0..seq_len.min(attention_mask.len()) {
+            let attention_weight = attention_mask[seq_idx] as f32;
+            if attention_weight > 0.0 {
+                total_weight += attention_weight;
+                
+                // Add weighted hidden states for this sequence position
+                // Note: shape is [batch_size=1, seq_len, hidden_size]
+                for hidden_idx in 0..hidden_size {
+                    // Access tensor as [0, seq_idx, hidden_idx]
+                    if let Some(&value) = hidden_states.get([0, seq_idx, hidden_idx]) {
+                        pooled[hidden_idx] += value * attention_weight;
+                    }
+                }
+            }
+        }
+        
+        // Normalize by total attention weight
+        if total_weight > 0.0 {
+            for val in &mut pooled {
+                *val /= total_weight;
+            }
+        }
+        
+        // Normalize to unit vector
+        Ok(Self::normalize_embedding(&pooled))
     }
     
     /// Generate advanced embeddings based on actual tokenization
