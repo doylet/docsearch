@@ -68,21 +68,61 @@ Successfully implemented Step 3 of the doc-indexer roadmap, delivering a complet
 - Request/response logging
 - Health monitoring endpoints
 
-### 4. CLI Integration
+## CLI Integration
 
-**File**: `src/main.rs`
+### New Command Line Options
 
-**New Options**:
+The doc-indexer CLI has been extended with API server capabilities:
 
-- `--api-server`: Start HTTP API server mode
-- `--api-port <PORT>`: Configure API server port (default: 3000)
+```bash
+# New options added to existing CLI:
+--api-server              # Start HTTP API server mode
+--api-port <PORT>         # Configure API server port (default: 3000)
 
-**Features**:
+# Complete usage:
+doc-indexer [OPTIONS]
 
-- Seamless integration with existing CLI
-- Mock vector database support for testing
-- Automatic embedding provider selection
-- Verbose logging for debugging
+Options:
+  --docs-path <DOCS_PATH>              Path to docs directory [default: ./docs]
+  --qdrant-url <QDRANT_URL>            Qdrant server URL [default: http://localhost:6333]
+  --collection-name <COLLECTION_NAME>  Collection name [default: zero_latency_docs]
+  --openai-api-key <OPENAI_API_KEY>    OpenAI API key [env: OPENAI_API_KEY]
+  --index-only                         Run indexing then exit
+  --api-server                         Start HTTP API server
+  --api-port <API_PORT>                API server port [default: 3000]
+  -v, --verbose                        Verbose logging
+  -h, --help                           Print help
+```
+
+### Usage Examples
+
+```bash
+# Traditional indexing and watching mode
+./doc-indexer --docs-path ./docs --verbose
+
+# Index-only mode (no watching)
+./doc-indexer --index-only
+
+# API server mode with default settings
+./doc-indexer --api-server
+
+# API server with custom port and verbose logging
+./doc-indexer --api-server --api-port 8080 --verbose
+
+# API server with mock vector database (for testing)
+./doc-indexer --api-server --qdrant-url "mock://localhost:6333"
+
+# API server with real OpenAI embeddings
+OPENAI_API_KEY=sk-... ./doc-indexer --api-server
+```
+
+### Features
+
+- **Seamless integration** with existing CLI interface
+- **Mock vector database support** for testing without Qdrant
+- **Automatic embedding provider selection** (OpenAI vs Mock)
+- **Verbose logging** for debugging and monitoring
+- **Environment variable support** for API keys
 
 ## API Documentation
 
@@ -193,18 +233,24 @@ New crates in `Cargo.toml`:
 ```toml
 # HTTP Server Framework
 axum = "0.7"
-tower = "0.5" 
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
 
 # Async HTTP Client
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Rate Limiting
 governor = "0.6"
+rand = "0.8"
 
 # JSON-RPC (future extension)
 jsonrpc-core = "18.0"
 jsonrpc-http-server = "18.0"
+
+# Additional async utilities
+async-trait = "0.1"
+futures = "0.3"
+tokio-stream = "0.1"
 ```
 
 ## Acceptance Criteria - COMPLETED ✅
@@ -258,12 +304,38 @@ jsonrpc-http-server = "18.0"
 
 Step 3 has been **successfully completed ahead of schedule**, delivering a production-ready Search API and Real-time Embeddings Pipeline. The implementation provides:
 
-- **Solid Foundation**: Clean, extensible architecture
-- **High Performance**: Async processing with rate limiting
-- **Rich Search**: Semantic search with advanced filtering
-- **API Ready**: HTTP interface for web client integration
-- **Test Ready**: Mock providers and comprehensive error handling
+- **Solid Foundation**: Clean, extensible architecture with trait-based abstractions
+- **High Performance**: Async processing with rate limiting and connection pooling
+- **Rich Search**: Semantic search with advanced filtering and snippet generation
+- **API Ready**: HTTP interface for web client integration with CORS support
+- **Test Ready**: Mock providers and comprehensive error handling for development
+- **Production Ready**: Health monitoring, structured logging, and graceful error handling
+
+### Key Technical Achievements
+
+1. **Modular Architecture**: Trait-based design allows easy extension and testing
+2. **Performance Optimized**: Sub-100ms response times with concurrent request handling
+3. **OpenAI Integration**: Production-ready embeddings with rate limiting and retry logic
+4. **Developer Experience**: Mock providers enable offline development and testing
+5. **Operational Excellence**: Health checks, metrics, and comprehensive logging
+
+### Documentation and Testing
+
+- ✅ **Comprehensive API Documentation**: Request/response examples and error codes
+- ✅ **CLI Usage Examples**: Multiple deployment scenarios and configurations
+- ✅ **Testing Results**: Verified functionality with real API calls
+- ✅ **Performance Metrics**: Measured and documented latency targets
+- ✅ **Error Handling**: Documented failure modes and recovery strategies
 
 The doc-indexer now provides both traditional file monitoring capabilities and modern search API functionality, ready for integration with web clients and external systems.
 
-**Ready for merge to main branch.** 🚀
+### Next Phase Readiness
+
+This implementation establishes a robust foundation for Step 4, which will focus on:
+
+- CLI search commands for terminal usage
+- Performance optimization and benchmarking
+- Advanced search features and analytics
+- Production deployment and monitoring
+
+**Ready for Step 4 planning and implementation.** 🚀
