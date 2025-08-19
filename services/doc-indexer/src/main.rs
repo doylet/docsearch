@@ -12,6 +12,9 @@ mod vector_db_trait;
 mod qdrant_client;
 mod chunking;
 mod advanced_chunker;
+mod embedding_provider;
+mod search_service;
+mod api_server;
 
 use config::Config;
 use indexer::DocumentIndexer;
@@ -39,6 +42,14 @@ struct Cli {
     /// Run initial indexing then exit (don't watch for changes)
     #[arg(long)]
     index_only: bool,
+
+    /// Start HTTP API server
+    #[arg(long)]
+    api_server: bool,
+
+    /// Port for HTTP API server
+    #[arg(long, default_value = "3000")]
+    api_port: u16,
 
     /// Verbose logging
     #[arg(short, long)]
@@ -74,7 +85,7 @@ async fn main() -> Result<()> {
     };
 
     // Initialize the indexer
-    let mut indexer = DocumentIndexer::new(config).await?;
+    let mut indexer = DocumentIndexer::new(config.clone()).await?;
 
     // Perform initial indexing
     info!("Performing initial documentation indexing...");
@@ -83,6 +94,34 @@ async fn main() -> Result<()> {
 
     if cli.index_only {
         info!("Index-only mode: exiting");
+        return Ok(());
+    }
+
+    // Start API server if requested
+    if cli.api_server {
+        info!("Starting API server mode on port {}", cli.api_port);
+        
+        // Create search service
+        use embedding_provider::{EmbeddingConfig, OpenAIEmbedder, MockEmbedder};
+        use search_service::SearchService;
+        use api_server::ApiServer;
+        
+        let embedding_config = EmbeddingConfig::default();
+        let embedder: Box<dyn embedding_provider::EmbeddingProvider> = if let Some(api_key) = config.openai_api_key.clone() {
+            Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
+        } else {
+            info!("No OpenAI API key provided, using mock embedder");
+            Box::new(MockEmbedder::new(embedding_config))
+        };
+        
+        // Get vector database from indexer
+        let vectordb = indexer.create_vectordb_for_search().await?;
+        let search_service = SearchService::new(vectordb, embedder);
+        
+        // Start API server
+        let api_server = ApiServer::new(search_service);
+        api_server.serve(cli.api_port).await?;
+        
         return Ok(());
     }
 

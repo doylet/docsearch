@@ -45,6 +45,17 @@ impl DocumentIndexer {
         })
     }
 
+    /// Create a new vector database instance for search operations
+    pub async fn create_vectordb_for_search(&self) -> Result<Box<dyn VectorDatabase>> {
+        if self.config.qdrant_url.contains("mock") {
+            Ok(Box::new(VectorDB::new(&self.config.qdrant_url, self.config.collection_name.clone()).await
+                .context("Failed to create mock vector database for search")?))
+        } else {
+            Ok(Box::new(QdrantVectorDB::new(&self.config.qdrant_url, self.config.collection_name.clone()).await
+                .context("Failed to create Qdrant vector database for search")?))
+        }
+    }
+
     pub async fn index_all_documents(&mut self) -> Result<()> {
         println!("Starting full document indexing...");
 

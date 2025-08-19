@@ -27,6 +27,19 @@ regex = "1.10"
 # HTTP client for embeddings
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
+# HTTP server for search API
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+
+# JSON-RPC
+jsonrpc-core = "18.0"
+jsonrpc-http-server = "18.0"
+
+# Rate limiting
+governor = "0.6"
+rand = "0.8"
+
 # Logging and config
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
