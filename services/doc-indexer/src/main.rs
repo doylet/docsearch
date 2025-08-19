@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
     };
 
     // Initialize the indexer
-    let indexer = DocumentIndexer::new(config).await?;
+    let mut indexer = DocumentIndexer::new(config).await?;
 
     // Perform initial indexing
     info!("Performing initial documentation indexing...");
