@@ -417,12 +417,13 @@ impl SearchService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::embedding_provider::{MockEmbedder, EmbeddingConfig};
 
-    #[test]
-    fn test_generate_snippet() {
+    #[tokio::test]
+    async fn test_generate_snippet() {
         let service = SearchService::new(
             Box::new(crate::vectordb_simple::VectorDB::new("mock://", "test".to_string()).await.unwrap()),
-            Box::new(crate::embedding_provider::MockEmbedder::new(EmbeddingConfig::default())),
+            Box::new(MockEmbedder::new(EmbeddingConfig::default())),
         );
 
         let content = "This is a long piece of content about vector databases and semantic search. It contains many words and should be truncated to show only the relevant parts around the query terms.";
@@ -433,11 +434,11 @@ mod tests {
         assert!(snippet.len() <= 300); // Includes ellipsis and markup
     }
 
-    #[test]
-    fn test_parse_heading_path() {
+    #[tokio::test]
+    async fn test_parse_heading_path() {
         let service = SearchService::new(
             Box::new(crate::vectordb_simple::VectorDB::new("mock://", "test".to_string()).await.unwrap()),
-            Box::new(crate::embedding_provider::MockEmbedder::new(EmbeddingConfig::default())),
+            Box::new(MockEmbedder::new(EmbeddingConfig::default())),
         );
 
         let heading = Some("# Introduction > ## Getting Started > ### Installation".to_string());
