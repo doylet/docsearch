@@ -8,7 +8,7 @@ A Rust daemon that monitors the `/docs` directory and automatically maintains a 
 - **Content versioning**: SHA256-based stable document IDs with xxHash content revision tracking
 - **Smart change detection**: Only reprocesses documents when content actually changes
 - **Event coalescing**: 300ms debouncing prevents file system thrashing during rapid changes
-- **Semantic search**: Generates embeddings using OpenAI's API for advanced document retrieval
+- **Local embeddings**: Generates embeddings using local ONNX models (gte-small) with HuggingFace tokenizers
 - **Vector database**: Uses Qdrant for efficient similarity search with tombstone deletion semantics
 - **Enhanced chunking**: Byte-offset precise chunking with heading breadcrumb paths
 - **Document metadata**: Extracts and indexes document type, section, tags, and structure information
@@ -27,10 +27,10 @@ A Rust daemon that monitors the `/docs` directory and automatically maintains a 
    docker-compose up qdrant
    ```
 
-2. **OpenAI API Key**: Required for generating embeddings
-   ```bash
-   export OPENAI_API_KEY="your-api-key-here"
-   ```
+2. **Local Embeddings**: No external API required!
+   - Automatically downloads gte-small model (~126MB) on first run
+   - Model cached to `~/.cache/zero-latency/models/gte-small/`
+   - Generates 384-dimensional embeddings locally with <1ms latency
 
 ## Installation
 
@@ -65,7 +65,6 @@ cargo run -- --help
 - `--docs-path`: Path to documentation directory (default: `./docs`)
 - `--qdrant-url`: Qdrant server URL (default: `http://localhost:6333`)
 - `--collection-name`: Vector database collection name (default: `zero_latency_docs`)
-- `--openai-api-key`: OpenAI API key (can also use `OPENAI_API_KEY` env var)
 - `--index-only`: Perform initial indexing then exit
 - `--verbose`: Enable debug logging
 
@@ -79,7 +78,7 @@ cargo run -- --help
 4. **Content Parsing**: Extracts frontmatter, headings, and content structure
 5. **Enhanced Chunking**: Splits documents with precise byte offsets and heading breadcrumb paths
 6. **Metadata Extraction**: Identifies document type (ADR, blueprint, whitepaper, etc.) with proper timestamps
-7. **Embedding Generation**: Creates vector embeddings using OpenAI's text-embedding-ada-002
+7. **Embedding Generation**: Creates vector embeddings using local ONNX models (gte-small with 384 dimensions)
 8. **Vector Storage**: Stores embeddings and metadata in Qdrant with tombstone deletion semantics
 
 ### Real-time Monitoring with Event Coalescing
@@ -106,8 +105,8 @@ The indexer recognizes and categorizes these document types:
 
 ### Environment Variables
 
-- `OPENAI_API_KEY`: Required for embedding generation
-- `RUST_LOG`: Controls logging level (e.g., `doc_indexer=debug`)
+- `RUST_LOG`: Controls logging level (default: `info`)
+- `QDRANT_URL`: Qdrant server URL (overrides CLI flag)
 
 ### Enhanced Vector Database Schema
 
@@ -134,7 +133,7 @@ Each document chunk is stored with comprehensive metadata and versioning:
   "created_at": "2024-01-01T12:00:00Z",
   "updated_at": "2024-01-01T12:00:00Z",
   "schema_version": 1,
-  "embedding_model": "text-embedding-ada-002"
+  "embedding_model": "gte-small"
 }
 ```
 
@@ -169,7 +168,6 @@ cargo test test_document_processing
 
 2. Set up environment:
    ```bash
-   export OPENAI_API_KEY="your-key"
    export RUST_LOG="doc_indexer=debug"
    ```
 
@@ -206,10 +204,10 @@ Example log output:
    - Check the `--qdrant-url` parameter
    - Verify network connectivity
 
-2. **OpenAI API Errors**
-   - Verify your API key is valid and has sufficient credits
-   - Check rate limits if processing many documents
-   - Ensure network access to OpenAI's API
+2. **Model Download Issues**
+   - Ensure internet connectivity for initial model download
+   - Check disk space in `~/.cache/zero-latency/models/` directory
+   - Model download only happens once (gte-small ~126MB)
 
 3. **File Permission Issues**
    - Ensure read access to the docs directory
