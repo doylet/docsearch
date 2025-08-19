@@ -324,108 +324,72 @@ impl LocalEmbedder {
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
         info!("🚀 Initializing LocalEmbedder for gte-small model");
         
-        // Initialize model manager
-        info!("🔄 Step 1: Initializing model manager...");
-        let model_manager = ModelManager::new()
-            .context("Failed to initialize model manager")?;
-        info!("✅ Step 1: Model manager initialized");
-        
-        // Get model information
-        info!("🔄 Step 2: Getting model info...");
-        let model_info = ModelManager::get_gte_small_info();
-        info!("✅ Step 2: Model info obtained");
-        
-        // Ensure model is available (download if necessary)
-        info!("🔄 Step 3: Ensuring model availability...");
-        let model_paths = match model_manager.ensure_model_available(&model_info).await {
-            Ok(paths) => {
-                info!("✅ Step 3: Model files ready at: {}", paths.onnx_path.display());
-                paths
-            }
-            Err(e) => {
-                warn!("⚠️ Step 3: Failed to ensure model availability: {}. Model loading will be skipped.", e);
-                return Ok(Self {
-                    config,
-                    session: None,
-                    tokenizer: None,
-                    cache: Arc::new(Mutex::new(LruCache::new(
-                        std::num::NonZeroUsize::new(1000).unwrap()
-                    ))),
-                });
-            }
-        };
-        
-        // Initialize ONNX Environment
-        info!("🔄 Step 4: Creating ONNX Environment...");
-        let environment = Arc::new(Environment::builder()
-            .with_name("gte-small")
-            .with_log_level(ort::LoggingLevel::Warning)
-            .build()?);
-        info!("✅ Step 4: ONNX Environment created");
-        
-        // Create ONNX session
-        info!("🔄 Step 5: Creating ONNX SessionBuilder...");
-        let session = match SessionBuilder::new(&environment) {
-            Ok(mut builder) => {
-                info!("✅ Step 5a: SessionBuilder created successfully");
-                
-                info!("🔄 Step 5b: Setting execution providers...");
-                match builder.with_execution_providers([ExecutionProvider::CPU(Default::default())]) {
-                    Ok(b) => {
-                        info!("✅ Step 5b: Execution providers set");
-                        builder = b;
-                        
-                        info!("🔄 Step 5c: Loading model from file: {}", model_paths.onnx_path.display());
-                        match builder.with_model_from_file(&model_paths.onnx_path) {
-                            Ok(session) => {
-                                info!("✅ Step 5c: ONNX session loaded successfully");
-                                Some(Arc::new(session))
-                            }
-                            Err(e) => {
-                                warn!("❌ Step 5c: Failed to load model from file: {}", e);
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        warn!("❌ Step 5b: Failed to set execution providers: {}", e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                warn!("❌ Step 5a: Failed to create SessionBuilder: {}", e);
-                None
-            }
-        };
-        
-        // Load tokenizer
-        info!("🔄 Step 6: Loading tokenizer from: {}", model_paths.tokenizer_path.display());
-        let tokenizer = match Tokenizer::from_file(&model_paths.tokenizer_path) {
-            Ok(tokenizer) => {
-                info!("✅ Step 6: Tokenizer loaded successfully");
-                Some(Arc::new(tokenizer))
-            }
-            Err(e) => {
-                warn!("❌ Step 6: Failed to load tokenizer: {}", e);
-                None
-            }
-        };
-        
-        // Initialize LRU cache (1000 embeddings max)
-        info!("🔄 Step 7: Initializing LRU cache...");
-        let cache = Arc::new(Mutex::new(LruCache::new(
-            std::num::NonZeroUsize::new(1000).unwrap()
-        )));
-        info!("✅ Step 7: LRU cache initialized");
-        
-        info!("🎉 LocalEmbedder initialization completed successfully!");
-        Ok(Self {
+        // Create basic instance first
+        let mut instance = Self {
             config,
-            session,
-            tokenizer,
-            cache,
-        })
+            session: None,
+            tokenizer: None,
+            cache: Arc::new(Mutex::new(LruCache::new(
+                std::num::NonZeroUsize::new(1000).unwrap()
+            ))),
+        };
+        
+        info!("✅ Basic LocalEmbedder instance created");
+        
+        // Try to load components with simple error handling
+        if let Ok(model_manager) = ModelManager::new() {
+            info!("✅ Model manager initialized");
+            let model_info = ModelManager::get_gte_small_info();
+            
+            if let Ok(model_paths) = model_manager.ensure_model_available(&model_info).await {
+                info!("✅ Model files ready at: {}", model_paths.onnx_path.display());
+                
+                // Try to load ONNX session
+                if let Ok(environment) = Environment::builder()
+                    .with_name("gte-small")
+                    .with_log_level(ort::LoggingLevel::Warning)
+                    .build() {
+                    
+                    info!("✅ ONNX Environment created");
+                    
+                    if let Ok(builder) = SessionBuilder::new(&Arc::new(environment)) {
+                        info!("✅ SessionBuilder created");
+                        
+                        if let Ok(builder_with_providers) = builder.with_execution_providers([ExecutionProvider::CPU(Default::default())]) {
+                            info!("✅ Execution providers set");
+                            
+                            if let Ok(session) = builder_with_providers.with_model_from_file(&model_paths.onnx_path) {
+                                instance.session = Some(Arc::new(session));
+                                info!("✅ ONNX session loaded successfully");
+                            } else {
+                                warn!("❌ Failed to load model from file");
+                            }
+                        } else {
+                            warn!("❌ Failed to set execution providers");
+                        }
+                    } else {
+                        warn!("❌ Failed to create SessionBuilder");
+                    }
+                } else {
+                    warn!("❌ Failed to create ONNX Environment");
+                }
+                
+                // Try to load tokenizer
+                if let Ok(tokenizer) = Tokenizer::from_file(&model_paths.tokenizer_path) {
+                    instance.tokenizer = Some(Arc::new(tokenizer));
+                    info!("✅ Tokenizer loaded successfully");
+                } else {
+                    warn!("❌ Failed to load tokenizer");
+                }
+            } else {
+                warn!("⚠️ Model files not available - will use fallback embeddings");
+            }
+        } else {
+            warn!("⚠️ Model manager initialization failed - will use fallback embeddings");
+        }
+        
+        info!("🎉 LocalEmbedder initialization completed!");
+        Ok(instance)
     }
     
     /// Check if the local embedder has a model loaded
@@ -665,7 +629,9 @@ impl LocalEmbedder {
             embedding.to_vec()
         }
     }
-}#[async_trait]
+}
+
+#[async_trait]
 impl EmbeddingProvider for LocalEmbedder {
     async fn generate_embeddings(&self, texts: &[String]) -> Result<BatchEmbeddingResponse> {
         if texts.is_empty() {
