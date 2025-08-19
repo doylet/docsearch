@@ -8,21 +8,30 @@ use walkdir::WalkDir;
 
 use crate::config::Config;
 use crate::document::{Document, DocumentProcessor};
-use crate::vectordb_simple::{SearchResult, VectorDB};
+use crate::vector_db_trait::{VectorDatabase, SearchResult};
+use crate::vectordb_simple::VectorDB;
+use crate::qdrant_client::QdrantVectorDB;
 use crate::watcher_v2::{DocumentWatcher, FileEvent};
 
 pub struct DocumentIndexer {
     config: Config,
     processor: DocumentProcessor,
-    vectordb: std::sync::Arc<tokio::sync::Mutex<VectorDB>>,
+    vectordb: Box<dyn VectorDatabase>,
 }
 
 impl DocumentIndexer {
     pub async fn new(config: Config) -> Result<Self> {
         let docs_root = config.docs_directory.clone();
         let processor = DocumentProcessor::new(docs_root);
-        let vectordb = VectorDB::new(&config.qdrant_url, config.collection_name.clone()).await
-            .context("Failed to initialize vector database")?;
+        
+        // Choose between mock and real Qdrant based on URL
+        let vectordb: Box<dyn VectorDatabase> = if config.qdrant_url.contains("mock") {
+            Box::new(VectorDB::new(&config.qdrant_url, config.collection_name.clone()).await
+                .context("Failed to initialize mock vector database")?)
+        } else {
+            Box::new(QdrantVectorDB::new(&config.qdrant_url, config.collection_name.clone()).await
+                .context("Failed to initialize Qdrant vector database")?)
+        };
 
         // Ensure collection exists
         vectordb
@@ -33,7 +42,7 @@ impl DocumentIndexer {
         Ok(Self {
             config,
             processor,
-            vectordb: std::sync::Arc::new(tokio::sync::Mutex::new(vectordb)),
+            vectordb,
         })
     }
 
@@ -69,7 +78,7 @@ impl DocumentIndexer {
         );
 
         // Log collection stats
-        match self.vectordb.lock().await.get_collection_info().await {
+        match self.vectordb.get_collection_info().await {
             Ok(info) => {
                 info!(
                     "Collection '{}' now contains {} active documents, {} tombstoned",
@@ -118,7 +127,7 @@ impl DocumentIndexer {
         let document = self.processor.process_document(path, &content)?;
         
         // Check if document needs reprocessing
-        if !self.vectordb.lock().await.needs_reprocessing(&document.doc_id, &document.rev_id).await {
+        if !self.vectordb.needs_reprocessing(&document.doc_id, &document.rev_id).await? {
             debug!("Document {} is up to date, skipping", path.display());
             return Ok(());
         }
@@ -127,14 +136,14 @@ impl DocumentIndexer {
         let embeddings = self.generate_embeddings(&document).await?;
         
         // Store in vector database
-        self.vectordb.lock().await.upsert_document(&document, &embeddings).await?;
+        self.vectordb.upsert_document(&document, &embeddings).await?;
 
         Ok(())
     }
 
     async fn remove_document(&self, path: &Path) -> Result<()> {
         let doc_id = self.processor.generate_document_id(path);
-        self.vectordb.lock().await.delete_document(&doc_id).await?;
+        self.vectordb.delete_document(&doc_id).await?;
         Ok(())
     }
 
@@ -166,7 +175,7 @@ impl DocumentIndexer {
         
         // Search in vector database
         let results = self
-            .vectordb.lock().await
+            .vectordb
             .search(&query_embedding, limit.unwrap_or(10), filters)
             .await?;
 
@@ -174,7 +183,7 @@ impl DocumentIndexer {
     }
 
     pub async fn get_collection_stats(&self) -> Result<String> {
-        let info = self.vectordb.lock().await.get_collection_info().await?;
+        let info = self.vectordb.get_collection_info().await?;
         Ok(format!(
             "Collection '{}': {} active documents, {} tombstoned",
             self.config.collection_name, info.active_documents, info.tombstoned_documents
