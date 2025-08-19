@@ -15,6 +15,7 @@ mod advanced_chunker;
 mod embedding_provider;
 mod search_service;
 mod api_server;
+mod model_manager;
 
 use config::Config;
 use indexer::DocumentIndexer;
@@ -113,10 +114,25 @@ async fn main() -> Result<()> {
         
         let embedder: Box<dyn embedding_provider::EmbeddingProvider> = {
             // Try local embedder first (preferred for Step 4)
-            match LocalEmbedder::new(embedding_config.clone()) {
+            match LocalEmbedder::new(embedding_config.clone()).await {
                 Ok(local_embedder) => {
-                    info!("Using local embedding model: gte-small");
-                    Box::new(local_embedder)
+                    if local_embedder.is_model_loaded() {
+                        info!("Using local embedding model: gte-small");
+                        Box::new(local_embedder)
+                    } else {
+                        warn!("Local embedder initialized but model not loaded. Falling back to cloud provider.");
+                        
+                        // Fall back to OpenAI if available
+                        if let Some(api_key) = config.openai_api_key.clone() {
+                            info!("Using OpenAI embeddings as fallback");
+                            // Reset config for OpenAI
+                            embedding_config.model = "text-embedding-3-small".to_string();
+                            Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
+                        } else {
+                            info!("No OpenAI API key provided, using mock embedder");
+                            Box::new(MockEmbedder::new(embedding_config))
+                        }
+                    }
                 }
                 Err(e) => {
                     warn!("Failed to initialize local embedder: {}. Falling back to cloud provider.", e);
