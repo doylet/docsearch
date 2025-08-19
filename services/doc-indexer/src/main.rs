@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
-use tracing::{info};
+use tracing::{info, warn};
 
 mod config;
 mod document;
@@ -102,16 +102,37 @@ async fn main() -> Result<()> {
         info!("Starting API server mode on port {}", cli.api_port);
         
         // Create search service
-        use embedding_provider::{EmbeddingConfig, OpenAIEmbedder, MockEmbedder};
+        use embedding_provider::{EmbeddingConfig, OpenAIEmbedder, MockEmbedder, LocalEmbedder};
         use search_service::SearchService;
         use api_server::ApiServer;
         
-        let embedding_config = EmbeddingConfig::default();
-        let embedder: Box<dyn embedding_provider::EmbeddingProvider> = if let Some(api_key) = config.openai_api_key.clone() {
-            Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
-        } else {
-            info!("No OpenAI API key provided, using mock embedder");
-            Box::new(MockEmbedder::new(embedding_config))
+        let mut embedding_config = EmbeddingConfig::default();
+        // Configure for local gte-small model
+        embedding_config.model = "gte-small".to_string();
+        embedding_config.dimensions = Some(384);
+        
+        let embedder: Box<dyn embedding_provider::EmbeddingProvider> = {
+            // Try local embedder first (preferred for Step 4)
+            match LocalEmbedder::new(embedding_config.clone()) {
+                Ok(local_embedder) => {
+                    info!("Using local embedding model: gte-small");
+                    Box::new(local_embedder)
+                }
+                Err(e) => {
+                    warn!("Failed to initialize local embedder: {}. Falling back to cloud provider.", e);
+                    
+                    // Fall back to OpenAI if available
+                    if let Some(api_key) = config.openai_api_key.clone() {
+                        info!("Using OpenAI embeddings as fallback");
+                        // Reset config for OpenAI
+                        embedding_config.model = "text-embedding-3-small".to_string();
+                        Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
+                    } else {
+                        info!("No OpenAI API key provided, using mock embedder");
+                        Box::new(MockEmbedder::new(embedding_config))
+                    }
+                }
+            }
         };
         
         // Get vector database from indexer

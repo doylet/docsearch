@@ -301,3 +301,104 @@ impl EmbeddingProvider for MockEmbedder {
 
 // Add rand dependency for jitter
 use rand;
+
+// Add local embedding dependencies (placeholders for Week 1 implementation)
+use lru::LruCache;
+use std::sync::{Arc, Mutex};
+
+/// Local embedding provider using ONNX Runtime (Placeholder Implementation)
+/// This is a placeholder for the full local embedding implementation
+/// which will be completed in Step 4 Week 1
+pub struct LocalEmbedder {
+    config: EmbeddingConfig,
+    // TODO: Add ONNX session and tokenizer in Week 1
+    // session: Arc<ort::Session>,
+    // tokenizer: Arc<Tokenizer>,
+    cache: Arc<Mutex<LruCache<String, Vec<f32>>>>,
+}
+
+impl LocalEmbedder {
+    pub fn new(config: EmbeddingConfig) -> Result<Self> {
+        // TODO: This is a placeholder implementation
+        // Week 1 tasks:
+        // 1. Download and cache gte-small ONNX model
+        // 2. Load tokenizer
+        // 3. Initialize ONNX Runtime session
+        // 4. Implement actual embedding generation
+        
+        // For now, just return an error to fall back to cloud providers
+        return Err(anyhow::anyhow!(
+            "Local embeddings not yet implemented. Week 1 tasks:\n\
+             1. Download gte-small ONNX model\n\
+             2. Setup tokenizer\n\
+             3. Implement ONNX Runtime inference\n\
+             4. Add model caching and optimization"
+        ));
+        
+        // Initialize LRU cache (1000 embeddings max)
+        let cache = Arc::new(Mutex::new(LruCache::new(
+            std::num::NonZeroUsize::new(1000).unwrap()
+        )));
+        
+        Ok(Self {
+            config,
+            cache,
+        })
+    }
+    
+    fn get_model_path() -> Result<std::path::PathBuf> {
+        // TODO: Implement model download and caching logic
+        // This will check for the model in ~/.cache/zero-latency/models/gte-small/
+        // and download it if not present
+        Err(anyhow::anyhow!("Model loading not yet implemented - Step 4 Week 1 task"))
+    }
+    
+    fn get_tokenizer_path() -> Result<std::path::PathBuf> {
+        // TODO: Implement tokenizer download and caching logic
+        Err(anyhow::anyhow!("Tokenizer loading not yet implemented - Step 4 Week 1 task"))
+    }
+    
+    async fn generate_single_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        // TODO: Implement actual local embedding generation
+        // For now, return an error
+        Err(anyhow::anyhow!("Local embedding generation not yet implemented"))
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for LocalEmbedder {
+    async fn generate_embeddings(&self, texts: &[String]) -> Result<BatchEmbeddingResponse> {
+        if texts.is_empty() {
+            return Err(anyhow::anyhow!("Cannot generate embeddings for empty text list"));
+        }
+
+        let mut embeddings = Vec::new();
+        
+        // Process texts sequentially for now
+        // TODO: Implement parallel processing in Week 2
+        for (index, text) in texts.iter().enumerate() {
+            let embedding = self.generate_single_embedding(text).await?;
+            embeddings.push(EmbeddingResponse { embedding, index });
+        }
+
+        Ok(BatchEmbeddingResponse {
+            embeddings,
+            model: self.config.model.clone(),
+            dimension: self.config.dimensions.unwrap_or(384),
+            usage: EmbeddingUsage {
+                input_tokens: texts.iter().map(|t| t.len()).sum::<usize>() / 4, // Rough token estimate
+            },
+        })
+    }
+
+    fn config(&self) -> &EmbeddingConfig {
+        &self.config
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        // Test with a simple embedding
+        let test_texts = vec!["health check".to_string()];
+        self.generate_embeddings(&test_texts).await?;
+        Ok(())
+    }
+}
