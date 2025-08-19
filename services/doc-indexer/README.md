@@ -4,11 +4,16 @@ A Rust daemon that monitors the `/docs` directory and automatically maintains a 
 
 ## Features
 
-- **Real-time monitoring**: Watches for changes to markdown files in the docs directory
+- **Real-time monitoring**: Watches for changes to markdown files with intelligent event coalescing
+- **Content versioning**: SHA256-based stable document IDs with xxHash content revision tracking
+- **Smart change detection**: Only reprocesses documents when content actually changes
+- **Event coalescing**: 300ms debouncing prevents file system thrashing during rapid changes
 - **Semantic search**: Generates embeddings using OpenAI's API for advanced document retrieval
-- **Vector database**: Uses Qdrant for efficient similarity search
-- **Intelligent chunking**: Breaks documents into meaningful sections while preserving context
+- **Vector database**: Uses Qdrant for efficient similarity search with tombstone deletion semantics
+- **Enhanced chunking**: Byte-offset precise chunking with heading breadcrumb paths
 - **Document metadata**: Extracts and indexes document type, section, tags, and structure information
+- **Schema versioning**: Built-in migration support for future enhancements
+- **Production-ready**: Thread-safe operations with comprehensive error handling
 - **Configurable**: Supports various configuration options via CLI arguments and environment variables
 
 ## Prerequisites
@@ -66,21 +71,25 @@ cargo run -- --help
 
 ## Architecture
 
-### Document Processing Pipeline
+### Enhanced Document Processing Pipeline
 
 1. **File Discovery**: Recursively scans the docs directory for markdown files
-2. **Content Parsing**: Extracts frontmatter, headings, and content structure
-3. **Intelligent Chunking**: Splits documents into logical sections while preserving context
-4. **Metadata Extraction**: Identifies document type (ADR, blueprint, whitepaper, etc.)
-5. **Embedding Generation**: Creates vector embeddings using OpenAI's text-embedding-ada-002
-6. **Vector Storage**: Stores embeddings and metadata in Qdrant for fast retrieval
+2. **Content Versioning**: Generates stable SHA256 document IDs and xxHash content revisions
+3. **Change Detection**: Only processes documents when content revision changes
+4. **Content Parsing**: Extracts frontmatter, headings, and content structure
+5. **Enhanced Chunking**: Splits documents with precise byte offsets and heading breadcrumb paths
+6. **Metadata Extraction**: Identifies document type (ADR, blueprint, whitepaper, etc.) with proper timestamps
+7. **Embedding Generation**: Creates vector embeddings using OpenAI's text-embedding-ada-002
+8. **Vector Storage**: Stores embeddings and metadata in Qdrant with tombstone deletion semantics
 
-### Real-time Monitoring
+### Real-time Monitoring with Event Coalescing
 
 - Uses the `notify` crate for efficient file system watching
-- Automatically reprocesses modified documents
-- Removes deleted documents from the vector database
-- Handles file renames and moves
+- **Event Coalescing**: 300ms debouncing prevents rapid-fire processing thrashing
+- **Smart Aggregation**: HashMap-based event coalescence handles multiple rapid changes
+- Automatically reprocesses modified documents only when content changes
+- Safely removes deleted documents using tombstone semantics
+- Handles file renames and moves with stable document ID tracking
 
 ### Document Types Supported
 
@@ -100,26 +109,41 @@ The indexer recognizes and categorizes these document types:
 - `OPENAI_API_KEY`: Required for embedding generation
 - `RUST_LOG`: Controls logging level (e.g., `doc_indexer=debug`)
 
-### Vector Database Schema
+### Enhanced Vector Database Schema
 
-Each document chunk is stored with the following metadata:
+Each document chunk is stored with comprehensive metadata and versioning:
 
 ```json
 {
-  "document_id": "unique-document-identifier",
-  "document_path": "/path/to/document.md",
+  "doc_id": "sha256-hash-of-absolute-path",
+  "rev_id": "xxhash-of-content",
+  "document_path": "/absolute/path/to/document.md",
+  "relative_path": "docs/adr/001_example.md",
   "document_title": "Document Title",
   "section": "Introduction",
   "doc_type": "adr",
   "tags": ["architecture", "decision"],
-  "chunk_id": "chunk-identifier",
+  "chunk_id": "doc-id:00001",
   "content": "chunk content text",
-  "start_line": 1,
-  "end_line": 10,
+  "start_byte": 1024,
+  "end_byte": 2048,
+  "chunk_index": 0,
+  "chunk_total": 5,
   "chunk_type": "Heading",
-  "heading": "Section Title"
+  "h_path": ["Section Title", "Subsection"],
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z",
+  "schema_version": 1,
+  "embedding_model": "text-embedding-ada-002"
 }
 ```
+
+### Document Registry and Versioning
+
+- **Stable IDs**: SHA256 of absolute path ensures consistent document identity
+- **Content Tracking**: xxHash revision IDs detect actual content changes
+- **Tombstone Semantics**: Deleted documents are marked, not removed
+- **Migration Support**: Schema versioning enables future enhancements
 
 ## Development
 
