@@ -31,7 +31,7 @@ struct Cli {
     docs_path: PathBuf,
 
     /// Qdrant server URL
-    #[arg(long, default_value = "http://localhost:6333")]
+    #[arg(long, default_value = "http://localhost:6334")]
     qdrant_url: String,
 
     /// Collection name in Qdrant
