@@ -65,15 +65,24 @@ impl OutputFormatter {
         println!("{} Server: {}", status_icon, response.status.green().bold());
         
         // Collection info
-        println!("📚 Collection: {}", response.collection_info.name.cyan());
-        println!("   📄 Documents: {}", response.collection_info.indexed_documents.to_string().yellow());
-        println!("   🔢 Vectors: {}", response.collection_info.vectors_count.to_string().yellow());
-        println!("   📍 Points: {}", response.collection_info.points_count.to_string().yellow());
+        println!("📚 Collection: {}", response.collection.name.cyan());
+        println!("   📄 Documents: {}", response.collection.documents.to_string().yellow());
+        println!("   🔢 Chunks: {}", response.collection.chunks.to_string().yellow());
+        println!("   📍 Dimensions: {}", response.collection.vector_dimensions.to_string().yellow());
+        if let Some(last_updated) = &response.collection.last_updated {
+            println!("   🕒 Last Updated: {}", last_updated.cyan());
+        }
         
-        // Server info
-        println!("🚀 Server: v{}", response.server_info.version.green());
-        println!("   ⏱️ Uptime: {}s", response.server_info.uptime_seconds.to_string().yellow());
-        println!("   🧠 Model: {}", response.server_info.embedding_model.cyan());
+        // Configuration info
+        println!("⚙️ Configuration:");
+        println!("   🧠 Model: {}", response.configuration.embedding_model.cyan());
+        println!("   🗄️ Database: {}", response.configuration.vector_database.cyan());
+        
+        // Performance metrics
+        println!("📈 Performance:");
+        println!("   ⏱️ Uptime: {}s", response.performance.uptime_seconds.to_string().yellow());
+        println!("   🔍 Total Searches: {}", response.performance.total_searches.to_string().yellow());
+        println!("   ⚡ Avg Search Time: {:.2}ms", response.performance.avg_search_time_ms.to_string().parse::<f64>().unwrap_or(0.0).to_string().yellow());
         
         Ok(())
     }
