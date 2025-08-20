@@ -1,3 +1,3 @@
 [workspace]
-members = ["services/doc-indexer"]
+members = ["services/doc-indexer", "crates/cli"]
 resolver = "2"
