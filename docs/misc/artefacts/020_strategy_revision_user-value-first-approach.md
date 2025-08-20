@@ -85,22 +85,24 @@ PHASE 1: Minimal Viable Search (Week 1)
     ├── Simple JSON response format
     └── No advanced features yet - just working search
 
-PHASE 2: User Experience (Week 2)  
-├── 3. CLI Interface
+PHASE 2: User Experience (Week 2) ✅ **COMPLETE**  
+├── 3. CLI Interface ✅
 │   ├── mdx search "query" → actually works!
 │   ├── mdx index /path → users can build corpus
 │   └── Basic but functional commands
 │
-└── 4. Complete API Contract
+└── 4. Complete API Contract ✅ **Phase 2A Complete**
     ├── HTTP endpoints: GET /api/docs, DELETE /api/docs, POST /api/reindex
     ├── JSON-RPC interface for programmatic access
     └── Full API as specified in 007 enhancement plan
 
-PHASE 3: Quality & Production (Week 3+)
+PHASE 3: Quality & Production (Week 3+) 🎯 **CURRENT FOCUS**
 ├── 5. Advanced Chunking → improve search quality
 ├── 6. Observability → production readiness
 ├── 7. Evaluation Harness → prevent regressions
 └── 8. Security & Performance → scale and secure
+
+📋 **Phase 3 Detailed Plan**: See 029_phase-3-implementation-plan.md
 ```
 
 ### **User Value Timeline**
@@ -134,17 +136,17 @@ PHASE 3: Quality & Production (Week 3+)
 
 ## 🎯 **Success Criteria Revision**
 
-### **Week 1 Goals**
-- [ ] Users can index a folder of markdown files
-- [ ] Users can search and get relevant results
-- [ ] Basic but functional end-to-end workflow
+### **Week 1 Goals** ✅ **ACHIEVED**
+- [x] Users can index a folder of markdown files
+- [x] Users can search and get relevant results
+- [x] Basic but functional end-to-end workflow
 
-### **Week 2 Goals**  
-- [ ] Practical CLI commands for daily usage
-- [ ] Programmatic API access working
-- [ ] Documentation and examples available
+### **Week 2 Goals** ✅ **ACHIEVED**
+- [x] Practical CLI commands for daily usage
+- [x] Programmatic API access working
+- [x] Documentation and examples available
 
-### **Week 3+ Goals**
+### **Week 3+ Goals** 🎯 **IN PROGRESS - PHASE 3**
 - [ ] Search quality improvements via advanced chunking
 - [ ] Production monitoring and observability
 - [ ] Automated regression testing
