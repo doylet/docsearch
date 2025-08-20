@@ -421,7 +421,7 @@ impl LocalEmbedder {
         let input_ids = encoding.get_ids();
         let attention_mask = encoding.get_attention_mask();
         
-        info!("🔥 Running ONNX inference for: {}", &text[..text.len().min(50)]);
+        info!("🔥 Running ONNX inference for: {}", text.chars().take(50).collect::<String>());
         
         // Try ONNX inference first, fallback to enhanced algorithm if needed
         match self.run_onnx_inference(session, input_ids, attention_mask).await {

@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use tracing::{debug, warn, error};
 use qdrant_client::{
     Qdrant,
     qdrant::{
@@ -73,9 +76,11 @@ impl QdrantVectorDB {
         Ok(())
     }
 
-    fn point_id_from_chunk_id(chunk_id: &str) -> String {
-        // Use the chunk_id directly as the point ID for Qdrant
-        chunk_id.to_string()
+    fn point_id_from_chunk_id(chunk_id: &str) -> u64 {
+        // Convert chunk_id to a stable numeric ID using hash
+        let mut hasher = DefaultHasher::new();
+        chunk_id.hash(&mut hasher);
+        hasher.finish()
     }
 
     fn create_chunk_metadata(doc_id: &str, chunk_index: usize, chunk_content: &str, document: &Document) -> HashMap<String, Value> {
@@ -111,8 +116,8 @@ impl VectorDatabase for QdrantVectorDB {
     }
 
     async fn needs_reprocessing(&self, doc_id: &str, rev_id: &str) -> Result<bool> {
-        // Search for any chunks with this document ID and different revision
-        let filter = Filter {
+        // First, check if any chunks exist for this document ID
+        let doc_filter = Filter {
             must: vec![
                 Condition {
                     condition_one_of: Some(qdrant_client::qdrant::condition::ConditionOneOf::Field(
@@ -134,37 +139,18 @@ impl VectorDatabase for QdrantVectorDB {
                 }
             ],
             should: vec![],
-            must_not: vec![
-                Condition {
-                    condition_one_of: Some(qdrant_client::qdrant::condition::ConditionOneOf::Field(
-                        FieldCondition {
-                            key: "rev_id".to_string(),
-                            r#match: Some(Match {
-                                match_value: Some(qdrant_client::qdrant::r#match::MatchValue::Keyword(rev_id.to_string())),
-                            }),
-                            range: None,
-                            geo_bounding_box: None,
-                            geo_radius: None,
-                            values_count: None,
-                            geo_polygon: None,
-                            datetime_range: None,
-                            is_empty: None,
-                            is_null: None,
-                        },
-                    )),
-                }
-            ],
+            must_not: vec![],
             min_should: None,
         };
 
         let search_points = SearchPoints {
             collection_name: self.collection_name.clone(),
             vector: vec![0.0; 384], // Dummy vector for existence check
-            filter: Some(filter),
+            filter: Some(doc_filter),
             limit: 1,
             offset: None,
             with_payload: Some(WithPayloadSelector {
-                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(false)),
+                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
             }),
             with_vectors: Some(false.into()),
             params: None,
@@ -179,10 +165,27 @@ impl VectorDatabase for QdrantVectorDB {
         let search_result = self.client
             .search_points(search_points)
             .await
-            .context("Failed to check document revision")?;
+            .context("Failed to check document existence")?;
 
-        // If we found any results, it means there are chunks with this doc_id but different rev_id
-        Ok(!search_result.result.is_empty())
+        // If no chunks exist for this document, we need to process it
+        if search_result.result.is_empty() {
+            return Ok(true);
+        }
+
+        // Check if any existing chunk has the same rev_id
+        for point in &search_result.result {
+            if let Some(stored_rev_id) = point.payload.get("rev_id") {
+                if let Some(stored_rev_id_str) = stored_rev_id.as_str() {
+                    if stored_rev_id_str == rev_id {
+                        // Found a chunk with the same rev_id, document is up to date
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+
+        // Document exists but with different rev_id, needs reprocessing
+        Ok(true)
     }
 
     async fn upsert_document(&self, document: &Document, embeddings: &[Vec<f32>]) -> Result<()> {
@@ -194,12 +197,17 @@ impl VectorDatabase for QdrantVectorDB {
             ));
         }
 
+        debug!("Upserting document '{}' with {} chunks", document.doc_id, document.chunks.len());
+
         // Create points for all chunks in this document
         let mut points = Vec::new();
         for (chunk_index, (chunk, embedding)) in document.chunks.iter().zip(embeddings.iter()).enumerate() {
             let chunk_id = format!("{}#{}", document.doc_id, chunk_index);
             let point_id = Self::point_id_from_chunk_id(&chunk_id);
             let payload = Self::create_chunk_metadata(&document.doc_id, chunk_index, &chunk.content, document);
+
+            debug!("Creating point for chunk {}: id={}, embedding_dim={}, payload_keys={:?}", 
+                chunk_index, point_id, embedding.len(), payload.keys().collect::<Vec<_>>());
 
             let point = PointStruct {
                 id: Some(PointId::from(point_id)),
@@ -211,6 +219,8 @@ impl VectorDatabase for QdrantVectorDB {
 
         // Batch upsert all points for this document
         if !points.is_empty() {
+            debug!("Upserting {} points to collection '{}'", points.len(), self.collection_name);
+            
             let upsert_points = UpsertPoints {
                 collection_name: self.collection_name.clone(),
                 points,
@@ -219,13 +229,20 @@ impl VectorDatabase for QdrantVectorDB {
                 shard_key_selector: None,
             };
 
-            self.client
-                .upsert_points(upsert_points)
-                .await
-                .context("Failed to upsert document chunks")?;
+            match self.client.upsert_points(upsert_points).await {
+                Ok(response) => {
+                    debug!("Upsert successful: {:?}", response);
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Upsert failed for document '{}': {}", document.doc_id, e);
+                    Err(anyhow::anyhow!("Failed to upsert document chunks: {}", e))
+                }
+            }
+        } else {
+            warn!("No points to upsert for document '{}'", document.doc_id);
+            Ok(())
         }
-
-        Ok(())
     }
 
     async fn delete_document(&self, document_id: &str) -> Result<()> {
