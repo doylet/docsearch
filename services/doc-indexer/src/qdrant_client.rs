@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::time::Duration;
 use tracing::{debug, warn, error};
 use qdrant_client::{
     Qdrant,
@@ -407,6 +408,7 @@ impl VectorDatabase for QdrantVectorDB {
 impl QdrantVectorDB {
     pub async fn new(url: &str, collection_name: String) -> Result<Self> {
         let client = Qdrant::from_url(url)
+            .skip_compatibility_check()  // Disable version compatibility check
             .build()
             .context("Failed to create Qdrant client")?;
 

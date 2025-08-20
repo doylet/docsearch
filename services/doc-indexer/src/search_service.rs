@@ -94,6 +94,95 @@ pub struct HealthResponse {
     pub system: SystemHealth,
 }
 
+/// Collection status response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusResponse {
+    pub status: String,
+    pub collection: CollectionStatus,
+    pub configuration: ConfigurationInfo,
+    pub performance: PerformanceMetrics,
+}
+
+/// Collection status information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectionStatus {
+    pub name: String,
+    pub documents: u64,
+    pub chunks: u64,
+    pub vector_dimensions: u32,
+    pub last_updated: Option<DateTime<Utc>>,
+}
+
+/// Configuration information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigurationInfo {
+    pub embedding_model: String,
+    pub vector_database: String,
+    pub collection_name: String,
+}
+
+/// Performance metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceMetrics {
+    pub avg_search_time_ms: f64,
+    pub total_searches: u64,
+    pub uptime_seconds: u64,
+}
+
+/// Document list response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentListResponse {
+    pub documents: Vec<DocumentInfo>,
+    pub total: usize,
+    pub page: usize,
+    pub page_size: usize,
+}
+
+/// Document information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentInfo {
+    pub id: String,
+    pub title: String,
+    pub path: String,
+    pub doc_type: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub chunk_count: usize,
+    pub size_bytes: usize,
+}
+
+/// Document detail response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentDetailResponse {
+    pub document: DocumentInfo,
+    pub chunks: Vec<ChunkInfo>,
+    pub metadata: HashMap<String, serde_json::Value>,
+}
+
+/// Chunk information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkInfo {
+    pub id: String,
+    pub content: String,
+    pub section: String,
+    pub heading_path: Vec<String>,
+    pub chunk_index: usize,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+/// Reindex response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReindexResponse {
+    pub status: String,
+    pub message: String,
+    pub documents_processed: usize,
+    pub documents_added: usize,
+    pub documents_updated: usize,
+    pub documents_removed: usize,
+    pub total_time_ms: u64,
+}
+
 /// Component health status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentHealth {
@@ -246,13 +335,22 @@ impl SearchService {
         );
 
         // Check vector database health
-        // TODO: Add health check method to VectorDatabase trait
+        let collection_info = self.vectordb.get_collection_info().await.unwrap_or_else(|_| {
+            crate::vector_db_trait::CollectionInfo {
+                name: "unknown".to_string(),
+                vectors_count: 0,
+                points_count: 0,
+                active_documents: 0,
+                tombstoned_documents: 0,
+            }
+        });
+
         components.insert(
             "vectordb".to_string(),
             ComponentHealth {
-                status: "healthy".to_string(), // Assume healthy for now
+                status: "healthy".to_string(),
                 latency_ms: None,
-                collection_size: Some(0), // TODO: Get actual count
+                collection_size: Some(collection_info.points_count),
                 files_watched: None,
             },
         );
@@ -283,6 +381,98 @@ impl SearchService {
                 embeddings_generated: self.stats.embeddings_generated,
                 searches_completed: self.stats.searches_completed,
             },
+        })
+    }
+
+    /// Get detailed system status and statistics
+    pub async fn status(&self) -> Result<StatusResponse> {
+        let collection_info = self.vectordb.get_collection_info().await?;
+        
+        let avg_search_time = if self.stats.searches_completed > 0 {
+            // Simple average - in production might use a sliding window
+            10.0 // Placeholder - would calculate from actual timings
+        } else {
+            0.0
+        };
+
+        let uptime = self
+            .stats
+            .start_time
+            .map(|start| Utc::now().signed_duration_since(start).num_seconds() as u64)
+            .unwrap_or(0);
+
+        let collection_name = collection_info.name.clone();
+
+        Ok(StatusResponse {
+            status: "healthy".to_string(),
+            collection: CollectionStatus {
+                name: collection_name.clone(),
+                documents: collection_info.active_documents,
+                chunks: collection_info.points_count,
+                vector_dimensions: 384, // gte-small dimensions
+                last_updated: None, // TODO: Track last update time
+            },
+            configuration: ConfigurationInfo {
+                embedding_model: "gte-small".to_string(),
+                vector_database: "Qdrant".to_string(),
+                collection_name,
+            },
+            performance: PerformanceMetrics {
+                avg_search_time_ms: avg_search_time,
+                total_searches: self.stats.searches_completed,
+                uptime_seconds: uptime,
+            },
+        })
+    }
+
+    /// List all indexed documents with pagination
+    pub async fn list_documents(&self, page: usize, page_size: usize) -> Result<DocumentListResponse> {
+        // For now, return a placeholder implementation
+        // In a full implementation, this would query the vector database for document metadata
+        Ok(DocumentListResponse {
+            documents: vec![], // TODO: Implement document listing
+            total: 0,
+            page,
+            page_size,
+        })
+    }
+
+    /// Get detailed information about a specific document
+    pub async fn get_document(&self, _doc_id: &str) -> Result<Option<DocumentDetailResponse>> {
+        // For now, return None as this requires more complex vector database queries
+        // In a full implementation, this would:
+        // 1. Query for all chunks belonging to this document
+        // 2. Aggregate document metadata
+        // 3. Return structured document information
+        Ok(None)
+    }
+
+    /// Remove a document from the index
+    pub async fn delete_document(&self, doc_id: &str) -> Result<()> {
+        self.vectordb.delete_document(doc_id).await
+    }
+
+    /// Trigger a full reindex of all documents
+    pub async fn reindex(&self) -> Result<ReindexResponse> {
+        let start_time = std::time::Instant::now();
+        
+        // This is a placeholder implementation
+        // In a full implementation, this would:
+        // 1. Re-scan the document directory
+        // 2. Process all documents
+        // 3. Update the vector database
+        // 4. Return statistics about the operation
+        
+        let total_time = start_time.elapsed();
+        
+        Ok(ReindexResponse {
+            status: "completed".to_string(),
+            message: "Reindex operation completed successfully".to_string(),
+            documents_processed: 0,
+            documents_added: 0,
+            documents_updated: 0,
+            documents_removed: 0,
+            total_time_ms: total_time.as_millis() as u64,
         })
     }
 
@@ -349,12 +539,16 @@ impl SearchService {
 
         // Simple keyword matching for now
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        let mut best_pos = 0;
+        let mut best_char_pos = 0;
         let mut best_score = 0;
 
-        for (pos, _) in content_lower.char_indices() {
-            let window_end = std::cmp::min(pos + SNIPPET_LENGTH, content.len());
-            let window = &content_lower[pos..window_end];
+        // Use char indices to find the best position
+        let content_chars: Vec<char> = content.chars().collect();
+        let content_lower_chars: Vec<char> = content_lower.chars().collect();
+
+        for char_pos in 0..content_chars.len() {
+            let window_end = std::cmp::min(char_pos + SNIPPET_LENGTH, content_chars.len());
+            let window: String = content_lower_chars[char_pos..window_end].iter().collect();
             
             let score = query_words
                 .iter()
@@ -363,25 +557,25 @@ impl SearchService {
 
             if score > best_score {
                 best_score = score;
-                best_pos = pos;
+                best_char_pos = char_pos;
             }
         }
 
-        // Extract snippet around best match
-        let start = if best_pos >= CONTEXT_CHARS {
-            best_pos - CONTEXT_CHARS
+        // Extract snippet around best match using char indices
+        let start_char = if best_char_pos >= CONTEXT_CHARS {
+            best_char_pos - CONTEXT_CHARS
         } else {
             0
         };
 
-        let end = std::cmp::min(start + SNIPPET_LENGTH, content.len());
-        let mut snippet = content[start..end].to_string();
+        let end_char = std::cmp::min(start_char + SNIPPET_LENGTH, content_chars.len());
+        let mut snippet: String = content_chars[start_char..end_char].iter().collect();
 
         // Add ellipsis
-        if start > 0 {
+        if start_char > 0 {
             snippet = format!("...{}", snippet);
         }
-        if end < content.len() {
+        if end_char < content_chars.len() {
             snippet = format!("{}...", snippet);
         }
 

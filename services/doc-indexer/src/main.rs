@@ -51,7 +51,7 @@ struct Cli {
     api_server: bool,
 
     /// Port for HTTP API server
-    #[arg(long, default_value = "3000")]
+    #[arg(long, default_value = "8081")]
     api_port: u16,
 
     /// Verbose logging

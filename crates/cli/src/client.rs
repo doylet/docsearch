@@ -44,23 +44,32 @@ pub struct SearchMetadata {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct StatusResponse {
     pub status: String,
-    pub collection_info: CollectionInfo,
-    pub server_info: ServerInfo,
+    pub collection: CollectionStatus,
+    pub configuration: ConfigurationInfo,
+    pub performance: PerformanceMetrics,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct CollectionInfo {
+pub struct CollectionStatus {
     pub name: String,
-    pub vectors_count: u64,
-    pub points_count: u64,
-    pub indexed_documents: u64,
+    pub documents: u64,
+    pub chunks: u64,
+    pub vector_dimensions: u32,
+    pub last_updated: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ServerInfo {
-    pub version: String,
-    pub uptime_seconds: u64,
+pub struct ConfigurationInfo {
     pub embedding_model: String,
+    pub vector_database: String,
+    pub collection_name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PerformanceMetrics {
+    pub avg_search_time_ms: f64,
+    pub total_searches: u64,
+    pub uptime_seconds: u64,
 }
 
 #[derive(Debug, Serialize)]
