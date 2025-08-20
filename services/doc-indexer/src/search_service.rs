@@ -539,12 +539,16 @@ impl SearchService {
 
         // Simple keyword matching for now
         let query_words: Vec<&str> = query_lower.split_whitespace().collect();
-        let mut best_pos = 0;
+        let mut best_char_pos = 0;
         let mut best_score = 0;
 
-        for (pos, _) in content_lower.char_indices() {
-            let window_end = std::cmp::min(pos + SNIPPET_LENGTH, content.len());
-            let window = &content_lower[pos..window_end];
+        // Use char indices to find the best position
+        let content_chars: Vec<char> = content.chars().collect();
+        let content_lower_chars: Vec<char> = content_lower.chars().collect();
+
+        for char_pos in 0..content_chars.len() {
+            let window_end = std::cmp::min(char_pos + SNIPPET_LENGTH, content_chars.len());
+            let window: String = content_lower_chars[char_pos..window_end].iter().collect();
             
             let score = query_words
                 .iter()
@@ -553,25 +557,25 @@ impl SearchService {
 
             if score > best_score {
                 best_score = score;
-                best_pos = pos;
+                best_char_pos = char_pos;
             }
         }
 
-        // Extract snippet around best match
-        let start = if best_pos >= CONTEXT_CHARS {
-            best_pos - CONTEXT_CHARS
+        // Extract snippet around best match using char indices
+        let start_char = if best_char_pos >= CONTEXT_CHARS {
+            best_char_pos - CONTEXT_CHARS
         } else {
             0
         };
 
-        let end = std::cmp::min(start + SNIPPET_LENGTH, content.len());
-        let mut snippet = content[start..end].to_string();
+        let end_char = std::cmp::min(start_char + SNIPPET_LENGTH, content_chars.len());
+        let mut snippet: String = content_chars[start_char..end_char].iter().collect();
 
         // Add ellipsis
-        if start > 0 {
+        if start_char > 0 {
             snippet = format!("...{}", snippet);
         }
-        if end < content.len() {
+        if end_char < content_chars.len() {
             snippet = format!("{}...", snippet);
         }
 

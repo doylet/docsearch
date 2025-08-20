@@ -9,7 +9,7 @@ notify = "6.1"
 walkdir = "2.4"
 
 # Vector database and embeddings
-qdrant-client = { version = "1.9", default-features = false, features = ["serde"] }
+qdrant-client = "1.15"
 tonic = "0.12"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

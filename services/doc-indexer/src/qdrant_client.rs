@@ -408,6 +408,7 @@ impl VectorDatabase for QdrantVectorDB {
 impl QdrantVectorDB {
     pub async fn new(url: &str, collection_name: String) -> Result<Self> {
         let client = Qdrant::from_url(url)
+            .skip_compatibility_check()  // Disable version compatibility check
             .build()
             .context("Failed to create Qdrant client")?;
 
