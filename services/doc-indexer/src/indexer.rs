@@ -12,15 +12,17 @@ use crate::vector_db_trait::{VectorDatabase, SearchResult};
 use crate::vectordb_simple::VectorDB;
 use crate::qdrant_client::QdrantVectorDB;
 use crate::watcher_v2::{DocumentWatcher, FileEvent};
+use crate::embedding_provider::EmbeddingProvider;
 
 pub struct DocumentIndexer {
     config: Config,
     processor: DocumentProcessor,
     vectordb: Box<dyn VectorDatabase>,
+    embedder: Box<dyn EmbeddingProvider>,
 }
 
 impl DocumentIndexer {
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: Config, embedder: Box<dyn EmbeddingProvider>) -> Result<Self> {
         let processor = DocumentProcessor::new(config.docs_directory.clone())?;
         
         // Choose between mock and real Qdrant based on URL
@@ -42,6 +44,7 @@ impl DocumentIndexer {
             config,
             processor,
             vectordb,
+            embedder,
         })
     }
 
@@ -168,10 +171,14 @@ impl DocumentIndexer {
         Ok(embeddings)
     }
 
-    async fn generate_text_embedding(&self, _text: &str) -> Result<Vec<f32>> {
-        // For now, return a mock embedding vector
-        // In production, this would call OpenAI's API
-        Ok(vec![0.1f32; 1536])
+    async fn generate_text_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        let batch_response = self.embedder.generate_embeddings(&[text.to_string()]).await?;
+        
+        if batch_response.embeddings.is_empty() {
+            anyhow::bail!("No embeddings returned for text");
+        }
+        
+        Ok(batch_response.embeddings[0].embedding.clone())
     }
 
     pub async fn search_documents(
@@ -212,7 +219,6 @@ fn is_markdown_file(path: &Path) -> bool {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use std::fs;
 
     async fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
@@ -240,11 +246,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_document_indexer_creation() {
+        use crate::embedding_provider::{EmbeddingConfig, MockEmbedder};
+        
         let (config, _temp_dir) = create_test_config().await;
+        let embedder = Box::new(MockEmbedder::new(EmbeddingConfig::default()));
         
         // This test will fail if Qdrant is not running, which is expected in CI
         // In a real environment, you'd use a test container or mock
-        match DocumentIndexer::new(config).await {
+        match DocumentIndexer::new(config, embedder).await {
             Ok(_) => {
                 // If Qdrant is available, great!
             }
