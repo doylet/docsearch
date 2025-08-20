@@ -36,9 +36,10 @@ impl OutputFormatter {
                 Color::Red
             };
             
-            // Truncate snippet for table display
+            // Truncate snippet for table display (UTF-8 safe)
             let snippet = if result.snippet.len() > 80 {
-                format!("{}...", &result.snippet[..77])
+                let truncated = result.snippet.chars().take(77).collect::<String>();
+                format!("{}...", truncated)
             } else {
                 result.snippet.clone()
             };

@@ -228,7 +228,6 @@ mod tests {
             docs_directory,
             qdrant_url: "http://localhost:6333".to_string(),
             collection_name: "test_docs".to_string(),
-            openai_api_key: None,
         };
         
         (config, temp_dir)

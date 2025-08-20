@@ -53,7 +53,7 @@ futures = "0.3"
 tokio-stream = "0.1"
 
 # Local embeddings
-ort = { version = "1.16", features = ["download-binaries"] }  # ONNX Runtime (stable version)
+ort = { version = "1.16", features = ["copy-dylibs"] }  # ONNX Runtime with bundled libraries
 tokenizers = "0.15"
 lru = "0.12"
 ndarray = "0.15"

@@ -38,10 +38,6 @@ struct Cli {
     #[arg(long, default_value = "zero_latency_docs")]
     collection_name: String,
 
-    /// OpenAI API key for embeddings
-    #[arg(long, env = "OPENAI_API_KEY")]
-    openai_api_key: Option<String>,
-
     /// Run initial indexing then exit (don't watch for changes)
     #[arg(long)]
     index_only: bool,
@@ -84,11 +80,10 @@ async fn main() -> Result<()> {
         docs_directory: cli.docs_path,
         qdrant_url: cli.qdrant_url,
         collection_name: cli.collection_name,
-        openai_api_key: cli.openai_api_key,
     };
 
     // Create the embedder first
-    use embedding_provider::{EmbeddingConfig, OpenAIEmbedder, MockEmbedder, LocalEmbedder};
+    use embedding_provider::{EmbeddingConfig, MockEmbedder, LocalEmbedder};
     
     let mut embedding_config = EmbeddingConfig::default();
     // Configure for local gte-small model
@@ -96,40 +91,20 @@ async fn main() -> Result<()> {
     embedding_config.dimensions = Some(384);
     
     let embedder: Box<dyn embedding_provider::EmbeddingProvider> = {
-        // Try local embedder first (preferred for Step 4)
+        // Use local ONNX embedder
         match LocalEmbedder::new(embedding_config.clone()).await {
             Ok(local_embedder) => {
                 if local_embedder.is_model_loaded() {
                     info!("Using local embedding model: gte-small");
                     Box::new(local_embedder)
                 } else {
-                    warn!("Local embedder initialized but model not loaded. Falling back to cloud provider.");
-                    
-                    // Fall back to OpenAI if available
-                    if let Some(api_key) = config.openai_api_key.clone() {
-                        info!("Using OpenAI embeddings as fallback");
-                        // Reset config for OpenAI
-                        embedding_config.model = "text-embedding-3-small".to_string();
-                        Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
-                    } else {
-                        info!("No OpenAI API key provided, using mock embedder");
-                        Box::new(MockEmbedder::new(embedding_config))
-                    }
+                    warn!("Local embedder initialized but model not loaded. Using mock embedder.");
+                    Box::new(MockEmbedder::new(embedding_config))
                 }
             }
             Err(e) => {
-                warn!("Failed to initialize local embedder: {}. Falling back to cloud provider.", e);
-                
-                // Fall back to OpenAI if available
-                if let Some(api_key) = config.openai_api_key.clone() {
-                    info!("Using OpenAI embeddings as fallback");
-                    // Reset config for OpenAI
-                    embedding_config.model = "text-embedding-3-small".to_string();
-                    Box::new(OpenAIEmbedder::new(api_key, embedding_config)?)
-                } else {
-                    info!("No OpenAI API key provided, using mock embedder");
-                    Box::new(MockEmbedder::new(embedding_config))
-                }
+                warn!("Failed to initialize local embedder: {}. Using mock embedder.", e);
+                Box::new(MockEmbedder::new(embedding_config))
             }
         }
     };
@@ -167,12 +142,7 @@ async fn main() -> Result<()> {
                     Box::new(local_embedder)
                 }
                 _ => {
-                    if let Some(api_key) = config.openai_api_key.clone() {
-                        search_config.model = "text-embedding-3-small".to_string();
-                        Box::new(OpenAIEmbedder::new(api_key, search_config)?)
-                    } else {
-                        Box::new(MockEmbedder::new(search_config))
-                    }
+                    Box::new(MockEmbedder::new(search_config))
                 }
             }
         };

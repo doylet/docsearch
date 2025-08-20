@@ -5,7 +5,6 @@ pub struct Config {
     pub docs_directory: PathBuf,
     pub qdrant_url: String,
     pub collection_name: String,
-    pub openai_api_key: Option<String>,
 }
 
 impl Config {

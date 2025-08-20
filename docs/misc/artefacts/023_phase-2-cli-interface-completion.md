@@ -319,7 +319,8 @@ mdx search "embedding model" --limit 3
 4. **✅ UTF-8 Safe Processing**: Unicode character support
 5. **✅ Production Performance**: Sub-100ms semantic search
 6. **✅ Professional Output**: Colored tables and formatted results
-7. **✅ 731 Documents**: Complete database population
+7. **✅ 762 Documents**: Complete database population
+8. **✅ OpenAI Dependencies Removed**: Complete elimination of external API dependencies
 
 ### **🎯 READY FOR MERGE TO MAIN**
 
@@ -373,6 +374,46 @@ Status Message: Missing Input: token_type_ids
 3. Accept warning as non-critical (current approach)
 
 **Status**: Non-critical, system fully functional with fallback mechanism.
+
+### **OpenAI Dependencies Cleanup (December 2024)**
+
+**Context:**
+During final Phase 2 validation, it was discovered that the CLI still exposed OpenAI API key parameters despite transitioning to local ONNX embeddings. This created confusion and potential security concerns.
+
+**Actions Taken:**
+1. **Removed OpenAI from CLI args**: Eliminated `--openai-api-key` parameter from main.rs
+2. **Cleaned Config struct**: Removed `openai_api_key` field from configuration
+3. **Simplified embedding logic**: Removed OpenAI fallback from embedding provider selection
+4. **Complete rebuild**: Used `cargo clean` to ensure no cached artifacts contained old references
+
+**Before Cleanup:**
+```bash
+$ mdx --help
+Options:
+  --openai-api-key <OPENAI_API_KEY>  OpenAI API key for embedding generation
+```
+
+**After Cleanup:**
+```bash
+$ mdx --help
+Options:
+  --docs-dir <DOCS_DIR>        Directory containing documents [default: docs]
+  --qdrant-url <QDRANT_URL>    Qdrant database URL [default: http://localhost:6334]
+```
+
+**Technical Implementation:**
+- Preserved OpenAI code in `embedding_provider.rs` for future use but removed instantiation
+- Maintained LocalEmbedder as primary with MockEmbedder fallback only
+- All Config instantiations updated to remove openai_api_key field
+- Development environment confirmed clean via `cargo run --help`
+
+**Verification:**
+- ✅ Source code contains no OpenAI CLI references
+- ✅ Help output shows only local configuration options
+- ✅ All embedding operations use local ONNX model
+- ✅ No external API dependencies in active code path
+
+**Result**: Completely self-contained CLI with no external service dependencies.
 
 ---
 

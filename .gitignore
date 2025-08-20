@@ -13,6 +13,9 @@ build/
 # Rust
 target/
 
+# Qdrant local storage
+qdrant_storage/
+
 # macOS / Xcode
 .DS_Store
 *.xcuserdatad/

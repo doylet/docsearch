@@ -49,7 +49,7 @@ pub struct EmbeddingConfig {
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {
-            model: "text-embedding-3-small".to_string(),
+            model: "gte-small".to_string(),
             dimensions: Some(384),
             batch_size: 32,
             max_retries: 3,
