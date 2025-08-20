@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::time::Duration;
 use tracing::{debug, warn, error};
 use qdrant_client::{
     Qdrant,
@@ -10,7 +9,7 @@ use qdrant_client::{
         CreateCollection, Distance, VectorParams, VectorsConfig,
         PointStruct, Value, Condition, Filter, UpsertPoints,
         SearchPoints, DeletePoints, FieldCondition, Match, WithPayloadSelector,
-        PointId, PointsSelector
+        PointId, PointsSelector, ScrollPoints
     },
 };
 use serde_json;
@@ -402,6 +401,189 @@ impl VectorDatabase for QdrantVectorDB {
             active_documents: info.points_count.unwrap_or(0),
             tombstoned_documents: 0, // Qdrant doesn't directly expose this
         })
+    }
+
+    async fn list_documents(&self, page: usize, page_size: usize) -> Result<Vec<crate::vector_db_trait::DocumentSummary>> {
+        use std::collections::HashMap;
+        use crate::vector_db_trait::DocumentSummary;
+
+        // Use scroll to get all points with pagination
+        let offset = (page - 1) * page_size;
+        
+        let scroll_points = ScrollPoints {
+            collection_name: self.collection_name.clone(),
+            filter: None,
+            offset: Some(PointId::from(offset as u64)),
+            limit: Some(page_size as u32),
+            with_payload: Some(WithPayloadSelector {
+                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
+            }),
+            with_vectors: Some(false.into()),
+            read_consistency: None,
+            shard_key_selector: None,
+            order_by: None,
+            timeout: None,
+        };
+
+        let response = self.client.scroll(scroll_points).await
+            .context("Failed to scroll points")?;
+
+        // Group points by document_id and aggregate
+        let mut doc_map: HashMap<String, DocumentSummary> = HashMap::new();
+        
+        for point in response.result {
+            let payload = &point.payload;
+            let doc_id = payload.get("document_id")
+                .and_then(|v| v.as_str())
+                .map_or("unknown".to_string(), |s| s.to_string());
+            
+            let title = payload.get("title")
+                .and_then(|v| v.as_str())
+                .map_or("Untitled".to_string(), |s| s.to_string());
+            
+            let rel_path = payload.get("rel_path")
+                .and_then(|v| v.as_str())
+                .map_or("".to_string(), |s| s.to_string());
+            
+            let doc_type = payload.get("doc_type")
+                .and_then(|v| v.as_str())
+                .map_or("unknown".to_string(), |s| s.to_string());
+            
+            let size = payload.get("size")
+                .and_then(|v| v.as_integer())
+                .unwrap_or(0) as u64;
+
+            let entry = doc_map.entry(doc_id.clone()).or_insert_with(|| DocumentSummary {
+                doc_id: doc_id.clone(),
+                title: title.clone(),
+                rel_path: rel_path.clone(),
+                doc_type: doc_type.clone(),
+                chunk_count: 0,
+                size,
+            });
+            
+            entry.chunk_count += 1;
+        }
+
+        Ok(doc_map.into_values().collect())
+    }
+
+    async fn get_document_details(&self, doc_id: &str) -> Result<Option<crate::vector_db_trait::DocumentDetails>> {
+        use crate::vector_db_trait::{DocumentDetails, ChunkInfo};
+
+        // Create filter for this specific document
+        let filter = Filter {
+            should: vec![],
+            min_should: None,
+            must: vec![Condition {
+                condition_one_of: Some(qdrant_client::qdrant::condition::ConditionOneOf::Field(
+                    FieldCondition {
+                        key: "document_id".to_string(),
+                        r#match: Some(Match {
+                            match_value: Some(qdrant_client::qdrant::r#match::MatchValue::Keyword(doc_id.to_string())),
+                        }),
+                        range: None,
+                        geo_bounding_box: None,
+                        geo_radius: None,
+                        values_count: None,
+                        geo_polygon: None,
+                        datetime_range: None,
+                        is_empty: None,
+                        is_null: None,
+                    }
+                )),
+            }],
+            must_not: vec![],
+        };
+
+        let scroll_points = ScrollPoints {
+            collection_name: self.collection_name.clone(),
+            filter: Some(filter),
+            offset: None,
+            limit: Some(1000), // Get all chunks for this document
+            with_payload: Some(WithPayloadSelector {
+                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
+            }),
+            with_vectors: Some(false.into()),
+            read_consistency: None,
+            shard_key_selector: None,
+            order_by: None,
+            timeout: None,
+        };
+
+        let response = self.client.scroll(scroll_points).await
+            .context("Failed to scroll document points")?;
+
+        if response.result.is_empty() {
+            return Ok(None);
+        }
+
+        // Get document metadata from first point
+        let first_point = &response.result[0];
+        let payload = &first_point.payload;
+        
+        let title = payload.get("title")
+            .and_then(|v| v.as_str())
+            .map_or("Untitled".to_string(), |s| s.to_string());
+        
+        let rel_path = payload.get("rel_path")
+            .and_then(|v| v.as_str())
+            .map_or("".to_string(), |s| s.to_string());
+        
+        let abs_path = payload.get("abs_path")
+            .and_then(|v| v.as_str())
+            .map_or("".to_string(), |s| s.to_string());
+        
+        let doc_type = payload.get("doc_type")
+            .and_then(|v| v.as_str())
+            .map_or("unknown".to_string(), |s| s.to_string());
+        
+        let section = payload.get("section")
+            .and_then(|v| v.as_str())
+            .map_or("".to_string(), |s| s.to_string());
+        
+        let size = payload.get("size")
+            .and_then(|v| v.as_integer())
+            .unwrap_or(0) as u64;
+
+        // Collect all chunks
+        let mut chunks = Vec::new();
+        for point in response.result {
+            let payload = &point.payload;
+                let chunk_id = payload.get("chunk_id")
+                    .and_then(|v| v.as_str())
+                    .map_or("".to_string(), |s| s.to_string());
+                
+                let content = payload.get("content")
+                    .and_then(|v| v.as_str())
+                    .map_or("".to_string(), |s| s.to_string());
+                
+                let start_byte = payload.get("start_byte")
+                    .and_then(|v| v.as_integer())
+                    .map(|v| v as u64);
+                
+                let end_byte = payload.get("end_byte")
+                    .and_then(|v| v.as_integer())
+                    .map(|v| v as u64);
+
+                chunks.push(ChunkInfo {
+                    chunk_id,
+                    content,
+                    start_byte,
+                    end_byte,
+                });
+            }
+
+        Ok(Some(DocumentDetails {
+            doc_id: doc_id.to_string(),
+            title,
+            rel_path,
+            abs_path,
+            doc_type,
+            section,
+            size,
+            chunks,
+        }))
     }
 }
 

@@ -82,6 +82,67 @@ impl VectorDatabase for VectorDB {
             tombstoned_documents: (self.doc_registry.len() - active_docs) as u64,
         })
     }
+
+    async fn list_documents(&self, page: usize, page_size: usize) -> Result<Vec<crate::vector_db_trait::DocumentSummary>> {
+        use crate::vector_db_trait::DocumentSummary;
+        
+        let active_docs: Vec<_> = self.doc_registry.values()
+            .filter(|registry| !registry.is_tombstoned)
+            .collect();
+        
+        let start = (page - 1) * page_size;
+        let end = std::cmp::min(start + page_size, active_docs.len());
+        
+        let documents = if start < active_docs.len() {
+            active_docs[start..end]
+                .iter()
+                .map(|registry| DocumentSummary {
+                    doc_id: registry.doc_id.clone(),
+                    title: "Mock Document".to_string(),
+                    rel_path: format!("mock/{}.md", registry.doc_id),
+                    doc_type: "mock".to_string(),
+                    chunk_count: registry.chunk_count,
+                    size: 1024, // Mock size
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        
+        Ok(documents)
+    }
+
+    async fn get_document_details(&self, doc_id: &str) -> Result<Option<crate::vector_db_trait::DocumentDetails>> {
+        use crate::vector_db_trait::{DocumentDetails, ChunkInfo};
+        
+        if let Some(registry) = self.doc_registry.get(doc_id) {
+            if !registry.is_tombstoned {
+                let chunks = (0..registry.chunk_count)
+                    .map(|i| ChunkInfo {
+                        chunk_id: format!("{}#{}", doc_id, i),
+                        content: format!("Mock chunk {} content for document {}", i, doc_id),
+                        start_byte: Some(i as u64 * 100),
+                        end_byte: Some((i + 1) as u64 * 100),
+                    })
+                    .collect();
+
+                Ok(Some(DocumentDetails {
+                    doc_id: doc_id.to_string(),
+                    title: "Mock Document".to_string(),
+                    rel_path: format!("mock/{}.md", doc_id),
+                    abs_path: format!("/mock/path/{}.md", doc_id),
+                    doc_type: "mock".to_string(),
+                    section: "Mock Section".to_string(),
+                    size: 1024,
+                    chunks,
+                }))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl VectorDB {

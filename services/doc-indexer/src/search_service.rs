@@ -427,24 +427,76 @@ impl SearchService {
 
     /// List all indexed documents with pagination
     pub async fn list_documents(&self, page: usize, page_size: usize) -> Result<DocumentListResponse> {
-        // For now, return a placeholder implementation
-        // In a full implementation, this would query the vector database for document metadata
+        use chrono::Utc;
+        
+        let document_summaries = self.vectordb.list_documents(page, page_size).await?;
+        
+        let documents: Vec<DocumentInfo> = document_summaries
+            .into_iter()
+            .map(|summary| DocumentInfo {
+                id: summary.doc_id,
+                title: summary.title,
+                path: summary.rel_path,
+                doc_type: summary.doc_type,
+                created_at: Utc::now(), // TODO: Store actual timestamps in vector DB
+                updated_at: Utc::now(), // TODO: Store actual timestamps in vector DB
+                chunk_count: summary.chunk_count,
+                size_bytes: summary.size as usize,
+            })
+            .collect();
+
+        // For total count, we'd need to do a separate query or cache this info
+        // For now, estimate based on current page results
+        let total = if documents.len() < page_size {
+            (page - 1) * page_size + documents.len()
+        } else {
+            page * page_size + 1 // Estimate there are more pages
+        };
+
         Ok(DocumentListResponse {
-            documents: vec![], // TODO: Implement document listing
-            total: 0,
+            documents,
+            total,
             page,
             page_size,
         })
     }
 
     /// Get detailed information about a specific document
-    pub async fn get_document(&self, _doc_id: &str) -> Result<Option<DocumentDetailResponse>> {
-        // For now, return None as this requires more complex vector database queries
-        // In a full implementation, this would:
-        // 1. Query for all chunks belonging to this document
-        // 2. Aggregate document metadata
-        // 3. Return structured document information
-        Ok(None)
+    pub async fn get_document(&self, doc_id: &str) -> Result<Option<DocumentDetailResponse>> {
+        if let Some(details) = self.vectordb.get_document_details(doc_id).await? {
+            let document_info = DocumentInfo {
+                id: details.doc_id.clone(),
+                title: details.title.clone(),
+                path: details.rel_path.clone(),
+                doc_type: details.doc_type.clone(),
+                created_at: chrono::Utc::now(), // TODO: Store actual timestamps
+                updated_at: chrono::Utc::now(), // TODO: Store actual timestamps
+                chunk_count: details.chunks.len(),
+                size_bytes: details.size as usize,
+            };
+
+            let chunks: Vec<ChunkInfo> = details.chunks.into_iter().enumerate().map(|(index, chunk)| ChunkInfo {
+                id: chunk.chunk_id,
+                content: chunk.content,
+                section: details.section.clone(),
+                heading_path: vec![], // TODO: Parse heading path from content
+                chunk_index: index,
+                start_byte: chunk.start_byte.unwrap_or(0) as usize,
+                end_byte: chunk.end_byte.unwrap_or(0) as usize,
+            }).collect();
+
+            let mut metadata = HashMap::new();
+            metadata.insert("full_path".to_string(), serde_json::Value::String(details.abs_path));
+            metadata.insert("section".to_string(), serde_json::Value::String(details.section));
+
+            Ok(Some(DocumentDetailResponse {
+                document: document_info,
+                chunks,
+                metadata,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Remove a document from the index
