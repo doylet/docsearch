@@ -124,7 +124,7 @@ impl ChunkingConfig {
 }
 
 /// Quality metrics for evaluating chunk effectiveness
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChunkQuality {
     /// Coherence score (0.0-1.0) - how well the chunk maintains context
     pub coherence: f32,

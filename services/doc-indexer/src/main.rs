@@ -18,6 +18,10 @@ mod embedding_provider;
 mod search_service;
 mod api_server;
 mod model_manager;
+mod query_enhancement;
+mod result_ranking;
+mod observability_simple;
+mod quality_metrics;
 
 use config::Config;
 use indexer::DocumentIndexer;
@@ -149,7 +153,7 @@ async fn main() -> Result<()> {
         
         // Get vector database from indexer
         let vectordb = indexer.create_vectordb_for_search().await?;
-        let search_service = SearchService::new(vectordb, search_embedder);
+        let search_service = SearchService::new(vectordb, search_embedder).await?;
         
         // Start API server
         let api_server = ApiServer::new(search_service);
