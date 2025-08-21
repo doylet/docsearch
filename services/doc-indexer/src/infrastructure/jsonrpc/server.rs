@@ -1,7 +1,7 @@
 /// JSON-RPC 2.0 server implementation
 /// 
 /// This module provides an HTTP server that handles JSON-RPC 2.0 requests,
-/// enabling MCP protocol compliance while maintaining compatibility with
+/// enabling standardized tool service interface while maintaining compatibility with
 /// the existing REST API through dual endpoints.
 use axum::{
     extract::State,
@@ -32,9 +32,6 @@ impl JsonRpcServer {
         Router::new()
             // Main JSON-RPC endpoint
             .route("/jsonrpc", post(handle_jsonrpc_request))
-            
-            // MCP-compatible endpoint (alias)
-            .route("/mcp", post(handle_jsonrpc_request))
             
             // Batch endpoint for multiple requests
             .route("/jsonrpc/batch", post(handle_batch_jsonrpc_request))
@@ -138,16 +135,18 @@ async fn handle_batch_jsonrpc_request(
     Json(responses)
 }
 
-/// Create a combined router that includes both REST and JSON-RPC endpoints
+/// Create a combined router that includes REST, JSON-RPC, and streaming endpoints
 pub fn create_dual_protocol_router(app_state: AppState) -> Router {
     let rest_router = crate::infrastructure::http::handlers::create_router(app_state.clone());
-    let jsonrpc_server = JsonRpcServer::new(app_state);
+    let jsonrpc_server = JsonRpcServer::new(app_state.clone());
     let jsonrpc_router = jsonrpc_server.create_router();
+    let streaming_router = crate::infrastructure::streaming::create_streaming_router()
+        .with_state(app_state);
 
-    // Combine both routers
-    Router::new()
-        .merge(rest_router)
+    // Combine all routers
+    rest_router
         .merge(jsonrpc_router)
+        .merge(streaming_router)
 }
 
 #[cfg(test)]

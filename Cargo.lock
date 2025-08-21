@@ -808,12 +808,14 @@ name = "doc-indexer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
  "axum",
  "chrono",
  "clap",
  "dirs",
  "futures",
+ "futures-util",
  "governor",
  "jsonrpc-core",
  "jsonrpc-http-server",

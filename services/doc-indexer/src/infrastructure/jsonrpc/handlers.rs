@@ -329,7 +329,7 @@ pub async fn handle_service_info(
     let result = ServiceInfoResult {
         name: "doc-indexer".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        description: "Document indexing and search service with JSON-RPC 2.0 and MCP support".to_string(),
+        description: "Document indexing and search service with JSON-RPC 2.0 support".to_string(),
         features: vec![
             "document_indexing".to_string(),
             "vector_search".to_string(),
@@ -341,8 +341,7 @@ pub async fn handle_service_info(
             document_indexing: true,
             vector_search: true,
             health_monitoring: true,
-            mcp_tools: false, // Will be enabled in Phase 2
-            realtime_updates: false, // Future enhancement
+            realtime_updates: false, // Will be enabled with streaming
         },
     };
     
@@ -356,12 +355,7 @@ pub async fn route_method(
     id: Option<Value>,
     state: &AppState,
 ) -> JsonRpcResponse {
-    // Check for MCP methods first
-    if let Some(response) = crate::infrastructure::jsonrpc::mcp_methods::add_mcp_methods_to_router(method, params.clone(), id.clone(), state).await {
-        return response;
-    }
-    
-    // Handle standard JSON-RPC methods
+    // Handle JSON-RPC methods
     match method {
         // Document methods
         "document.index" => handle_index_document(params, id, state).await,

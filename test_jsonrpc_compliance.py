@@ -159,7 +159,7 @@ def test_error_handling(base_url):
         print(f"❌ Unexpected HTTP error: {response.status_code}")
 
 def main():
-    base_url = "http://localhost:8080"
+    base_url = "http://localhost:8081"
     
     print("🚀 JSON-RPC/MCP Protocol Compliance Test")
     print("=" * 50)

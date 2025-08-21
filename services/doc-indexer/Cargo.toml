@@ -35,9 +35,11 @@ regex = "1.10"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # HTTP server for search API
-axum = "0.7"
+axum = { version = "0.7", features = ["json"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "fs", "trace", "timeout"] }
+futures-util = "0.3"
+async-stream = "0.3"
 
 # Configuration management
 toml = "0.8"

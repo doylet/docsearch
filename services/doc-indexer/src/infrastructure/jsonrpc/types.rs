@@ -1,4 +1,4 @@
-/// Type definitions for JSON-RPC 2.0 and MCP protocol compliance
+/// Type definitions for JSON-RPC 2.0 tool service compliance
 /// 
 /// This module defines the request/response types for JSON-RPC wrapped methods
 /// that correspond to the existing REST API endpoints.
@@ -137,42 +137,7 @@ pub struct ServiceCapabilities {
     pub document_indexing: bool,
     pub vector_search: bool,
     pub health_monitoring: bool,
-    pub mcp_tools: bool,
     pub realtime_updates: bool,
-}
-
-// MCP-specific Types (for future Phase 2 implementation)
-
-#[derive(Debug, Serialize)]
-pub struct Tool {
-    pub name: String,
-    pub description: String,
-    pub input_schema: serde_json::Value,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ListToolsResult {
-    pub tools: Vec<Tool>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CallToolParams {
-    pub name: String,
-    pub arguments: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CallToolResult {
-    pub content: Vec<ToolResponseContent>,
-    pub is_error: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ToolResponseContent {
-    pub r#type: String, // "text" | "image" | "resource"
-    pub text: Option<String>,
-    pub data: Option<String>,
-    pub mime_type: Option<String>,
 }
 
 // Error conversion utilities

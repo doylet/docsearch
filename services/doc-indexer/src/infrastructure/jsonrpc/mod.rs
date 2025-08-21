@@ -1,13 +1,12 @@
-/// JSON-RPC 2.0 implementation for MCP protocol compliance
+/// JSON-RPC 2.0 implementation for tool service compliance
 /// 
 /// This module provides JSON-RPC 2.0 wrapper around the existing REST API handlers,
-/// enabling MCP (Model Context Protocol) compliance while maintaining backward
+/// enabling standardized tool service interface while maintaining backward
 /// compatibility with the existing REST endpoints.
 
 pub mod server;
 pub mod handlers;
 pub mod types;
-pub mod mcp_methods;
 
 pub use server::create_dual_protocol_router;
 
@@ -70,7 +69,7 @@ pub mod error_codes {
     pub const INVALID_PARAMS: i32 = -32602;
     pub const INTERNAL_ERROR: i32 = -32603;
     
-    // MCP-specific error codes (application-specific range)
+    // Application-specific error codes
     pub const DOCUMENT_NOT_FOUND: i32 = -32000;
     pub const VALIDATION_ERROR: i32 = -32001;
     pub const SEARCH_ERROR: i32 = -32002;
