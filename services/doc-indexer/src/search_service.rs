@@ -1,10 +1,14 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
-use crate::vector_db_trait::VectorDatabase;
+use crate::vector_db_trait::{VectorDatabase, SearchResult};
 use crate::embedding_provider::EmbeddingProvider;
+use crate::query_enhancement::{QueryEnhancer, QueryEnhancementConfig, EnhancedQuery};
+use crate::result_ranking::{ResultRanker, RankingConfig, RankingSignals};
+use crate::observability_simple::{ObservabilityManager, ObservabilityConfig};
 
 /// Search request structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +51,7 @@ pub struct DateRange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResponse {
     pub query: String,
+    pub enhanced_query: Option<EnhancedQuery>,
     pub total_results: usize,
     pub results: Vec<SearchResultItem>,
     pub search_metadata: SearchMetadata,
@@ -67,6 +72,8 @@ pub struct SearchResultItem {
     pub doc_type: String,
     pub created_at: DateTime<Utc>,
     pub metadata: ResultMetadata,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ranking_signals: Option<RankingSignals>,
 }
 
 /// Result metadata
@@ -208,6 +215,9 @@ pub struct SystemHealth {
 pub struct SearchService {
     vectordb: Box<dyn VectorDatabase>,
     embedder: Box<dyn EmbeddingProvider>,
+    query_enhancer: QueryEnhancer,
+    result_ranker: ResultRanker,
+    pub observability: Arc<ObservabilityManager>,
     stats: SearchStats,
 }
 
@@ -220,29 +230,52 @@ struct SearchStats {
 }
 
 impl SearchService {
-    pub fn new(
+    pub async fn new(
         vectordb: Box<dyn VectorDatabase>,
         embedder: Box<dyn EmbeddingProvider>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let observability = Arc::new(ObservabilityManager::new(
+            ObservabilityConfig::default()
+        ).await?);
+        
+        Ok(Self {
             vectordb,
             embedder,
+            query_enhancer: QueryEnhancer::new(QueryEnhancementConfig::default()),
+            result_ranker: ResultRanker::new(RankingConfig::default()),
+            observability,
             stats: SearchStats {
                 start_time: Some(Utc::now()),
                 ..Default::default()
             },
-        }
+        })
     }
 
     /// Perform semantic search
     pub async fn search(&mut self, request: SearchRequest) -> Result<SearchResponse> {
         let start_time = std::time::Instant::now();
+        
+        // Record search metrics
+        self.observability.record_search_request();
 
-        // Generate embedding for query
+        // Enhance the query
+        let enhanced_query = self
+            .query_enhancer
+            .enhance_query(&request.query)
+            .context("Failed to enhance query")?;
+        
+        // Record query enhancement metrics
+        let query_expanded = enhanced_query.enhanced_query != request.query;
+        self.observability.record_query_enhancement(query_expanded);
+
+        // Use enhanced query for embedding generation
+        let query_for_embedding = &enhanced_query.enhanced_query;
+
+        // Generate embedding for enhanced query
         let embedding_start = std::time::Instant::now();
         let embedding_response = self
             .embedder
-            .generate_embeddings(&[request.query.clone()])
+            .generate_embeddings(&[query_for_embedding.clone()])
             .await
             .context("Failed to generate query embedding")?;
 
@@ -254,6 +287,9 @@ impl SearchService {
             .clone();
 
         let embedding_time = embedding_start.elapsed();
+        
+        // Record embedding metrics
+        self.observability.record_embedding_generation(embedding_time);
 
         // Perform vector search
         let search_start = std::time::Instant::now();
@@ -268,42 +304,92 @@ impl SearchService {
             .context("Failed to perform vector search")?;
 
         let search_time = search_start.elapsed();
+        
+        // Record vector search metrics
+        self.observability.record_vector_search(search_time, search_results.len());
 
-        // Convert results and generate snippets
+        // Rank results using the result ranker
+        let ranking_start = std::time::Instant::now();
+        let original_query_terms: Vec<String> = request.query
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+        
+        let ranked_results = self.result_ranker.rank_results(
+            search_results,
+            &original_query_terms,
+            &enhanced_query.expanded_terms,
+        );
+        
+        let ranking_time = ranking_start.elapsed();
+        
+        // Record ranking metrics
+        self.observability.record_result_ranking(ranking_time);
+
+        // Convert ranked results to SearchResultItem format
         let mut results = Vec::new();
-        for result in search_results {
+        for ranked_result in ranked_results {
             let snippet = if request.include_snippets {
-                Some(self.generate_snippet(&result.content, &request.query, request.highlight))
+                Some(ranked_result.snippet.clone())
             } else {
                 None
             };
 
+            // Extract metadata 
+            let document_id = ranked_result.metadata.get("document_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            
+            let document_title = ranked_result.metadata.get("document_title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            
+            let section = ranked_result.metadata.get("section")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            
+            let doc_type = ranked_result.metadata.get("doc_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            
+            let heading = ranked_result.metadata.get("heading")
+                .and_then(|v| v.as_str());
+
             results.push(SearchResultItem {
-                score: result.score,
-                chunk_id: result.chunk_id,
-                document_id: result.document_id,
-                document_title: result.document_title,
-                content: result.content,
+                score: ranked_result.final_score,
+                chunk_id: ranked_result.id,
+                document_id,
+                document_title,
+                content: ranked_result.content,
                 snippet,
-                heading_path: self.parse_heading_path(&result.heading),
-                section: result.section,
-                doc_type: result.doc_type,
+                heading_path: self.parse_heading_path(&heading.map(|h| h.to_string())),
+                section,
+                doc_type,
                 created_at: Utc::now(), // TODO: Get from metadata
                 metadata: ResultMetadata {
                     chunk_index: 0,    // TODO: Parse from chunk_id
                     chunk_total: 0,    // TODO: Get from metadata
                     file_path: "".to_string(), // TODO: Get from metadata
                 },
+                ranking_signals: Some(ranked_result.ranking_signals),
             });
         }
 
         let total_time = start_time.elapsed();
+        
+        // Record overall search completion
+        self.observability.record_search_completion(total_time, results.len());
 
         // Update statistics
         self.stats.searches_completed += 1;
 
         Ok(SearchResponse {
             query: request.query,
+            enhanced_query: Some(enhanced_query),
             total_results: results.len(),
             results,
             search_metadata: SearchMetadata {
@@ -669,8 +755,8 @@ mod tests {
     async fn test_generate_snippet() {
         let service = SearchService::new(
             Box::new(crate::vectordb_simple::VectorDB::new("mock://", "test".to_string()).await.unwrap()),
-            Box::new(MockEmbedder::new(EmbeddingConfig::default())),
-        );
+            Box::new(crate::embedding_provider::MockEmbedder::new(crate::embedding_provider::EmbeddingConfig::default())),
+        ).await.unwrap();
 
         let content = "This is a long piece of content about vector databases and semantic search. It contains many words and should be truncated to show only the relevant parts around the query terms.";
         let snippet = service.generate_snippet(content, "vector databases", true);
@@ -684,8 +770,8 @@ mod tests {
     async fn test_parse_heading_path() {
         let service = SearchService::new(
             Box::new(crate::vectordb_simple::VectorDB::new("mock://", "test".to_string()).await.unwrap()),
-            Box::new(MockEmbedder::new(EmbeddingConfig::default())),
-        );
+            Box::new(crate::embedding_provider::MockEmbedder::new(crate::embedding_provider::EmbeddingConfig::default())),
+        ).await.unwrap();
 
         let heading = Some("# Introduction > ## Getting Started > ### Installation".to_string());
         let path = service.parse_heading_path(&heading);

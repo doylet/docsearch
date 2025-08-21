@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use xxhash_rust::xxh3::xxh3_64;
-use crate::chunking::ChunkingConfig;
+use crate::chunking::{ChunkingConfig};
 use crate::advanced_chunker::AdvancedChunker;
+use crate::quality_metrics::{QualityMetricsCollector, DocumentQualityMetrics};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
@@ -61,6 +62,7 @@ pub struct DocumentProcessor {
     schema_version: u32,
     chunking_config: ChunkingConfig,
     chunker: AdvancedChunker,
+    quality_collector: std::sync::Mutex<QualityMetricsCollector>,
 }
 
 const CURRENT_SCHEMA_VERSION: u32 = 1;
@@ -69,23 +71,27 @@ impl DocumentProcessor {
     pub fn new(docs_root: std::path::PathBuf) -> Result<Self> {
         let chunking_config = ChunkingConfig::for_documentation();
         let chunker = AdvancedChunker::new(chunking_config.clone())?;
+        let quality_collector = std::sync::Mutex::new(QualityMetricsCollector::new(chunking_config.clone()));
         
         Ok(Self {
             docs_root,
             schema_version: CURRENT_SCHEMA_VERSION,
             chunking_config,
             chunker,
+            quality_collector,
         })
     }
 
     pub fn with_chunking_config(docs_root: std::path::PathBuf, chunking_config: ChunkingConfig) -> Result<Self> {
         let chunker = AdvancedChunker::new(chunking_config.clone())?;
+        let quality_collector = std::sync::Mutex::new(QualityMetricsCollector::new(chunking_config.clone()));
         
         Ok(Self {
             docs_root,
             schema_version: CURRENT_SCHEMA_VERSION,
             chunking_config,
             chunker,
+            quality_collector,
         })
     }
 
@@ -150,6 +156,21 @@ impl DocumentProcessor {
         // Process content into chunks using advanced chunker
         let chunks = self.chunker.chunk_document(content, &doc_id)?;
         
+        // Collect quality metrics for the chunks
+        let chunk_data: Vec<(String, String, Vec<String>)> = chunks.iter()
+            .map(|chunk| (chunk.chunk_id.clone(), chunk.content.clone(), chunk.h_path.clone()))
+            .collect();
+        
+        if let Ok(mut collector) = self.quality_collector.lock() {
+            if let Err(e) = collector.record_document_chunks(&doc_id, &chunk_data) {
+                tracing::warn!(
+                    doc_id = %doc_id,
+                    error = %e,
+                    "Failed to record chunk quality metrics"
+                );
+            }
+        }
+        
         Ok(Document {
             doc_id,
             rev_id,
@@ -161,6 +182,24 @@ impl DocumentProcessor {
             chunks,
             schema_version: self.schema_version,
         })
+    }
+
+    /// Get quality metrics for a specific document
+    pub fn get_document_quality_metrics(&self, doc_id: &str) -> Option<DocumentQualityMetrics> {
+        if let Ok(collector) = self.quality_collector.lock() {
+            collector.get_document_metrics(doc_id).cloned()
+        } else {
+            None
+        }
+    }
+
+    /// Get overall quality statistics
+    pub fn get_quality_statistics(&self) -> Option<crate::quality_metrics::QualityStatistics> {
+        if let Ok(collector) = self.quality_collector.lock() {
+            Some(collector.get_overall_statistics())
+        } else {
+            None
+        }
     }
 
     /// Create simple chunks for now - will be enhanced in step 2

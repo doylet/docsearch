@@ -57,6 +57,8 @@ impl ApiServer {
             .route("/api/docs/:id", get(get_document_handler))
             .route("/api/docs/:id", delete(delete_document_handler))
             .route("/api/reindex", post(reindex_handler))
+            .route("/api/quality", get(quality_metrics_handler))
+            .route("/metrics", get(metrics_handler))
             .route("/", get(root_handler))
             .layer(
                 ServiceBuilder::new()
@@ -246,6 +248,31 @@ async fn health_handler(State(state): State<ApiState>) -> Result<Json<HealthResp
     Ok(Json(health))
 }
 
+/// GET /api/quality - Get chunking quality metrics
+async fn quality_metrics_handler(State(state): State<ApiState>) -> Result<Json<Value>, ApiError> {
+    let search_service = state.search_service.lock().await;
+    
+    // For now, return basic quality metrics information
+    // This can be expanded once we have access to the DocumentProcessor quality metrics
+    let quality_response = json!({
+        "quality_metrics": {
+            "status": "active",
+            "collection_enabled": true,
+            "chunking_strategy": "ByHeading",
+            "description": "Quality metrics are being collected in the background. Individual document metrics will be available in a future release.",
+            "features": {
+                "coherence_scoring": true,
+                "completeness_scoring": true,
+                "size_scoring": true,
+                "context_preservation": true
+            }
+        },
+        "timestamp": chrono::Utc::now()
+    });
+    
+    Ok(Json(quality_response))
+}
+
 /// GET / - Root endpoint with API information
 async fn root_handler() -> Json<Value> {
     Json(json!({
@@ -259,10 +286,24 @@ async fn root_handler() -> Json<Value> {
             "list_documents": "GET /api/docs",
             "get_document": "GET /api/docs/{id}",
             "delete_document": "DELETE /api/docs/{id}",
-            "reindex": "POST /api/reindex"
+            "reindex": "POST /api/reindex",
+            "metrics": "GET /metrics"
         },
         "docs": "https://github.com/your-org/zero-latency/tree/main/services/doc-indexer"
     }))
+}
+
+/// GET /metrics - Prometheus metrics endpoint
+async fn metrics_handler(State(state): State<ApiState>) -> Result<String, ApiError> {
+    let search_service = state.search_service.lock().await;
+    
+    // Get metrics from observability manager
+    let metrics_text = search_service.observability.get_metrics_text()
+        .map_err(|e| ApiError::InternalServerError(
+            format!("Failed to generate metrics: {}", e)
+        ))?;
+    
+    Ok(metrics_text)
 }
 
 /// API error types
@@ -313,7 +354,7 @@ mod tests {
                 .unwrap(),
         );
         let embedder = Box::new(MockEmbedder::new(EmbeddingConfig::default()));
-        let search_service = SearchService::new(vectordb, embedder);
+        let search_service = SearchService::new(vectordb, embedder).await.unwrap();
         
         ApiServer::new(search_service).router()
     }
