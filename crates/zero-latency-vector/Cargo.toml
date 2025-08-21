@@ -1,0 +1,12 @@
+[package]
+name = "zero-latency-vector"
+version = "0.1.0"
+edition = "2021"
+description = "Vector operations for Zero-Latency"
+license = "MIT"
+
+[dependencies]
+zero-latency-core = { path = "../zero-latency-core" }
+serde = { version = "1.0", features = ["derive"] }
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
