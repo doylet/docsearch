@@ -113,7 +113,19 @@ mdx server --start
 mdx server --stop
 ```
 
-## � Project Status
+## 📚 Documentation
+
+Comprehensive documentation is organized in the [`docs/`](docs/) directory:
+
+- **[Architecture](docs/architecture/)** - Clean architecture implementation details
+- **[Implementation](docs/implementation/)** - Technical implementation guides  
+- **[Milestones](docs/milestones/)** - Project milestone documentation
+- **[Services](docs/services/)** - Service-specific documentation
+- **[Testing](test/integration/)** - Integration test documentation
+
+For a complete overview, see the [Documentation Index](docs/README.md).
+
+## 📊 Project Status
 
 ### ✅ Phase 4C: Clean Architecture - COMPLETED (August 21, 2025)
 
@@ -148,6 +160,7 @@ mdx server --stop
 **Decision**: [ADR-038 Phase 4D Service Extension Strategy](./docs/misc/artefacts/038_adr-phase-4d-service-extension.md)
 
 **Objectives**:
+
 - Apply clean architecture patterns to all remaining services
 - Implement comprehensive integration testing across services  
 - Deploy production-grade observability and monitoring
@@ -157,7 +170,7 @@ mdx server --stop
 
 ### System Components
 
-```
+```text
 mdx CLI ──HTTP──> API Server ──gRPC──> Qdrant Vector DB
    │                   │                      │
    │                   └─> Local Embedder ────┘
@@ -213,7 +226,7 @@ curl http://localhost:6333/health
   - ~1ms inference time
   - Automatic model download and caching
 
-- **Real-time Indexing**: 
+- **Real-time Indexing**:
   - File system monitoring
   - Smart change detection
   - Incremental updates
@@ -314,11 +327,13 @@ cargo test --test integration
 3. **Test CLI commands**:
    ```bash
    cargo run --bin mdx -- search "test query"
+   ```bash
+   ./scripts/build.sh
    ```
 
 ### Project Structure
 
-```
+```text
 Zero-Latency/
 ├── crates/
 │   └── cli/              # CLI application (mdx)
@@ -343,6 +358,7 @@ curl -X POST "http://localhost:8081/api/search" \
 ```
 
 Response:
+
 ```json
 {
   "results": [
@@ -370,19 +386,18 @@ Response:
 
 ### Common Issues
 
-**1. CLI shows "API server is not reachable"**
+#### 1. CLI shows "API server is not reachable"
+
 ```bash
 # Check if server is running
 mdx status
 
 # Start the server
 mdx server --start
-
-# Or start manually
-cargo run --bin doc-indexer
 ```
 
-**2. Qdrant connection failed**
+#### 2. Qdrant connection failed
+
 ```bash
 # Verify Qdrant is running
 docker ps | grep qdrant
@@ -394,7 +409,8 @@ curl http://localhost:6333/health
 docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
-**3. Model download issues**
+#### 3. Model download issues
+
 ```bash
 # Check cache directory
 ls ~/.cache/zero-latency/models/
@@ -438,16 +454,19 @@ This project is licensed under the MIT License. See LICENSE file for details.
 ## 🎯 Roadmap
 
 ### Phase 3: Web Interface
+
 - Browser-based search UI
 - Real-time search suggestions
 - Document preview and highlighting
 
 ### Phase 4: Advanced Features
+
 - Query filters and faceted search
 - Bulk document operations
 - Search analytics and insights
 
 ### Phase 5: Enterprise
+
 - Multi-tenant support
 - Authentication and authorization
 - Monitoring and alerting
