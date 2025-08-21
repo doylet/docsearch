@@ -24,7 +24,7 @@ use tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::application::ServiceContainer;
-use super::handlers::{create_router, AppState};
+use super::handlers::AppState;
 
 /// HTTP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,7 +55,8 @@ impl HttpServer {
     
     /// Build the complete router with middleware
     pub fn build_router(&self) -> Router {
-        let router = create_router(self.app_state.clone());
+        // Use the dual protocol router that includes both REST and JSON-RPC endpoints
+        let router = crate::infrastructure::jsonrpc::create_dual_protocol_router(self.app_state.clone());
         
         // Build middleware stack
         let middleware_stack = ServiceBuilder::new()
