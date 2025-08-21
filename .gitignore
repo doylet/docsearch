@@ -13,6 +13,10 @@ build/
 # Rust
 target/
 
+# Build artifacts / binaries
+doc-indexer-v*
+*.exe
+
 # Qdrant local storage
 qdrant_storage/
 
