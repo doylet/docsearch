@@ -841,6 +841,7 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
+ "toml",
  "tonic",
  "tower 0.4.13",
  "tower-http 0.5.2",
@@ -850,6 +851,11 @@ dependencies = [
  "uuid",
  "walkdir",
  "xxhash-rust",
+ "zero-latency-config",
+ "zero-latency-core",
+ "zero-latency-observability",
+ "zero-latency-search",
+ "zero-latency-vector",
 ]
 
 [[package]]

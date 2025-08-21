@@ -111,3 +111,37 @@ impl ResponseMetadata {
         }
     }
 }
+
+/// Health check result for a service
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthCheckResult {
+    pub status: HealthStatus,
+    pub checks: Vec<HealthComponentCheck>,
+    pub timestamp: DateTime<Utc>,
+    pub uptime: std::time::Duration,
+}
+
+/// Individual component health check
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthComponentCheck {
+    pub component: String,
+    pub status: HealthStatus,
+    pub message: Option<String>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Readiness check result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadinessResult {
+    pub ready: bool,
+    pub checks: Vec<HealthComponentCheck>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Liveness check result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LivenessResult {
+    pub alive: bool,
+    pub timestamp: DateTime<Utc>,
+    pub uptime: std::time::Duration,
+}

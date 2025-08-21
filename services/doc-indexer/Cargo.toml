@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Zero-Latency shared crates
+zero-latency-core = { path = "../../crates/zero-latency-core" }
+zero-latency-search = { path = "../../crates/zero-latency-search" }
+zero-latency-vector = { path = "../../crates/zero-latency-vector" }
+zero-latency-observability = { path = "../../crates/zero-latency-observability" }
+zero-latency-config = { path = "../../crates/zero-latency-config" }
+
 # File watching
 notify = "6.1"
 walkdir = "2.4"
@@ -30,7 +37,10 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 # HTTP server for search API
 axum = "0.7"
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "trace", "timeout"] }
+
+# Configuration management
+toml = "0.8"
 
 # JSON-RPC
 jsonrpc-core = "18.0"

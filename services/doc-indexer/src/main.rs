@@ -1,170 +1,134 @@
-#![warn(clippy::pedantic, clippy::nursery)]
+/// Doc-Indexer service main entry point
+/// 
+/// This service provides document indexing and search capabilities using
+/// a clean architecture with shared domain crates.
 
+use std::sync::Arc;
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::{info, error};
 
 mod config;
-mod document;
-mod indexer;
-mod vectordb_simple;
-mod watcher_v2;
-mod vector_db_trait;
-mod qdrant_client;
-mod chunking;
-mod advanced_chunker;
-mod embedding_provider;
-mod search_service;
-mod api_server;
-mod model_manager;
-mod query_enhancement;
-mod result_ranking;
-mod observability_simple;
-mod quality_metrics;
+mod application;
+mod infrastructure;
 
 use config::Config;
-use indexer::DocumentIndexer;
+use application::ServiceContainer;
+use infrastructure::HttpServer;
 
 #[derive(Parser)]
 #[command(name = "doc-indexer")]
-#[command(about = "A daemon that monitors documentation and maintains a vector database")]
+#[command(about = "Document indexing and search service")]
 struct Cli {
-    /// Path to the docs directory to monitor
-    #[arg(long, default_value = "./docs")]
-    docs_path: PathBuf,
-
-    /// Qdrant server URL
-    #[arg(long, default_value = "http://localhost:6334")]
-    qdrant_url: String,
-
-    /// Collection name in Qdrant
-    #[arg(long, default_value = "zero_latency_docs")]
-    collection_name: String,
-
-    /// Run initial indexing then exit (don't watch for changes)
+    /// Configuration file path
     #[arg(long)]
-    index_only: bool,
+    config: Option<String>,
 
-    /// Start HTTP API server
+    /// HTTP server port
+    #[arg(long, default_value = "8080")]
+    port: u16,
+
+    /// Log level (trace, debug, info, warn, error)
+    #[arg(long, default_value = "info")]
+    log_level: String,
+
+    /// Enable structured logging
     #[arg(long)]
-    api_server: bool,
+    structured_logs: bool,
 
-    /// Port for HTTP API server
-    #[arg(long, default_value = "8081")]
-    api_port: u16,
-
-    /// Verbose logging
-    #[arg(short, long)]
-    verbose: bool,
+    /// Print example environment variables
+    #[arg(long)]
+    env_example: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    let log_level = if cli.verbose { "debug" } else { "info" };
-    tracing_subscriber::fmt()
-        .with_env_filter(format!("doc_indexer={},warn", log_level))
-        .with_target(false)
-        .init();
-
-    info!("Starting Zero Latency Documentation Indexer");
-    info!("Monitoring: {}", cli.docs_path.display());
-    info!("Vector DB: {} (collection: {})", cli.qdrant_url, cli.collection_name);
-
-    // Validate docs path exists
-    if !cli.docs_path.exists() {
-        anyhow::bail!("Docs path does not exist: {}", cli.docs_path.display());
+    // Print environment example if requested
+    if cli.env_example {
+        println!("{}", Config::env_example());
+        return Ok(());
     }
 
-    // Create config
-    let config = Config {
-        docs_directory: cli.docs_path,
-        qdrant_url: cli.qdrant_url,
-        collection_name: cli.collection_name,
-    };
+    // Initialize logging
+    init_logging(&cli.log_level, cli.structured_logs);
 
-    // Create the embedder first
-    use embedding_provider::{EmbeddingConfig, MockEmbedder, LocalEmbedder};
-    
-    let mut embedding_config = EmbeddingConfig::default();
-    // Configure for local gte-small model
-    embedding_config.model = "gte-small".to_string();
-    embedding_config.dimensions = Some(384);
-    
-    let embedder: Box<dyn embedding_provider::EmbeddingProvider> = {
-        // Use local ONNX embedder
-        match LocalEmbedder::new(embedding_config.clone()).await {
-            Ok(local_embedder) => {
-                if local_embedder.is_model_loaded() {
-                    info!("Using local embedding model: gte-small");
-                    Box::new(local_embedder)
-                } else {
-                    warn!("Local embedder initialized but model not loaded. Using mock embedder.");
-                    Box::new(MockEmbedder::new(embedding_config))
-                }
-            }
-            Err(e) => {
-                warn!("Failed to initialize local embedder: {}. Using mock embedder.", e);
-                Box::new(MockEmbedder::new(embedding_config))
-            }
+    info!("Starting doc-indexer service");
+
+    // Load configuration
+    let config = load_config(cli.config.as_deref(), cli.port).await?;
+    info!("Configuration loaded successfully");
+
+    // Create service container with all dependencies
+    let container = match ServiceContainer::new(config.clone()).await {
+        Ok(container) => {
+            info!("Service container initialized successfully");
+            Arc::new(container)
+        }
+        Err(e) => {
+            error!("Failed to initialize service container: {}", e);
+            return Err(e.into());
         }
     };
 
-    // Initialize the indexer with the embedder
-    let mut indexer = DocumentIndexer::new(config.clone(), embedder).await?;
-
-    // Perform initial indexing
-    info!("Performing initial documentation indexing...");
-    indexer.index_all_documents().await?;
-    info!("Initial indexing complete");
-
-    if cli.index_only {
-        info!("Index-only mode: exiting");
-        return Ok(());
+    // Create and start HTTP server
+    let server = HttpServer::new(config.server.clone(), container);
+    
+    info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
+    
+    if let Err(e) = server.start().await {
+        error!("HTTP server error: {}", e);
+        return Err(anyhow::Error::msg(format!("HTTP server error: {}", e)));
     }
 
-    // Start API server if requested
-    if cli.api_server {
-        info!("Starting API server mode on port {}", cli.api_port);
-        
-        // Create search service using the same embedder (need to recreate since Box doesn't clone)
-        use search_service::SearchService;
-        use api_server::ApiServer;
-        
-        // Create a new embedder instance for the search service
-        // (Box<dyn EmbeddingProvider> doesn't implement Clone, so we recreate)
-        let search_embedder: Box<dyn embedding_provider::EmbeddingProvider> = {
-            let mut search_config = EmbeddingConfig::default();
-            search_config.model = "gte-small".to_string();
-            search_config.dimensions = Some(384);
-            
-            match LocalEmbedder::new(search_config.clone()).await {
-                Ok(local_embedder) if local_embedder.is_model_loaded() => {
-                    Box::new(local_embedder)
-                }
-                _ => {
-                    Box::new(MockEmbedder::new(search_config))
-                }
-            }
-        };
-        
-        // Get vector database from indexer
-        let vectordb = indexer.create_vectordb_for_search().await?;
-        let search_service = SearchService::new(vectordb, search_embedder).await?;
-        
-        // Start API server
-        let api_server = ApiServer::new(search_service);
-        api_server.serve(cli.api_port).await?;
-        
-        return Ok(());
-    }
-
-    // Start watching for changes
-    info!("Starting file watcher...");
-    indexer.start_watching().await?;
-
+    info!("Doc-indexer service stopped");
     Ok(())
+}
+
+/// Initialize logging based on configuration
+fn init_logging(log_level: &str, structured: bool) {
+    use tracing_subscriber::{fmt, EnvFilter};
+    
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(format!("doc_indexer={},zero_latency_core=info,zero_latency_search=info,zero_latency_vector=info,zero_latency_observability=info", log_level)));
+
+    if structured {
+        fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .with_target(false)
+            .with_current_span(false)
+            .init();
+    } else {
+        fmt()
+            .with_env_filter(env_filter)
+            .with_target(false)
+            .init();
+    }
+}
+
+/// Load configuration from file or environment
+async fn load_config(config_file: Option<&str>, port_override: u16) -> Result<Config> {
+    let mut config = if let Some(path) = config_file {
+        info!("Loading configuration from file: {}", path);
+        Config::from_file(path)?
+    } else {
+        info!("Loading configuration from environment variables");
+        Config::from_env().unwrap_or_else(|e| {
+            info!("Failed to load config from environment ({}), using defaults", e);
+            Config::default()
+        })
+    };
+
+    // Override port if provided via CLI
+    if port_override != 8080 {
+        config.server.port = port_override;
+    }
+
+    // Validate configuration
+    config.validate()?;
+
+    info!("Configuration validation successful");
+    Ok(config)
 }
