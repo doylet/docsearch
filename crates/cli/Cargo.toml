@@ -11,6 +11,12 @@ name = "mdx"
 path = "src/main.rs"
 
 [dependencies]
+# Shared Zero-Latency crates
+zero-latency-core = { path = "../zero-latency-core" }
+zero-latency-search = { path = "../zero-latency-search" }
+zero-latency-config = { path = "../zero-latency-config" }
+zero-latency-observability = { path = "../zero-latency-observability" }
+
 # CLI framework
 clap = { version = "4.0", features = ["derive", "color"] }
 
@@ -34,6 +40,7 @@ comfy-table = "7.0"
 # Configuration
 dirs = "5.0"
 config = "0.14"
+toml = "0.8"
 
 # Logging
 tracing = "0.1"

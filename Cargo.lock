@@ -1974,8 +1974,13 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
+ "zero-latency-config",
+ "zero-latency-core",
+ "zero-latency-observability",
+ "zero-latency-search",
 ]
 
 [[package]]
