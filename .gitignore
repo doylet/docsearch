@@ -17,6 +17,13 @@ target/
 doc-indexer-v*
 *.exe
 
+# Distribution packages (build artifacts)
+*.dmg
+*.app/
+Zero-Latency.app/
+Zero-Latency-v*.dmg
+dmg-staging/
+
 # Qdrant local storage
 qdrant_storage/
 
