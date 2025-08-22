@@ -1,39 +1,31 @@
 # Zero-Latency Documentation Search
 
-A high-performance semantic search system for documentation using local embeddings and vector similarity search. Built with Rust for speed and reliability.
+A high-performance semantic search system for documentation using local embeddings and **embedded vector storage**. Built with Rust for speed and reliability - **no external databases required**.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-1. **Start Qdrant Vector Database**:
-   ```bash
-   docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
-   ```
-
-2. **Build the CLI**:
-   ```bash
-   cargo build --release
-   ```
+**Nothing!** Zero-Latency now includes an embedded vector database. No need for external services.
 
 ### Using the CLI
 
 The `mdx` command provides an intuitive interface for document search:
 
 ```bash
-# Search for documents
+# Build the CLI (includes embedded database)
+cargo build --release
+
+# Index documents from a directory
+mdx index /path/to/docs
+
+# Search for documents  
 mdx search "embedding model"
 
 # Check system status
 mdx status
 
-# Index documents from a directory
-mdx index /path/to/docs
-
-# Rebuild the entire index
-mdx reindex
-
-# Start the API server
+# Start the API server (with embedded database)
 mdx server --start
 
 # Get help
@@ -148,6 +140,12 @@ For a complete overview, see the [Documentation Index](docs/README.md).
 
 #### **Production Distribution** (Completed August 22, 2025)
 
+- **Embedded Vector Database**: Self-contained SQLite-based vector storage
+  - No external Qdrant dependency
+  - Persistent storage with automatic caching
+  - Cross-platform binary deployment
+  - ~2KB per document chunk storage
+
 - **Self-Contained Binaries**: ONNX Runtime embedded with `download-binaries` feature
   - No external library dependencies
   - Single binary deployment
@@ -190,9 +188,9 @@ For a complete overview, see the [Documentation Index](docs/README.md).
 ### System Components
 
 ```text
-mdx CLI ──HTTP──> API Server ──gRPC──> Qdrant Vector DB
-   │                   │                      │
-   │                   └─> Local Embedder ────┘
+mdx CLI ──HTTP──> API Server ──SQLite──> Embedded Vector DB
+   │                   │                       │
+   │                   └─> Local Embedder ─────┘
    │                       (gte-small ONNX)
    │
    └─> Local Files & Configuration
@@ -203,7 +201,7 @@ mdx CLI ──HTTP──> API Server ──gRPC──> Qdrant Vector DB
 - **CLI**: Rust with `clap` framework
 - **HTTP API**: Axum web framework  
 - **Embeddings**: Local ONNX model (gte-small, 384 dimensions)
-- **Vector DB**: Qdrant for similarity search
+- **Vector DB**: Embedded SQLite with binary blob storage
 - **File Monitoring**: Real-time document change detection
 
 ## 🛠 Installation
@@ -262,16 +260,21 @@ cargo build --release
 
 ### Docker Setup
 
+**No Docker needed!** The embedded vector database eliminates the need for external services.
+
+For advanced users who want to use external Qdrant:
+
 ```bash
-# Start Qdrant vector database
+# Optional: Start external Qdrant vector database
 docker run -d \
   --name qdrant \
   -p 6333:6333 \
   -p 6334:6334 \
   qdrant/qdrant
 
-# Verify Qdrant is running
-curl http://localhost:6333/health
+# Configure to use external Qdrant  
+export DOC_INDEXER_VECTOR_BACKEND=qdrant
+export DOC_INDEXER_QDRANT_URL=http://localhost:6333
 ```
 
 ## 📊 Features
@@ -320,13 +323,29 @@ curl http://localhost:6333/health
 ```bash
 # API server configuration
 export MDX_API_URL="http://localhost:8081"
-export QDRANT_URL="http://localhost:6333"
 export RUST_LOG="info"
+
+# Vector Storage (default: embedded)
+export DOC_INDEXER_VECTOR_BACKEND="embedded"
+export DOC_INDEXER_EMBEDDED_DB_PATH="~/.zero-latency/vectors.db"
+
+# Optional: External Qdrant (advanced users)
+export DOC_INDEXER_VECTOR_BACKEND="qdrant"
+export QDRANT_URL="http://localhost:6333"
 
 # CLI preferences
 export MDX_DEFAULT_FORMAT="table"
 export MDX_DEFAULT_LIMIT="10"
 ```
+
+### Database Configuration
+
+The embedded database automatically stores vectors in:
+
+- **Default Location**: `~/.zero-latency/vectors.db`
+- **Custom Location**: Set `DOC_INDEXER_EMBEDDED_DB_PATH`
+- **Cache Size**: 10,000 vectors in memory by default
+- **Performance**: ~2KB per document chunk
 
 ### Model Configuration
 

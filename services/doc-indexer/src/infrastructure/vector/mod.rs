@@ -5,7 +5,9 @@
 
 pub mod qdrant_adapter;
 pub mod memory_adapter;
+pub mod embedded_adapter;
 
 // Re-export commonly used types
 pub use qdrant_adapter::{QdrantAdapter, QdrantConfig};
 pub use memory_adapter::InMemoryVectorStore;
+pub use embedded_adapter::{EmbeddedVectorStore, EmbeddedConfig, EmbeddedStats};

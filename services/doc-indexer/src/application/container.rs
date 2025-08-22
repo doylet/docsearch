@@ -71,7 +71,7 @@ impl ServiceContainer {
     
     /// Create vector repository based on configuration
     async fn create_vector_repository(config: &Config) -> Result<Arc<dyn VectorRepository>> {
-        use crate::infrastructure::{InMemoryVectorStore, QdrantAdapter};
+        use crate::infrastructure::{InMemoryVectorStore, QdrantAdapter, EmbeddedVectorStore};
         use crate::config::VectorBackend;
         
         match config.vector.backend {
@@ -80,6 +80,10 @@ impl ServiceContainer {
             }
             VectorBackend::Qdrant => {
                 let adapter = QdrantAdapter::new(config.vector.qdrant.clone()).await?;
+                Ok(Arc::new(adapter))
+            }
+            VectorBackend::Embedded => {
+                let adapter = EmbeddedVectorStore::new(config.vector.embedded.clone()).await?;
                 Ok(Arc::new(adapter))
             }
         }

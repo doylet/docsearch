@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, ZeroLatencyError};
-use crate::infrastructure::{ServerConfig, QdrantConfig, OpenAIConfig, LocalEmbeddingConfig};
+use crate::infrastructure::{ServerConfig, QdrantConfig, OpenAIConfig, LocalEmbeddingConfig, EmbeddedConfig};
 
 /// Main configuration structure for the doc-indexer service
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +34,9 @@ pub struct VectorConfig {
     
     /// Qdrant-specific configuration
     pub qdrant: QdrantConfig,
+    
+    /// Embedded storage configuration
+    pub embedded: EmbeddedConfig,
 }
 
 /// Embedding configuration
@@ -96,6 +99,7 @@ pub struct ServiceConfig {
 pub enum VectorBackend {
     Memory,
     Qdrant,
+    Embedded,
 }
 
 /// Embedding provider types
@@ -149,9 +153,9 @@ impl Config {
             
             vector: VectorConfig {
                 backend: std::env::var("DOC_INDEXER_VECTOR_BACKEND")
-                    .unwrap_or_else(|_| "memory".to_string())
+                    .unwrap_or_else(|_| "embedded".to_string())
                     .parse()
-                    .unwrap_or(VectorBackend::Memory),
+                    .unwrap_or(VectorBackend::Embedded),
                 qdrant: QdrantConfig {
                     url: std::env::var("DOC_INDEXER_QDRANT_URL")
                         .unwrap_or_else(|_| "http://localhost:6333".to_string()),
@@ -162,6 +166,32 @@ impl Config {
                         .unwrap_or_else(|_| "30".to_string())
                         .parse()
                         .unwrap_or(30),
+                },
+                embedded: EmbeddedConfig {
+                    db_path: std::env::var("DOC_INDEXER_EMBEDDED_DB_PATH")
+                        .map(|p| {
+                            if p.starts_with("~/") {
+                                dirs::home_dir()
+                                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                                    .join(&p[2..])
+                            } else {
+                                std::path::PathBuf::from(p)
+                            }
+                        })
+                        .unwrap_or_else(|| {
+                            dirs::home_dir()
+                                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                                .join(".zero-latency")
+                                .join("vectors.db")
+                        }),
+                    dimension: std::env::var("DOC_INDEXER_EMBEDDED_DIMENSION")
+                        .unwrap_or_else(|_| "384".to_string())
+                        .parse()
+                        .unwrap_or(384),
+                    cache_size: std::env::var("DOC_INDEXER_EMBEDDED_CACHE_SIZE")
+                        .unwrap_or_else(|_| "10000".to_string())
+                        .parse()
+                        .unwrap_or(10000),
                 },
             },
             
@@ -296,11 +326,16 @@ DOC_INDEXER_ENABLE_CORS=true
 DOC_INDEXER_CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Vector Storage
-DOC_INDEXER_VECTOR_BACKEND=memory
+DOC_INDEXER_VECTOR_BACKEND=embedded
 DOC_INDEXER_QDRANT_URL=http://localhost:6333
 DOC_INDEXER_QDRANT_COLLECTION=documents
 DOC_INDEXER_QDRANT_API_KEY=your-api-key
 DOC_INDEXER_QDRANT_TIMEOUT=30
+
+# Embedded Vector Storage
+DOC_INDEXER_EMBEDDED_DB_PATH=~/.zero-latency/vectors.db
+DOC_INDEXER_EMBEDDED_DIMENSION=384
+DOC_INDEXER_EMBEDDED_CACHE_SIZE=10000
 
 # Embeddings
 DOC_INDEXER_EMBEDDING_PROVIDER=local
@@ -335,6 +370,7 @@ impl std::str::FromStr for VectorBackend {
         match s.to_lowercase().as_str() {
             "memory" => Ok(VectorBackend::Memory),
             "qdrant" => Ok(VectorBackend::Qdrant),
+            "embedded" => Ok(VectorBackend::Embedded),
             _ => Err(ZeroLatencyError::configuration(&format!("Unknown vector backend: {}", s))),
         }
     }
@@ -371,8 +407,9 @@ impl Default for Config {
         Self {
             server: ServerConfig::default(),
             vector: VectorConfig {
-                backend: VectorBackend::Memory,
+                backend: VectorBackend::Embedded,
                 qdrant: QdrantConfig::default(),
+                embedded: EmbeddedConfig::default(),
             },
             embedding: EmbeddingConfig {
                 provider: EmbeddingProvider::Local,
