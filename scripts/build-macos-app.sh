@@ -39,12 +39,16 @@ cat > "$CONTENTS_DIR/Info.plist" << 'EOF'
     <string>Zero-Latency</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
-    <key>LSUIElement</key>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.12</string>
+    <key>NSHighResolutionCapable</key>
     <true/>
-    <key>LSBackgroundOnly</key>
-    <false/>
 </dict>
 </plist>
 EOF
@@ -59,6 +63,18 @@ RESOURCES_DIR="$APP_DIR/../Resources"
 LAUNCH_AGENT_PLIST="com.zerolatency.doc-indexer.plist"
 USER_LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
 
+# Check if running in Terminal (has TTY) or launched from Finder
+if [ ! -t 1 ] && [ ! -t 0 ]; then
+    # Launched from Finder - open in Terminal
+    osascript << EOD
+tell application "Terminal"
+    do script "cd '$APP_DIR' && ./Zero-Latency"
+    activate
+end tell
+EOD
+    exit 0
+fi
+
 # Function to install launch agent
 install_daemon() {
     echo "🔧 Installing Zero-Latency daemon..."
@@ -72,31 +88,88 @@ install_daemon() {
     # Update paths in plist to point to actual binary location
     sed -i '' "s|{{APP_DIR}}|$APP_DIR|g" "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST"
     
-    # Load the launch agent
-    launchctl load "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST"
+    # Unload any existing service first
+    launchctl unload "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST" 2>/dev/null || true
     
-    echo "✅ Daemon installed and started"
+    # Load the launch agent
+    echo "📡 Loading launch agent..."
+    if launchctl load "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST" 2>/dev/null; then
+        echo "✅ Launch agent loaded successfully"
+    else
+        echo "⚠️  Launch agent load reported warnings (this is often normal)"
+    fi
+    
+    # Verify the service is actually running
+    sleep 2
+    if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
+        echo "✅ Zero-Latency daemon is running"
+        echo "🌐 Service available at: http://localhost:8080"
+        
+        # Test if service responds
+        if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            echo "🔍 Service health check passed"
+        else
+            echo "⚠️  Service may still be starting up..."
+        fi
+    else
+        echo "❌ Failed to start daemon - check logs at /tmp/zero-latency-error.log"
+    fi
 }
 
 # Function to uninstall launch agent
 uninstall_daemon() {
     echo "🗑️  Uninstalling Zero-Latency daemon..."
     
-    # Unload and remove launch agent
-    launchctl unload "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST" 2>/dev/null || true
-    rm -f "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST"
+    # Check if service is running
+    if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
+        echo "🛑 Stopping running service..."
+        launchctl unload "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST" 2>/dev/null || true
+    else
+        echo "ℹ️  Service was not running"
+    fi
     
-    echo "✅ Daemon uninstalled"
+    # Remove launch agent plist
+    if [ -f "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST" ]; then
+        rm -f "$USER_LAUNCH_AGENTS/$LAUNCH_AGENT_PLIST"
+        echo "🗑️  Removed launch agent configuration"
+    fi
+    
+    # Verify service is stopped
+    if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
+        echo "⚠️  Service may still be running - try again in a moment"
+    else
+        echo "✅ Zero-Latency daemon completely removed"
+    fi
 }
 
 # Function to show status
 show_status() {
+    echo "🔍 Zero-Latency Service Status"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
     if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
         echo "✅ Zero-Latency daemon is running"
-        echo "🌐 Service available at: http://localhost:8080"
+        
+        # Get PID and status
+        local status_line=$(launchctl list | grep "com.zerolatency.doc-indexer")
+        local pid=$(echo "$status_line" | awk '{print $1}')
+        echo "📊 Process ID: $pid"
+        
+        # Test service health
+        if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            echo "🌐 Service available at: http://localhost:8080"
+            echo "🔍 Health check: PASSED"
+        else
+            echo "⚠️  Service port not responding (may be starting up)"
+        fi
+        
         echo "🔧 CLI tool: $APP_DIR/mdx"
+        echo "📋 Logs: /tmp/zero-latency.log"
+        echo "❌ Errors: /tmp/zero-latency-error.log"
     else
         echo "❌ Zero-Latency daemon is not running"
+        echo ""
+        echo "To start the service, choose option 1"
     fi
 }
 
@@ -105,7 +178,7 @@ open_cli() {
     echo "🖥️  Opening Zero-Latency CLI..."
     osascript << EOD
 tell application "Terminal"
-    do script "cd '$APP_DIR' && echo 'Zero-Latency CLI Ready! Try: ./mdx search \"your query\"' && bash"
+    do script "cd '$APP_DIR' && echo 'Zero-Latency CLI Ready! Try: ./mdx search \"your query\"' && zsh || bash"
     activate
 end tell
 EOD
@@ -136,9 +209,9 @@ EOF
 chmod +x "$MACOS_DIR/Zero-Latency"
 
 # Create LaunchAgent plist
-cat > "$LAUNCH_AGENTS_DIR/com.zerolatency.doc-indexer.plist" << 'EOF'
+cat > "$LAUNCH_AGENTS_DIR/com.zerolatency.doc-indexer.plist" << 'PLISTEOF'
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"\>
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -161,7 +234,7 @@ cat > "$LAUNCH_AGENTS_DIR/com.zerolatency.doc-indexer.plist" << 'EOF'
     <string>{{APP_DIR}}</string>
 </dict>
 </plist>
-EOF
+PLISTEOF
 
 echo "✅ App bundle created: $BUNDLE_DIR"
 echo "🚀 Double-click $BUNDLE_DIR to run!"
