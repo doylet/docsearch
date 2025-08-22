@@ -127,9 +127,11 @@ For a complete overview, see the [Documentation Index](docs/README.md).
 
 ## 📊 Project Status
 
-### ✅ Phase 4C: Clean Architecture - COMPLETED (August 21, 2025)
+### ✅ Phase 4C: Clean Architecture + Distribution - COMPLETED (August 22, 2025)
 
-**Major Milestone Achieved!** Successfully implemented enterprise-grade clean architecture with:
+**Major Milestone Achieved!** Successfully implemented enterprise-grade clean architecture with professional distribution packaging:
+
+#### **Core Architecture** (Completed August 21, 2025)
 
 - **5 Shared Domain Crates**: Comprehensive foundation providing reusable models, traits, and abstractions
   - `zero-latency-core`: Foundation models, error handling, health monitoring
@@ -144,15 +146,32 @@ For a complete overview, see the [Documentation Index](docs/README.md).
   - Trait-based abstractions for testability
   - Proper separation of concerns (Application/Infrastructure/Domain layers)
 
-- **Production-Ready Features**:
-  - Vector storage adapters (Qdrant + In-Memory)
-  - Embedding adapters (OpenAI + Local deterministic)
-  - HTTP REST API with comprehensive error handling
-  - Health monitoring (readiness/liveness checks)
-  - Configuration-driven adapter selection
+#### **Production Distribution** (Completed August 22, 2025)
 
-**Build Status**: ✅ Successful compilation  
+- **Self-Contained Binaries**: ONNX Runtime embedded with `download-binaries` feature
+  - No external library dependencies
+  - Single binary deployment
+  - Cross-platform model inference
+
+- **macOS App Bundle**: Professional distribution package
+  - GUI control panel for daemon management
+  - Automatic LaunchAgent installation
+  - Integrated CLI terminal access
+  - Drag-and-drop .app installation
+
+- **DMG Installer**: `Zero-Latency-v1.0.0.dmg` (6.4MB)
+  - Professional macOS installer experience
+  - Applications folder integration
+  - Comprehensive README and documentation
+
+- **Build Automation**:
+  - `scripts/build-macos-app.sh`: Creates app bundle with LaunchAgent
+  - `scripts/build-dmg.sh`: Packages into distributable DMG
+  - `scripts/install.sh`: Command-line installation script
+
+**Build Status**: ✅ Successful release build  
 **Architecture Validation**: ✅ All SOLID principles implemented  
+**Distribution**: ✅ Professional macOS packaging complete  
 **Documentation**: [Phase 4C Implementation Details](./docs/milestones/Phase_4C_Clean_Architecture_Implementation.md)
 
 ### 🚀 Next Phase: Phase 4D Service Extension (Starting August 21, 2025)
@@ -189,6 +208,32 @@ mdx CLI ──HTTP──> API Server ──gRPC──> Qdrant Vector DB
 
 ## 🛠 Installation
 
+### macOS App Bundle (Recommended)
+
+**Download the latest release**: [Zero-Latency-v1.0.0.dmg](releases/Zero-Latency-v1.0.0.dmg)
+
+1. **Download and mount** the DMG file
+2. **Drag Zero-Latency.app** to your Applications folder
+3. **Double-click Zero-Latency.app** to open the control panel
+4. **Choose "Install & Start Daemon"** to begin background service
+
+The app bundle includes:
+
+- ✅ **Self-contained binaries** with embedded ONNX Runtime
+- ✅ **Automatic daemon management** via macOS LaunchAgent
+- ✅ **GUI control panel** for easy management
+- ✅ **CLI access** via integrated terminal
+
+### Command Line Installation
+
+```bash
+# Quick install script (requires built binaries)
+./scripts/install.sh
+
+# Manual installation
+sudo cp target/release/{doc-indexer,mdx} /usr/local/bin/
+```
+
 ### From Source
 
 ```bash
@@ -196,11 +241,23 @@ mdx CLI ──HTTP──> API Server ──gRPC──> Qdrant Vector DB
 git clone <repo-url>
 cd Zero-Latency
 
-# Build CLI and API server
+# Build release binaries with embedded dependencies
 cargo build --release
 
 # CLI available at ./target/release/mdx
 # API server at ./target/release/doc-indexer
+```
+
+### Building Distribution Packages
+
+```bash
+# Build macOS app bundle
+./scripts/build-macos-app.sh
+
+# Create DMG installer
+./scripts/build-dmg.sh
+
+# Results in Zero-Latency.app and Zero-Latency-v1.0.0.dmg
 ```
 
 ### Docker Setup
