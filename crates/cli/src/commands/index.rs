@@ -1,75 +1,45 @@
 use clap::Args;
-use anyhow::Result;
-use std::path::PathBuf;
-use crate::client::ApiClient;
-use crate::commands::Command;
-use crate::output::OutputFormatter;
+use colored::*;
 
+use zero_latency_core::{Result as ZeroLatencyResult};
+use crate::application::{CliServiceContainer, IndexCommand as AppIndexCommand};
+
+/// CLI arguments for the index command
 #[derive(Args)]
 pub struct IndexCommand {
-    /// Path to directory containing documents to index
-    pub path: PathBuf,
+    /// Directory path to index
+    pub path: String,
     
-    /// Index directories recursively
+    /// Maximum number of files to process
     #[arg(short, long)]
-    pub recursive: bool,
+    pub limit: Option<u32>,
     
-    /// Output format: table, json
-    #[arg(short, long, default_value = "table")]
-    pub format: String,
+    /// Batch size for processing
+    #[arg(short, long, default_value = "100")]
+    pub batch_size: u32,
+    
+    /// Show verbose output
+    #[arg(short, long)]
+    pub verbose: bool,
 }
 
-impl Command for IndexCommand {
-    async fn execute(&self, client: &ApiClient) -> Result<()> {
-        let formatter = OutputFormatter::new(&self.format);
+impl IndexCommand {
+    /// Execute the index command using clean architecture pattern.
+    /// 
+    /// This method delegates to the application service layer,
+    /// maintaining separation of concerns between UI and business logic.
+    pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
+        println!("{}", "🚀 Starting document indexing...".bright_blue().bold());
         
-        // Validate path exists
-        if !self.path.exists() {
-            anyhow::bail!("Path does not exist: {}", self.path.display());
-        }
+        let app_command = AppIndexCommand {
+            path: self.path.clone(),
+            recursive: false, // Default value
+            force: false,     // Default value
+        };
         
-        if !self.path.is_dir() {
-            anyhow::bail!("Path is not a directory: {}", self.path.display());
-        }
+        container.cli_service().index(app_command).await?;
         
-        // Show indexing start message
-        formatter.display_progress_start(&format!(
-            "Indexing documents from {} (recursive: {})",
-            self.path.display(),
-            self.recursive
-        ))?;
-        
-        // Send index request
-        let path_str = self.path.to_string_lossy().to_string();
-        let response = client.index(&path_str, self.recursive).await?;
-        
-        // Display results
-        match self.format.as_str() {
-            "json" => {
-                let json = serde_json::to_string_pretty(&response)?;
-                println!("{}", json);
-            }
-            _ => {
-                if response.errors.is_empty() {
-                    formatter.display_success_message(&format!(
-                        "Indexed {} documents ({} chunks) in {}ms",
-                        response.indexed_documents,
-                        response.total_chunks,
-                        response.processing_time_ms
-                    ))?;
-                } else {
-                    formatter.display_warning_message(&format!(
-                        "Indexed {} documents with {} errors",
-                        response.indexed_documents,
-                        response.errors.len()
-                    ))?;
-                    
-                    for error in &response.errors {
-                        formatter.display_error_message(error)?;
-                    }
-                }
-            }
-        }
+        println!("{}", "✅ Indexing completed successfully!".bright_green().bold());
         
         Ok(())
     }

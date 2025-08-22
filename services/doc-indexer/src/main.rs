@@ -39,6 +39,18 @@ struct Cli {
     /// Print example environment variables
     #[arg(long)]
     env_example: bool,
+
+    /// Enable stdio JSON-RPC transport
+    #[arg(long, short = 's')]
+    stdio: bool,
+
+    /// Enable batch processing mode for stdio
+    #[arg(long, short = 'b')]
+    batch: bool,
+
+    /// Print stdio usage information
+    #[arg(long)]
+    stdio_help: bool,
 }
 
 #[tokio::main]
@@ -48,6 +60,12 @@ async fn main() -> Result<()> {
     // Print environment example if requested
     if cli.env_example {
         println!("{}", Config::env_example());
+        return Ok(());
+    }
+
+    // Print stdio help if requested
+    if cli.stdio_help {
+        infrastructure::stdio::utils::print_stdio_usage();
         return Ok(());
     }
 
@@ -71,6 +89,30 @@ async fn main() -> Result<()> {
             return Err(e.into());
         }
     };
+
+    // Check if stdio mode is requested
+    if cli.stdio || cli.batch {
+        let app_state = infrastructure::http::handlers::AppState::new(container.clone());
+
+        if cli.batch {
+            info!("Starting stdio batch processing mode");
+            let batch_processor = infrastructure::stdio::StdioBatchProcessor::new(app_state);
+            if let Err(e) = batch_processor.process_batch().await {
+                error!("Stdio batch processing error: {}", e);
+                return Err(anyhow::Error::msg(format!("Stdio batch processing error: {}", e)));
+            }
+        } else {
+            info!("Starting stdio JSON-RPC mode");
+            let stdio_server = infrastructure::stdio::StdioServer::new(app_state);
+            if let Err(e) = stdio_server.start().await {
+                error!("Stdio server error: {}", e);
+                return Err(anyhow::Error::msg(format!("Stdio server error: {}", e)));
+            }
+        }
+
+        info!("Doc-indexer stdio mode stopped");
+        return Ok(());
+    }
 
     // Create and start HTTP server
     let server = HttpServer::new(config.server.clone(), container);

@@ -808,12 +808,14 @@ name = "doc-indexer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
  "axum",
  "chrono",
  "clap",
  "dirs",
  "futures",
+ "futures-util",
  "governor",
  "jsonrpc-core",
  "jsonrpc-http-server",
@@ -1974,8 +1976,13 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
+ "zero-latency-config",
+ "zero-latency-core",
+ "zero-latency-observability",
+ "zero-latency-search",
 ]
 
 [[package]]

@@ -1,39 +1,40 @@
 use clap::Args;
-use anyhow::Result;
-use crate::client::ApiClient;
-use crate::commands::Command;
-use crate::output::OutputFormatter;
+use colored::*;
 
+use zero_latency_core::{Result as ZeroLatencyResult};
+use crate::application::{CliServiceContainer, StatusCommand as AppStatusCommand};
+
+/// CLI arguments for the status command
 #[derive(Args)]
 pub struct StatusCommand {
-    /// Output format: table, json
+    /// Show detailed health information
+    #[arg(short, long)]
+    pub detailed: bool,
+    
+    /// Output format: table, json, simple
     #[arg(short, long, default_value = "table")]
     pub format: String,
+    
+    /// Check specific collection
+    #[arg(short, long)]
+    pub collection: Option<String>,
 }
 
-impl Command for StatusCommand {
-    async fn execute(&self, client: &ApiClient) -> Result<()> {
-        let formatter = OutputFormatter::new(&self.format);
+impl StatusCommand {
+    /// Execute the status command using clean architecture pattern.
+    /// 
+    /// This method delegates to the application service layer,
+    /// maintaining separation of concerns between UI and business logic.
+    pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
+        println!("{}", "📊 Checking system status...".bright_blue().bold());
         
-        // Check if server is reachable
-        if !client.health_check().await? {
-            formatter.display_error_message("API server is not reachable")?;
-            return Ok(());
-        }
+        let app_command = AppStatusCommand {
+            detailed: self.detailed,
+        };
         
-        // Get status
-        let response = client.status().await?;
+        container.cli_service().status(app_command).await?;
         
-        // Display based on format
-        match self.format.as_str() {
-            "json" => {
-                let json = serde_json::to_string_pretty(&response)?;
-                println!("{}", json);
-            }
-            _ => {
-                formatter.display_status(&response)?;
-            }
-        }
+        println!("{}", "✅ Status check completed!".bright_green().bold());
         
         Ok(())
     }
