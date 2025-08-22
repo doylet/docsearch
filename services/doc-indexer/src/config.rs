@@ -178,7 +178,7 @@ impl Config {
                                 std::path::PathBuf::from(p)
                             }
                         })
-                        .unwrap_or_else(|| {
+                        .unwrap_or_else(|_| {
                             dirs::home_dir()
                                 .unwrap_or_else(|| std::path::PathBuf::from("."))
                                 .join(".zero-latency")

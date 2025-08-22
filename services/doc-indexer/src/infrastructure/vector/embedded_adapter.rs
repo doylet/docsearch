@@ -4,15 +4,17 @@
 /// that doesn't require external databases. It uses SQLite with binary blob
 /// storage for vectors and provides efficient similarity search.
 
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use rusqlite::{Connection, params, OpenFlags};
 use async_trait::async_trait;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
-use zero_latency_core::{Result, ZeroLatencyError, models::HealthStatus, values::Score, models::DocumentId};
-use zero_latency_vector::{VectorRepository, VectorDocument, SimilarityResult, SimilarityCalculator};
+use zero_latency_core::{Result, ZeroLatencyError, models::HealthStatus, values::Score, Uuid};
+use zero_latency_vector::{VectorRepository, VectorDocument, SimilarityResult, SimilarityCalculator, SimilarityMetric, VectorMetadata};
+use lru::LruCache;
 
 /// Configuration for embedded vector store
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,14 +40,11 @@ impl Default for EmbeddedConfig {
 
 /// Embedded vector store using SQLite
 pub struct EmbeddedVectorStore {
-    connection: Arc<RwLock<Connection>>,
+    db_path: PathBuf,
+    connection: Arc<Mutex<Connection>>,
     config: EmbeddedConfig,
-    similarity_calculator: Arc<dyn SimilarityCalculator>,
-    // In-memory cache for recently accessed vectors
-    cache: Arc<RwLock<lru::LruCache<String, Vec<f32>>>>,
-}
-
-impl EmbeddedVectorStore {
+    cache: Arc<Mutex<LruCache<String, Vec<f32>>>>,
+}impl EmbeddedVectorStore {
     /// Create a new embedded vector store
     pub async fn new(config: EmbeddedConfig) -> Result<Self> {
         // Ensure directory exists
@@ -61,10 +60,10 @@ impl EmbeddedVectorStore {
         ).map_err(|e| ZeroLatencyError::database(&format!("Failed to open database: {}", e)))?;
 
         let store = Self {
-            connection: Arc::new(RwLock::new(connection)),
+            db_path: config.db_path.clone(),
+            connection: Arc::new(Mutex::new(connection)),
             config: config.clone(),
-            similarity_calculator: Arc::new(CosineCalculator),
-            cache: Arc::new(RwLock::new(lru::LruCache::new(
+            cache: Arc::new(Mutex::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(config.cache_size).unwrap()
             ))),
         };
@@ -75,19 +74,9 @@ impl EmbeddedVectorStore {
         Ok(store)
     }
 
-    /// Create with custom similarity calculator
-    pub async fn with_similarity_calculator(
-        config: EmbeddedConfig,
-        calculator: Arc<dyn SimilarityCalculator>
-    ) -> Result<Self> {
-        let mut store = Self::new(config).await?;
-        store.similarity_calculator = calculator;
-        Ok(store)
-    }
-
     /// Initialize database schema
     async fn initialize_schema(&self) -> Result<()> {
-        let conn = self.connection.write().await;
+        let conn = self.connection.lock().await;
         
         conn.execute(
             r#"
@@ -126,14 +115,14 @@ impl EmbeddedVectorStore {
     async fn get_vector(&self, document_id: &str) -> Result<Option<Vec<f32>>> {
         // Check cache first
         {
-            let mut cache = self.cache.write().await;
+            let mut cache = self.cache.lock().await;
             if let Some(vector) = cache.get(document_id) {
                 return Ok(Some(vector.clone()));
             }
         }
 
         // Load from database
-        let conn = self.connection.read().await;
+        let conn = self.connection.lock().await;
         let mut stmt = conn.prepare("SELECT embedding FROM vectors WHERE id = ?")
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare query: {}", e)))?;
 
@@ -147,7 +136,7 @@ impl EmbeddedVectorStore {
                 
                 // Cache the vector
                 {
-                    let mut cache = self.cache.write().await;
+                    let mut cache = self.cache.lock().await;
                     cache.put(document_id.to_string(), vector.clone());
                 }
                 
@@ -160,7 +149,7 @@ impl EmbeddedVectorStore {
 
     /// Get database statistics
     pub async fn get_stats(&self) -> Result<EmbeddedStats> {
-        let conn = self.connection.read().await;
+        let conn = self.connection.lock().await;
         
         let document_count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM vectors",
@@ -175,14 +164,14 @@ impl EmbeddedVectorStore {
         Ok(EmbeddedStats {
             document_count: document_count as usize,
             db_size_bytes: db_size,
-            cache_size: self.cache.read().await.len(),
+            cache_size: self.cache.lock().await.len(),
             db_path: self.config.db_path.clone(),
         })
     }
 
     /// Compact database (VACUUM)
     pub async fn compact(&self) -> Result<()> {
-        let conn = self.connection.write().await;
+        let conn = self.connection.lock().await;
         conn.execute("VACUUM", [])
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to compact database: {}", e)))?;
         Ok(())
@@ -192,25 +181,27 @@ impl EmbeddedVectorStore {
 #[async_trait]
 impl VectorRepository for EmbeddedVectorStore {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
-        let conn = self.connection.write().await;
-        let mut stmt = conn.prepare(
-            "INSERT OR REPLACE INTO vectors (id, embedding, metadata) VALUES (?, ?, ?)"
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare insert: {}", e)))?;
-
         for document in vectors {
             let embedding_blob = self.serialize_vector(&document.embedding)?;
             let metadata_json = serde_json::to_string(&document.metadata)
                 .map_err(|e| ZeroLatencyError::database(&format!("Failed to serialize metadata: {}", e)))?;
 
-            stmt.execute(params![
-                document.id.to_string(),
-                embedding_blob,
-                metadata_json
-            ]).map_err(|e| ZeroLatencyError::database(&format!("Failed to insert document: {}", e)))?;
+            {
+                let conn = self.connection.lock().await;
+                let mut stmt = conn.prepare(
+                    "INSERT OR REPLACE INTO vectors (id, embedding, metadata) VALUES (?, ?, ?)"
+                ).map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare insert: {}", e)))?;
+
+                stmt.execute(params![
+                    document.id.to_string(),
+                    embedding_blob,
+                    metadata_json
+                ]).map_err(|e| ZeroLatencyError::database(&format!("Failed to insert document: {}", e)))?;
+            }
 
             // Update cache
             {
-                let mut cache = self.cache.write().await;
+                let mut cache = self.cache.lock().await;
                 cache.put(document.id.to_string(), document.embedding);
             }
         }
@@ -219,7 +210,7 @@ impl VectorRepository for EmbeddedVectorStore {
     }
 
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
-        let conn = self.connection.read().await;
+        let conn = self.connection.lock().await;
         let mut stmt = conn.prepare("SELECT id, embedding, metadata FROM vectors")
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare search: {}", e)))?;
 
@@ -237,15 +228,20 @@ impl VectorRepository for EmbeddedVectorStore {
                 .map_err(|e| ZeroLatencyError::database(&format!("Failed to read row: {}", e)))?;
 
             let embedding = self.deserialize_vector(&embedding_blob)?;
-            let metadata: HashMap<String, serde_json::Value> = serde_json::from_str(&metadata_json)
+            let metadata: VectorMetadata = serde_json::from_str(&metadata_json)
                 .map_err(|e| ZeroLatencyError::database(&format!("Failed to parse metadata: {}", e)))?;
 
-            let similarity = self.similarity_calculator
-                .calculate_similarity(&query_vector, &embedding);
+            let calculator = CosineCalculator;
+            let similarity = calculator.calculate_similarity(&query_vector, &embedding);
+
+            let document_id = Uuid::parse_str(&id)
+                .map_err(|e| ZeroLatencyError::database(&format!("Invalid UUID: {}", e)))?;
 
             results.push(SimilarityResult {
-                document_id: id.into(),
-                similarity: Score::new(similarity).unwrap_or_else(|_| Score::new(0.0).unwrap()),
+                document_id,
+                similarity: Score::new(similarity).unwrap_or_else(|_| {
+                    Score::new(0.0).unwrap()
+                }),
                 metadata,
             });
         }
@@ -263,13 +259,13 @@ impl VectorRepository for EmbeddedVectorStore {
     }
 
     async fn delete(&self, document_id: &str) -> Result<bool> {
-        let conn = self.connection.write().await;
+        let conn = self.connection.lock().await;
         let changes = conn.execute("DELETE FROM vectors WHERE id = ?", params![document_id])
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to delete document: {}", e)))?;
 
         // Remove from cache
         {
-            let mut cache = self.cache.write().await;
+            let mut cache = self.cache.lock().await;
             cache.pop(document_id);
         }
 
@@ -279,7 +275,7 @@ impl VectorRepository for EmbeddedVectorStore {
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
         let embedding_blob = self.serialize_vector(&vector)?;
         
-        let conn = self.connection.write().await;
+        let conn = self.connection.lock().await;
         let changes = conn.execute(
             "UPDATE vectors SET embedding = ? WHERE id = ?",
             params![embedding_blob, document_id]
@@ -287,7 +283,7 @@ impl VectorRepository for EmbeddedVectorStore {
 
         if changes > 0 {
             // Update cache
-            let mut cache = self.cache.write().await;
+            let mut cache = self.cache.lock().await;
             cache.put(document_id.to_string(), vector);
             Ok(true)
         } else {
@@ -296,7 +292,7 @@ impl VectorRepository for EmbeddedVectorStore {
     }
 
     async fn count(&self) -> Result<usize> {
-        let conn = self.connection.read().await;
+        let conn = self.connection.lock().await;
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM vectors", [], |row| row.get(0))
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to count documents: {}", e)))?;
         Ok(count as usize)
@@ -304,7 +300,7 @@ impl VectorRepository for EmbeddedVectorStore {
 
     async fn health_check(&self) -> Result<HealthStatus> {
         // Test database connectivity
-        let conn = self.connection.read().await;
+        let conn = self.connection.lock().await;
         conn.query_row("SELECT 1", [], |_| Ok(()))
             .map_err(|e| ZeroLatencyError::database(&format!("Database health check failed: {}", e)))?;
 
@@ -340,13 +336,22 @@ impl SimilarityCalculator for CosineCalculator {
 
         dot_product / (norm_a * norm_b)
     }
+
+    fn batch_similarities(&self, query: &[f32], candidates: &[Vec<f32>]) -> Vec<f32> {
+        candidates.iter()
+            .map(|candidate| self.calculate_similarity(query, candidate))
+            .collect()
+    }
+
+    fn metric(&self) -> SimilarityMetric {
+        SimilarityMetric::Cosine
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use zero_latency_core::models::DocumentId;
 
     #[tokio::test]
     async fn test_embedded_store_basic_operations() {
