@@ -1,3 +1,3 @@
 pub mod api_client;
 
-pub use api_client::{HttpApiClient, StatusResponse, ServerInfo, ReindexResult};
+pub use api_client::HttpApiClient;

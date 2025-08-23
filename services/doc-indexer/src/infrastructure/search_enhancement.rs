@@ -222,7 +222,7 @@ impl ResultRanker for MultiFactorResultRanker {
     }
     
     async fn explain_ranking(&self, result: &SearchResult) -> Result<RankingSignals> {
-        let base_score = result.final_score;
+        let _base_score = result.final_score;
         
         // Calculate boosts
         let title_boost = if result.content.to_lowercase().contains("title") {

@@ -224,7 +224,7 @@ async fn service_info(
 
 /// Index documents from a file path (CLI API endpoint)
 async fn index_documents_from_path(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(request): Json<IndexPathRequest>,
 ) -> Result<Json<IndexPathResponse>, AppError> {
     // This would integrate with the actual indexing service

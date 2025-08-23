@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use zero_latency_core::{Result as ZeroLatencyResult, values::SearchQuery};
-use zero_latency_search::SearchResponse;
 
 use crate::infrastructure::http::{HttpApiClient};
 use crate::infrastructure::output::{TableFormatter};

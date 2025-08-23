@@ -14,8 +14,6 @@ mod client;
 mod config;
 mod output;
 
-use commands::*;
-
 #[derive(Parser)]
 #[command(name = "mdx")]
 #[command(about = "Zero Latency Documentation Search CLI")]

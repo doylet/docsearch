@@ -6,8 +6,6 @@
 
 use std::path::{PathBuf};
 use std::sync::Arc;
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
 use rusqlite::{Connection, params, OpenFlags};
 use async_trait::async_trait;
 use tokio::sync::Mutex;
@@ -366,9 +364,17 @@ mod tests {
 
         // Test insert
         let doc = VectorDocument {
-            id: DocumentId::new("test1".to_string()),
+            id: Uuid::new_v4(),
             embedding: vec![1.0, 0.0, 0.0],
-            metadata: HashMap::new(),
+            metadata: VectorMetadata {
+                document_id: Uuid::new_v4(),
+                chunk_index: 0,
+                content: "test content".to_string(),
+                title: "test1".to_string(),
+                heading_path: vec![],
+                url: None,
+                custom: std::collections::HashMap::new(),
+            },
         };
 
         store.insert(vec![doc]).await.unwrap();
@@ -379,7 +385,7 @@ mod tests {
         // Test search
         let results = store.search(vec![1.0, 0.0, 0.0], 10).await.unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].document_id.value(), "test1");
+        assert_eq!(results[0].metadata.title, "test1");
 
         // Test delete
         assert!(store.delete("test1").await.unwrap());
@@ -401,9 +407,17 @@ mod tests {
         {
             let store = EmbeddedVectorStore::new(config.clone()).await.unwrap();
             let doc = VectorDocument {
-                id: DocumentId::new("persist1".to_string()),
+                id: Uuid::new_v4(),
                 embedding: vec![0.5, 0.5, 0.0],
-                metadata: HashMap::new(),
+                metadata: VectorMetadata {
+                    document_id: Uuid::new_v4(),
+                    chunk_index: 0,
+                    content: "persist content".to_string(),
+                    title: "persist1".to_string(),
+                    heading_path: vec![],
+                    url: None,
+                    custom: std::collections::HashMap::new(),
+                },
             };
             store.insert(vec![doc]).await.unwrap();
         }
@@ -415,7 +429,7 @@ mod tests {
             
             let results = store.search(vec![0.5, 0.5, 0.0], 10).await.unwrap();
             assert_eq!(results.len(), 1);
-            assert_eq!(results[0].document_id.value(), "persist1");
+            assert_eq!(results[0].metadata.title, "persist1");
         }
     }
 }

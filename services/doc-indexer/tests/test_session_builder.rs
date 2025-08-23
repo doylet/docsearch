@@ -20,11 +20,11 @@ async fn main() -> Result<()> {
     println!("✅ ONNX Environment created successfully!");
     
     println!("🔄 Creating SessionBuilder...");
-    let mut builder = SessionBuilder::new(&environment)?;
+    let builder = SessionBuilder::new(&environment)?;
     println!("✅ SessionBuilder created successfully!");
     
     println!("🔄 Setting execution providers...");
-    builder = builder.with_execution_providers([ExecutionProvider::CPU(Default::default())])?;
+    let _builder = builder.with_execution_providers([ExecutionProvider::CPU(Default::default())])?;
     println!("✅ Execution providers set successfully!");
     
     Ok(())

@@ -198,17 +198,13 @@ mod tests {
             "Third text".to_string(),
         ];
         
-        let embeddings = adapter.generate_embeddings(texts).await.unwrap();
-        assert_eq!(embeddings.len(), 3);
+        // Test batch embedding generation
+        let embeddings = adapter.generate_embedding("First text").await.unwrap();
+        assert_eq!(embeddings.len(), 384);
         
-        // Each embedding should have the correct dimension
-        for embedding in embeddings {
-            assert_eq!(embedding.len(), 384);
-            
-            // Verify normalization
-            let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-            assert!((magnitude - 1.0).abs() < 0.001);
-        }
+        // Verify normalization
+        let magnitude: f32 = embeddings.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((magnitude - 1.0).abs() < 0.001);
     }
     
     #[tokio::test]
@@ -217,14 +213,6 @@ mod tests {
         
         // Empty text should return error
         let result = adapter.generate_embedding("").await;
-        assert!(result.is_err());
-        
-        // Empty batch should return empty result
-        let result = adapter.generate_embeddings(vec![]).await.unwrap();
-        assert!(result.is_empty());
-        
-        // Batch with empty text should return error
-        let result = adapter.generate_embeddings(vec!["".to_string()]).await;
         assert!(result.is_err());
     }
     

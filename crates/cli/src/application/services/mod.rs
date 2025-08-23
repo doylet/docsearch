@@ -7,5 +7,4 @@ pub use cli_service::{
     StatusCommand,
     ServerCommand,
     ReindexCommand,
-    IndexResponse,
 };
