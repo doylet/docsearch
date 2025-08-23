@@ -1,7 +1,7 @@
 // Test just ONNX runtime initialization without model loading
 
 use anyhow::Result;
-use ort::{Environment, ExecutionProvider, LoggingLevel};
+use ort::{Environment, LoggingLevel};
 
 #[tokio::main]
 async fn main() -> Result<()> {

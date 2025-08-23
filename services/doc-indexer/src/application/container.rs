@@ -22,6 +22,7 @@ pub struct ServiceContainer {
     embedding_generator: Arc<dyn EmbeddingGenerator>,
     
     // Configuration
+    #[allow(dead_code)]
     config: Arc<Config>,
 }
 
@@ -66,6 +67,7 @@ impl ServiceContainer {
     }
     
     /// Get the configuration
+    #[allow(dead_code)]
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
     }

@@ -68,10 +68,8 @@ impl StdioServer {
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
-                        if !line.trim().is_empty() {
-                            if stdin_tx.send(line).await.is_err() {
-                                break;
-                            }
+                        if !line.trim().is_empty() && stdin_tx.send(line).await.is_err() {
+                            break;
                         }
                     }
                     Err(e) => {

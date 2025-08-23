@@ -43,7 +43,7 @@ pub struct Score(f32);
 
 impl Score {
     pub fn new(value: f32) -> Result<Self, &'static str> {
-        if value.is_finite() && value >= 0.0 && value <= 1.0 {
+        if value.is_finite() && (0.0..=1.0).contains(&value) {
             Ok(Self(value))
         } else {
             Err("Score must be between 0.0 and 1.0")

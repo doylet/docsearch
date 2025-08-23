@@ -27,6 +27,7 @@ use crate::application::{
 /// Application state shared across all handlers
 #[derive(Clone)]
 pub struct AppState {
+    #[allow(dead_code)]
     pub container: Arc<ServiceContainer>,
     pub document_service: DocumentIndexingService,
     pub health_service: HealthService,
@@ -313,6 +314,7 @@ pub struct DeleteDocumentResponse {
 pub struct SearchRequest {
     pub query: String,
     pub limit: Option<usize>,
+    #[allow(dead_code)]
     pub filters: Option<std::collections::HashMap<String, String>>,
 }
 
@@ -327,7 +329,9 @@ pub struct ServiceInfoResponse {
 #[derive(Debug, Deserialize)]
 pub struct IndexPathRequest {
     pub path: String,
+    #[allow(dead_code)]
     pub recursive: Option<bool>,
+    #[allow(dead_code)]
     pub force: Option<bool>,
 }
 
@@ -341,7 +345,9 @@ pub struct IndexPathResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ServerStartRequest {
+    #[allow(dead_code)]
     pub host: Option<String>,
+    #[allow(dead_code)]
     pub port: Option<u16>,
 }
 

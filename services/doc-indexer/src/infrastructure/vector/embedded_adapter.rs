@@ -48,14 +48,14 @@ pub struct EmbeddedVectorStore {
         // Ensure directory exists
         if let Some(parent) = config.db_path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| ZeroLatencyError::database(&format!("Failed to create database directory: {}", e)))?;
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to create database directory: {}", e)))?;
         }
 
         // Open SQLite connection
         let connection = Connection::open_with_flags(
             &config.db_path,
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to open database: {}", e)))?;
+        ).map_err(|e| ZeroLatencyError::database(format!("Failed to open database: {}", e)))?;
 
         let store = Self {
             db_path: config.db_path.clone(),
@@ -86,13 +86,13 @@ pub struct EmbeddedVectorStore {
             )
             "#,
             [],
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to create vectors table: {}", e)))?;
+        ).map_err(|e| ZeroLatencyError::database(format!("Failed to create vectors table: {}", e)))?;
 
         // Create index for faster lookups
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_vectors_created_at ON vectors(created_at)",
             [],
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to create index: {}", e)))?;
+        ).map_err(|e| ZeroLatencyError::database(format!("Failed to create index: {}", e)))?;
 
         Ok(())
     }
@@ -100,13 +100,13 @@ pub struct EmbeddedVectorStore {
     /// Serialize vector to binary format
     fn serialize_vector(&self, vector: &[f32]) -> Result<Vec<u8>> {
         bincode::serialize(vector)
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to serialize vector: {}", e)))
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to serialize vector: {}", e)))
     }
 
     /// Deserialize vector from binary format
     fn deserialize_vector(&self, data: &[u8]) -> Result<Vec<f32>> {
         bincode::deserialize(data)
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to deserialize vector: {}", e)))
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to deserialize vector: {}", e)))
     }
 
     /// Get vector from cache or database
@@ -122,7 +122,7 @@ pub struct EmbeddedVectorStore {
         // Load from database
         let conn = self.connection.lock().await;
         let mut stmt = conn.prepare("SELECT embedding FROM vectors WHERE id = ?")
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to prepare query: {}", e)))?;
 
         let result: std::result::Result<Vec<u8>, _> = stmt.query_row(params![document_id], |row| {
             row.get(0)
@@ -141,7 +141,7 @@ pub struct EmbeddedVectorStore {
                 Ok(Some(vector))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(ZeroLatencyError::database(&format!("Database query failed: {}", e))),
+            Err(e) => Err(ZeroLatencyError::database(format!("Database query failed: {}", e))),
         }
     }
 
@@ -153,7 +153,7 @@ pub struct EmbeddedVectorStore {
             "SELECT COUNT(*) FROM vectors",
             [],
             |row| row.get(0)
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to count documents: {}", e)))?;
+        ).map_err(|e| ZeroLatencyError::database(format!("Failed to count documents: {}", e)))?;
 
         let db_size = std::fs::metadata(&self.config.db_path)
             .map(|m| m.len())
@@ -171,7 +171,7 @@ pub struct EmbeddedVectorStore {
     pub async fn compact(&self) -> Result<()> {
         let conn = self.connection.lock().await;
         conn.execute("VACUUM", [])
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to compact database: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to compact database: {}", e)))?;
         Ok(())
     }
 }
@@ -182,19 +182,19 @@ impl VectorRepository for EmbeddedVectorStore {
         for document in vectors {
             let embedding_blob = self.serialize_vector(&document.embedding)?;
             let metadata_json = serde_json::to_string(&document.metadata)
-                .map_err(|e| ZeroLatencyError::database(&format!("Failed to serialize metadata: {}", e)))?;
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to serialize metadata: {}", e)))?;
 
             {
                 let conn = self.connection.lock().await;
                 let mut stmt = conn.prepare(
                     "INSERT OR REPLACE INTO vectors (id, embedding, metadata) VALUES (?, ?, ?)"
-                ).map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare insert: {}", e)))?;
+                ).map_err(|e| ZeroLatencyError::database(format!("Failed to prepare insert: {}", e)))?;
 
                 stmt.execute(params![
                     document.id.to_string(),
                     embedding_blob,
                     metadata_json
-                ]).map_err(|e| ZeroLatencyError::database(&format!("Failed to insert document: {}", e)))?;
+                ]).map_err(|e| ZeroLatencyError::database(format!("Failed to insert document: {}", e)))?;
             }
 
             // Update cache
@@ -210,30 +210,30 @@ impl VectorRepository for EmbeddedVectorStore {
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
         let conn = self.connection.lock().await;
         let mut stmt = conn.prepare("SELECT id, embedding, metadata FROM vectors")
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to prepare search: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to prepare search: {}", e)))?;
 
         let rows = stmt.query_map([], |row| {
             let id: String = row.get(0)?;
             let embedding_blob: Vec<u8> = row.get(1)?;
             let metadata_json: String = row.get(2)?;
             Ok((id, embedding_blob, metadata_json))
-        }).map_err(|e| ZeroLatencyError::database(&format!("Failed to execute search: {}", e)))?;
+        }).map_err(|e| ZeroLatencyError::database(format!("Failed to execute search: {}", e)))?;
 
         let mut results = Vec::new();
 
         for row_result in rows {
             let (id, embedding_blob, metadata_json) = row_result
-                .map_err(|e| ZeroLatencyError::database(&format!("Failed to read row: {}", e)))?;
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to read row: {}", e)))?;
 
             let embedding = self.deserialize_vector(&embedding_blob)?;
             let metadata: VectorMetadata = serde_json::from_str(&metadata_json)
-                .map_err(|e| ZeroLatencyError::database(&format!("Failed to parse metadata: {}", e)))?;
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to parse metadata: {}", e)))?;
 
             let calculator = CosineCalculator;
             let similarity = calculator.calculate_similarity(&query_vector, &embedding);
 
             let document_id = Uuid::parse_str(&id)
-                .map_err(|e| ZeroLatencyError::database(&format!("Invalid UUID: {}", e)))?;
+                .map_err(|e| ZeroLatencyError::database(format!("Invalid UUID: {}", e)))?;
 
             results.push(SimilarityResult {
                 document_id,
@@ -259,7 +259,7 @@ impl VectorRepository for EmbeddedVectorStore {
     async fn delete(&self, document_id: &str) -> Result<bool> {
         let conn = self.connection.lock().await;
         let changes = conn.execute("DELETE FROM vectors WHERE id = ?", params![document_id])
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to delete document: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to delete document: {}", e)))?;
 
         // Remove from cache
         {
@@ -277,7 +277,7 @@ impl VectorRepository for EmbeddedVectorStore {
         let changes = conn.execute(
             "UPDATE vectors SET embedding = ? WHERE id = ?",
             params![embedding_blob, document_id]
-        ).map_err(|e| ZeroLatencyError::database(&format!("Failed to update document: {}", e)))?;
+        ).map_err(|e| ZeroLatencyError::database(format!("Failed to update document: {}", e)))?;
 
         if changes > 0 {
             // Update cache
@@ -292,7 +292,7 @@ impl VectorRepository for EmbeddedVectorStore {
     async fn count(&self) -> Result<usize> {
         let conn = self.connection.lock().await;
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM vectors", [], |row| row.get(0))
-            .map_err(|e| ZeroLatencyError::database(&format!("Failed to count documents: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to count documents: {}", e)))?;
         Ok(count as usize)
     }
 
@@ -300,7 +300,7 @@ impl VectorRepository for EmbeddedVectorStore {
         // Test database connectivity
         let conn = self.connection.lock().await;
         conn.query_row("SELECT 1", [], |_| Ok(()))
-            .map_err(|e| ZeroLatencyError::database(&format!("Database health check failed: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::database(format!("Database health check failed: {}", e)))?;
 
         Ok(HealthStatus::Healthy)
     }

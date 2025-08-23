@@ -33,7 +33,7 @@ impl HealthService {
         checks.insert("embedding_generator".to_string(), self.convert_to_check_item(&embedding_check));
         checks.insert("memory".to_string(), self.convert_to_check_item(&memory_check));
         
-        let all_checks = vec![&vector_check, &embedding_check, &memory_check];
+        let all_checks = [&vector_check, &embedding_check, &memory_check];
         let overall_status = if all_checks.iter().all(|c| c.status.is_healthy()) {
             "healthy".to_string()
         } else if all_checks.iter().any(|c| c.status.is_unhealthy()) {

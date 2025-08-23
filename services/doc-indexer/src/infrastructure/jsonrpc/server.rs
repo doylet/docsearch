@@ -162,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_valid_jsonrpc_request() {
-        let request = json!({
+        let _request = json!({
             "jsonrpc": "2.0",
             "method": "service.info",
             "id": 1
@@ -185,7 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_request() {
-        let batch_request = json!([
+        let _batch_request = json!([
             {
                 "jsonrpc": "2.0",
                 "method": "service.info",
@@ -203,7 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_method_not_found() {
-        let request = json!({
+        let _request = json!({
             "jsonrpc": "2.0",
             "method": "nonexistent.method",
             "id": 1

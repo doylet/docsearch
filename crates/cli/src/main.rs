@@ -10,9 +10,7 @@ mod infrastructure;
 mod commands;
 
 // Legacy modules for gradual migration
-mod client;
 mod config;
-mod output;
 
 #[derive(Parser)]
 #[command(name = "mdx")]

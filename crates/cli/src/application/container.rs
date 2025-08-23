@@ -17,9 +17,13 @@ use crate::infrastructure::config::{FileConfigLoader};
 /// Note: Using concrete types instead of trait objects to avoid 
 /// async trait object safety issues.
 pub struct CliServiceContainer {
+    #[allow(dead_code)]
     config: Arc<CliConfig>,
+    #[allow(dead_code)]
     config_loader: Arc<FileConfigLoader>,
+    #[allow(dead_code)]
     api_client: Arc<HttpApiClient>,
+    #[allow(dead_code)]
     output_formatter: Arc<TableFormatter>,
     cli_service: Arc<CliServiceImpl>,
 }
@@ -63,16 +67,19 @@ impl CliServiceContainer {
     }
     
     /// Returns the configuration for access by components.
+    #[allow(dead_code)]
     pub fn config(&self) -> Arc<CliConfig> {
         self.config.clone()
     }
     
     /// Returns the API client for direct access if needed.
+    #[allow(dead_code)]
     pub fn api_client(&self) -> Arc<HttpApiClient> {
         self.api_client.clone()
     }
     
     /// Returns the output formatter for direct access if needed.
+    #[allow(dead_code)]
     pub fn output_formatter(&self) -> Arc<TableFormatter> {
         self.output_formatter.clone()
     }

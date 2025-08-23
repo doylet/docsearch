@@ -24,12 +24,14 @@ impl Default for CliConfig {
 }
 
 impl CliConfig {
+    #[allow(dead_code)]
     pub fn load() -> Result<Self> {
         // For now, just return default config
         // In the future, we can load from ~/.config/mdx/config.toml
         Ok(Self::default())
     }
     
+    #[allow(dead_code)]
     pub fn config_dir() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
@@ -39,6 +41,7 @@ impl CliConfig {
         Ok(config_dir)
     }
     
+    #[allow(dead_code)]
     pub fn config_file() -> Result<PathBuf> {
         Ok(Self::config_dir()?.join("config.toml"))
     }

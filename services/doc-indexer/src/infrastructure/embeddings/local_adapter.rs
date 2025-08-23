@@ -192,11 +192,9 @@ mod tests {
     async fn test_batch_embeddings() {
         let adapter = LocalEmbeddingAdapter::default();
         
-        let texts = vec![
-            "First text".to_string(),
+        let _texts = ["First text".to_string(),
             "Second text".to_string(),
-            "Third text".to_string(),
-        ];
+            "Third text".to_string()];
         
         // Test batch embedding generation
         let embeddings = adapter.generate_embedding("First text").await.unwrap();
@@ -233,9 +231,9 @@ mod tests {
         assert!(similarity3 < similarity2);
         
         // All similarities should be in [0, 1] range
-        assert!(similarity1 >= 0.0 && similarity1 <= 1.0);
-        assert!(similarity2 >= 0.0 && similarity2 <= 1.0);
-        assert!(similarity3 >= 0.0 && similarity3 <= 1.0);
+        assert!((0.0..=1.0).contains(&similarity1));
+        assert!((0.0..=1.0).contains(&similarity2));
+        assert!((0.0..=1.0).contains(&similarity3));
     }
     
     #[tokio::test]

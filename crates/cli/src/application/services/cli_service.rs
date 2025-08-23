@@ -9,8 +9,10 @@ use crate::infrastructure::output::{TableFormatter};
 #[derive(Debug, Clone)]
 pub struct SearchCommand {
     pub query: String,
+    #[allow(dead_code)]
     pub limit: u32,
     pub format: String,
+    #[allow(dead_code)]
     pub best: bool,
 }
 

@@ -333,10 +333,10 @@ impl Config {
     /// Load configuration from a TOML file
     pub fn from_file(path: &str) -> Result<Self> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| ZeroLatencyError::configuration(&format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::configuration(format!("Failed to read config file: {}", e)))?;
         
         let config: Config = toml::from_str(&content)
-            .map_err(|e| ZeroLatencyError::configuration(&format!("Failed to parse config file: {}", e)))?;
+            .map_err(|e| ZeroLatencyError::configuration(format!("Failed to parse config file: {}", e)))?;
         
         config.validate()?;
         Ok(config)
@@ -430,7 +430,7 @@ impl std::str::FromStr for VectorBackend {
             "memory" => Ok(VectorBackend::Memory),
             "qdrant" => Ok(VectorBackend::Qdrant),
             "embedded" => Ok(VectorBackend::Embedded),
-            _ => Err(ZeroLatencyError::configuration(&format!("Unknown vector backend: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!("Unknown vector backend: {}", s))),
         }
     }
 }
@@ -442,7 +442,7 @@ impl std::str::FromStr for EmbeddingProvider {
         match s.to_lowercase().as_str() {
             "local" => Ok(EmbeddingProvider::Local),
             "openai" => Ok(EmbeddingProvider::OpenAI),
-            _ => Err(ZeroLatencyError::configuration(&format!("Unknown embedding provider: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!("Unknown embedding provider: {}", s))),
         }
     }
 }
@@ -456,7 +456,7 @@ impl std::str::FromStr for ChunkingStrategy {
             "paragraph" => Ok(ChunkingStrategy::Paragraph),
             "fixed_size" => Ok(ChunkingStrategy::FixedSize),
             "semantic" => Ok(ChunkingStrategy::Semantic),
-            _ => Err(ZeroLatencyError::configuration(&format!("Unknown chunking strategy: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!("Unknown chunking strategy: {}", s))),
         }
     }
 }

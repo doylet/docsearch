@@ -17,6 +17,7 @@ impl FileConfigLoader {
     }
     
     /// Load configuration from file
+    #[allow(dead_code)]
     pub fn load_config(&self, config_path: Option<PathBuf>) -> ZeroLatencyResult<Config> {
         let config_path = config_path.unwrap_or_else(|| {
             let mut path = dirs::config_dir()
@@ -43,6 +44,7 @@ impl FileConfigLoader {
     }
     
     /// Save configuration to file
+    #[allow(dead_code)]
     pub fn save_config(&self, config: &Config, config_path: PathBuf) -> ZeroLatencyResult<()> {
         // Create parent directory if it doesn't exist
         if let Some(parent) = config_path.parent() {
