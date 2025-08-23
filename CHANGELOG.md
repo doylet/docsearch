@@ -5,6 +5,40 @@ All notable changes to the Zero-Latency Documentation Search project will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-08-23
+
+### Added - Phase 4D Service Extension Complete
+
+#### MCP Transport Validation
+- **JSON-RPC 2.0 Compliance**: Full specification adherence for Model Context Protocol integration
+- **Dual Transport Support**: stdio and HTTP protocols operational with seamless switching
+- **Service Discovery**: Comprehensive capability reporting and health monitoring endpoints
+- **Performance Validated**: <100ms response times across all transport methods
+
+#### Advanced Feature Flag Architecture
+- **Conditional Compilation**: Sophisticated feature flag system enabling deployment-specific builds
+- **Multi-Variant Support**: embedded/cloud/full deployment configurations
+- **Binary Optimization**: Feature-specific dependency inclusion for minimal footprint
+- **Runtime Flexibility**: Environment-based feature selection without code changes
+
+#### Enhanced Search Pipeline Validation
+- **Comprehensive Testing Framework**: Multi-variant validation across all feature combinations
+- **Performance Benchmarking**: Established baseline metrics for optimization decisions
+- **Production Validation**: End-to-end workflow testing with quality assurance
+- **Automated Testing**: Complete validation scripts for continuous integration
+
+#### Quality Assurance Improvements
+- **Production Readiness**: Validated deployment scenarios across all variants
+- **Documentation Coverage**: Complete API documentation and deployment guides
+- **Error Handling**: Graceful failure modes with proper recovery mechanisms
+- **Health Monitoring**: Real-time subsystem monitoring with comprehensive status reporting
+
+### Changed
+- **Build System**: Enhanced with feature flag architecture for flexible deployment
+- **Service Container**: Improved dependency injection with clean architecture principles
+- **Configuration Management**: Environment-based feature selection system
+- **Performance Characteristics**: Sub-second startup with comprehensive health monitoring
+
 ## [1.0.0] - 2025-08-22
 
 ### Added - Production Distribution
