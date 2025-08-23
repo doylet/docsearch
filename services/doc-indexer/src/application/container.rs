@@ -72,37 +72,76 @@ impl ServiceContainer {
     
     /// Create vector repository based on configuration
     async fn create_vector_repository(config: &Config) -> Result<Arc<dyn VectorRepository>> {
-        use crate::infrastructure::{InMemoryVectorStore, QdrantAdapter, EmbeddedVectorStore};
+        use crate::infrastructure::InMemoryVectorStore;
         use crate::config::VectorBackend;
+        
+        #[cfg(feature = "cloud")]
+        use crate::infrastructure::QdrantAdapter;
+        
+        #[cfg(feature = "embedded")]
+        use crate::infrastructure::EmbeddedVectorStore;
         
         match config.vector.backend {
             VectorBackend::Memory => {
                 Ok(Arc::new(InMemoryVectorStore::new()))
             }
+            #[cfg(feature = "cloud")]
             VectorBackend::Qdrant => {
                 let adapter = QdrantAdapter::new(config.vector.qdrant.clone()).await?;
                 Ok(Arc::new(adapter))
             }
+            #[cfg(not(feature = "cloud"))]
+            VectorBackend::Qdrant => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Qdrant backend requires 'cloud' feature to be enabled".to_string()
+                })
+            }
+            #[cfg(feature = "embedded")]
             VectorBackend::Embedded => {
                 let adapter = EmbeddedVectorStore::new(config.vector.embedded.clone()).await?;
                 Ok(Arc::new(adapter))
+            }
+            #[cfg(not(feature = "embedded"))]
+            VectorBackend::Embedded => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Embedded backend requires 'embedded' feature to be enabled".to_string()
+                })
             }
         }
     }
     
     /// Create embedding generator based on configuration
     async fn create_embedding_generator(config: &Config) -> Result<Arc<dyn EmbeddingGenerator>> {
-        use crate::infrastructure::{LocalEmbeddingAdapter, OpenAIAdapter};
         use crate::config::EmbeddingProvider;
         
+        #[cfg(feature = "embedded")]
+        use crate::infrastructure::LocalEmbeddingAdapter;
+        
+        #[cfg(feature = "cloud")]
+        use crate::infrastructure::OpenAIAdapter;
+        
         match config.embedding.provider {
+            #[cfg(feature = "embedded")]
             EmbeddingProvider::Local => {
                 let adapter = LocalEmbeddingAdapter::new(config.embedding.local.clone())?;
                 Ok(Arc::new(adapter))
             }
+            #[cfg(not(feature = "embedded"))]
+            EmbeddingProvider::Local => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Local embedding provider requires 'embedded' feature to be enabled".to_string()
+                })
+            }
+            #[cfg(feature = "cloud")]
             EmbeddingProvider::OpenAI => {
                 let adapter = OpenAIAdapter::new(config.embedding.openai.clone()).await?;
                 Ok(Arc::new(adapter))
+            }
+            #[cfg(not(feature = "cloud"))]
+            EmbeddingProvider::OpenAI => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "OpenAI embedding provider requires 'cloud' feature to be enabled".to_string()
+                })
             }
         }
     }

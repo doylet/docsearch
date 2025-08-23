@@ -14,5 +14,18 @@ pub mod embeddings;
 
 // Re-export commonly used types
 pub use http::{HttpServer, ServerConfig};
-pub use vector::{QdrantAdapter, QdrantConfig, InMemoryVectorStore, EmbeddedVectorStore, EmbeddedConfig};
-pub use embeddings::{OpenAIAdapter, OpenAIConfig, LocalEmbeddingAdapter, LocalEmbeddingConfig};
+pub use vector::InMemoryVectorStore;
+
+// Cloud-dependent exports
+#[cfg(feature = "cloud")]
+pub use vector::{QdrantAdapter, QdrantConfig};
+
+#[cfg(feature = "cloud")]
+pub use embeddings::{OpenAIAdapter, OpenAIConfig};
+
+// Embedded-dependent exports
+#[cfg(feature = "embedded")]
+pub use vector::{EmbeddedVectorStore, EmbeddedConfig};
+
+#[cfg(feature = "embedded")]
+pub use embeddings::{LocalEmbeddingAdapter, LocalEmbeddingConfig};
