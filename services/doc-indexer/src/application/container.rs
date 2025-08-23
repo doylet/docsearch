@@ -108,12 +108,55 @@ impl ServiceContainer {
     
     /// Create search pipeline with all steps
     async fn create_search_pipeline(
-        _vector_repository: Arc<dyn VectorRepository>,
-        _embedding_generator: Arc<dyn EmbeddingGenerator>,
+        vector_repository: Arc<dyn VectorRepository>,
+        embedding_generator: Arc<dyn EmbeddingGenerator>,
     ) -> Result<SearchPipeline> {
-        // For now, create an empty pipeline
-        // This will be populated with actual search steps
-        let pipeline = SearchPipeline::builder().build();
+        // Create a simple embedding service adapter
+        struct EmbeddingServiceAdapter {
+            generator: Arc<dyn EmbeddingGenerator>,
+        }
+        
+        #[async_trait::async_trait]
+        impl zero_latency_search::EmbeddingService for EmbeddingServiceAdapter {
+            async fn generate_embedding(&self, text: &str) -> zero_latency_core::Result<Vec<f32>> {
+                self.generator.generate_embedding(text).await
+            }
+        }
+        
+        let embedding_service = Arc::new(EmbeddingServiceAdapter {
+            generator: embedding_generator,
+        });
+        
+        // Create the vector search step
+        let vector_search_step = Box::new(zero_latency_search::VectorSearchStep::new(
+            vector_repository,
+            embedding_service,
+        ));
+        
+        // Create a simple ranking step that moves raw results to ranked results
+        struct SimpleRankingStep;
+        
+        #[async_trait::async_trait]
+        impl zero_latency_search::SearchStep for SimpleRankingStep {
+            fn name(&self) -> &str {
+                "simple_ranking"
+            }
+            
+            async fn execute(&self, context: &mut zero_latency_search::SearchContext) -> zero_latency_core::Result<()> {
+                // Simply move raw results to ranked results (they're already scored by vector similarity)
+                let ranked_results = context.raw_results.clone();
+                context.set_ranked_results(ranked_results);
+                context.metadata.ranking_method = "vector_similarity".to_string();
+                Ok(())
+            }
+        }
+        
+        // Build the pipeline with vector search + ranking steps
+        let pipeline = SearchPipeline::builder()
+            .add_step(vector_search_step)
+            .add_step(Box::new(SimpleRankingStep))
+            .build();
+            
         Ok(pipeline)
     }
 }

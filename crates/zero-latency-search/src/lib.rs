@@ -9,7 +9,9 @@
 pub mod models;
 pub mod services;
 pub mod traits;
+pub mod vector_search;
 
 pub use models::*;
 pub use services::*;
 pub use traits::*;
+pub use vector_search::*;

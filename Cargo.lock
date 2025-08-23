@@ -4958,7 +4958,9 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-test",
+ "uuid",
  "zero-latency-core",
+ "zero-latency-vector",
 ]
 
 [[package]]

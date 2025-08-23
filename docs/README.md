@@ -4,6 +4,10 @@
 
 ### **Architecture**
 - [`CLI_CLEAN_ARCHITECTURE_SUCCESS.md`](architecture/CLI_CLEAN_ARCHITECTURE_SUCCESS.md) - Clean architecture implementation for CLI
+- **[Architecture Analysis Suite](misc/artefacts/045_architecture-documentation-index.md)** - Comprehensive system analysis and improvement roadmap
+  - [042 - System Architecture Analysis Comprehensive](misc/artefacts/042_system-architecture-analysis-comprehensive.md)
+  - [043 - Architecture Analysis Technical Summary](misc/artefacts/043_architecture-analysis-technical-summary.md)  
+  - [044 - Immediate Action Plan Architecture Fixes](misc/artefacts/044_immediate-action-plan-architecture-fixes.md)
 
 ### **Implementation Details**
 - [`JSON_RPC_MCP_COMPLIANCE_GAP.md`](implementation/JSON_RPC_MCP_COMPLIANCE_GAP.md) - Analysis of JSON-RPC/MCP compliance gap

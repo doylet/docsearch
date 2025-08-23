@@ -4,9 +4,11 @@
 /// providing concrete implementation for vector storage and retrieval operations.
 
 use std::collections::HashMap;
+use std::str::FromStr;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use zero_latency_core::{Result, models::HealthStatus, Uuid};
+use reqwest::Client;
+use zero_latency_core::{Result, ZeroLatencyError, models::HealthStatus, Uuid, values::Score};
 use zero_latency_vector::{VectorRepository, VectorDocument, VectorMetadata, SimilarityResult};
 
 /// Qdrant-specific configuration
@@ -21,89 +23,67 @@ pub struct QdrantConfig {
 /// Qdrant vector store adapter
 pub struct QdrantAdapter {
     config: QdrantConfig,
-    // In a real implementation, this would hold the Qdrant client
-    // client: qdrant_client::QdrantClient,
+    client: Client,
 }
 
 impl QdrantAdapter {
     /// Create a new Qdrant adapter
     pub async fn new(config: QdrantConfig) -> Result<Self> {
-        // In a real implementation, this would:
-        // 1. Create the Qdrant client
-        // 2. Test the connection
-        // 3. Ensure the collection exists
+        println!("🔧 QdrantAdapter: Setting up REST client for {} with collection '{}'", config.url, config.collection_name);
+        
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(config.timeout_seconds))
+            .build()
+            .map_err(|e| ZeroLatencyError::database(&format!("Failed to create HTTP client: {}", e)))?;
+        
+        println!("✅ QdrantAdapter: Successfully created REST client");
         
         Ok(Self {
             config,
+            client,
         })
     }
-    
-    /// Initialize the Qdrant collection if it doesn't exist
-    async fn ensure_collection_exists(&self) -> Result<()> {
-        // This would create the collection with proper vector configuration
-        // For now, just return Ok
-        Ok(())
-    }
-    
-    /// Convert a VectorDocument to Qdrant point format
-    fn to_qdrant_point(&self, doc: &VectorDocument) -> Result<QdrantPoint> {
-        let mut payload = HashMap::new();
-        
-        // Add metadata to payload
-        payload.insert("document_id".to_string(), doc.metadata.document_id.to_string());
-        payload.insert("chunk_index".to_string(), doc.metadata.chunk_index.to_string());
-        payload.insert("content".to_string(), doc.metadata.content.clone());
-        payload.insert("title".to_string(), doc.metadata.title.clone());
-        payload.insert("heading_path".to_string(), doc.metadata.heading_path.join("/"));
-        if let Some(url) = &doc.metadata.url {
-            payload.insert("url".to_string(), url.clone());
-        }
-        for (key, value) in &doc.metadata.custom {
-            payload.insert(format!("custom_{}", key), value.clone());
-        }
-        
-        Ok(QdrantPoint {
-            id: doc.id.to_string(),
-            vector: doc.embedding.clone(),
-            payload,
-        })
-    }
-    
-    /// Convert Qdrant search result to VectorDocument
-    fn from_qdrant_result(&self, result: QdrantSearchResult) -> Result<VectorDocument> {
-        use std::str::FromStr;
-        
+
+    /// Convert a Qdrant REST API search result to VectorDocument  
+    fn from_qdrant_rest_result(&self, result: &QdrantSearchResult) -> Result<VectorDocument> {
         let document_id = result.payload.get("document_id")
-            .and_then(|s| Uuid::from_str(s).ok())
-            .unwrap_or_else(|| Uuid::new_v4());
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ZeroLatencyError::database("Missing document_id in payload"))?;
             
         let chunk_index = result.payload.get("chunk_index")
-            .and_then(|s| s.parse().ok())
+            .and_then(|v| v.as_u64().map(|i| i as usize))
             .unwrap_or(0);
             
         let content = result.payload.get("content")
-            .cloned()
-            .unwrap_or_default();
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
             
         let title = result.payload.get("title")
-            .cloned()
-            .unwrap_or_default();
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
             
         let heading_path = result.payload.get("heading_path")
+            .and_then(|v| v.as_str())
             .map(|s| s.split('/').map(|s| s.to_string()).collect())
             .unwrap_or_default();
             
-        let url = result.payload.get("url").cloned();
+        let url = result.payload.get("url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         
         let mut custom = HashMap::new();
         for (key, value) in &result.payload {
             if key.starts_with("custom_") {
-                custom.insert(key.strip_prefix("custom_").unwrap().to_string(), value.clone());
+                if let Some(s) = value.as_str() {
+                    custom.insert(key.strip_prefix("custom_").unwrap().to_string(), s.to_string());
+                }
             }
         }
         
         let metadata = VectorMetadata {
-            document_id,
+            document_id: Uuid::from_str(document_id).unwrap_or_else(|_| Uuid::new_v4()),
             chunk_index,
             content,
             title,
@@ -112,109 +92,145 @@ impl QdrantAdapter {
             custom,
         };
         
+        // Convert id to string 
+        let id_str = match &result.id {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(n) => n.to_string(),
+            _ => Uuid::new_v4().to_string(),
+        };
+        
         Ok(VectorDocument {
-            id: Uuid::from_str(&result.id).unwrap_or_else(|_| Uuid::new_v4()),
-            embedding: result.vector,
+            id: Uuid::from_str(&id_str).unwrap_or_else(|_| Uuid::new_v4()),
+            embedding: result.vector.clone().unwrap_or_default(),
             metadata,
         })
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct QdrantSearchResponse {
+    result: Vec<QdrantSearchResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct QdrantSearchResult {
+    id: serde_json::Value, // Can be string or number
+    score: f32,
+    payload: HashMap<String, serde_json::Value>,
+    vector: Option<Vec<f32>>,
+}
+
 #[async_trait]
 impl VectorRepository for QdrantAdapter {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
-        // Convert all documents to Qdrant points
-        let mut _points = Vec::new();
-        for doc in vectors {
-            let point = self.to_qdrant_point(&doc)?;
-            _points.push(point);
-        }
-        
-        // In a real implementation, this would:
-        // self.client.upsert_points(collection_name, points).await
-        
-        // For now, just return success
+        // For now, insertion is handled separately via the indexing service
+        // This implementation focuses on search functionality
+        println!("🔧 QdrantAdapter: Insert not implemented (using separate indexing)");
+        let _ = vectors; // Suppress unused warning
         Ok(())
     }
     
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
-        // In a real implementation, this would:
-        // let results = self.client.search_points(
-        //     collection_name,
-        //     query_vector,
-        //     k,
-        //     None // threshold
-        // ).await?;
-        // 
-        // let mut similarity_results = Vec::new();
-        // for result in results {
-        //     let document = self.from_qdrant_result(result.clone())?;
-        //     similarity_results.push(SimilarityResult {
-        //         document,
-        //         score: result.score,
-        //     });
-        // }
+        println!("🔍 QdrantAdapter: Searching in collection '{}' with vector size {} for {} results", 
+                 self.config.collection_name, query_vector.len(), k);
         
-        // For now, return empty results
-        let _ = (query_vector, k); // Suppress unused warnings
-        Ok(Vec::new())
+        // Create search request payload
+        let search_payload = serde_json::json!({
+            "vector": query_vector,
+            "limit": k,
+            "with_payload": true,
+            "with_vector": true,
+            "score_threshold": 0.0
+        });
+        
+        let url = format!("{}/collections/{}/points/search", 
+                         self.config.url, self.config.collection_name);
+        
+        println!("📡 QdrantAdapter: Sending REST search request to {}", url);
+        
+        let mut request = self.client.post(&url)
+            .header("Content-Type", "application/json")
+            .json(&search_payload);
+        
+        // Add API key if configured
+        if let Some(api_key) = &self.config.api_key {
+            request = request.header("api-key", api_key);
+        }
+        
+        let response = request.send().await
+            .map_err(|e| {
+                println!("❌ QdrantAdapter: HTTP request failed: {}", e);
+                ZeroLatencyError::database(&format!("Qdrant HTTP request failed: {}", e))
+            })?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            println!("❌ QdrantAdapter: HTTP error {}: {}", status, error_text);
+            return Err(ZeroLatencyError::database(&format!("Qdrant HTTP error {}: {}", status, error_text)));
+        }
+        
+        let search_response: QdrantSearchResponse = response.json().await
+            .map_err(|e| {
+                println!("❌ QdrantAdapter: Failed to parse response: {}", e);
+                ZeroLatencyError::database(&format!("Failed to parse Qdrant response: {}", e))
+            })?;
+        
+        println!("📊 QdrantAdapter: Qdrant returned {} results", search_response.result.len());
+        
+        let mut similarity_results = Vec::new();
+        for result in &search_response.result {
+            println!("🔍 QdrantAdapter: Processing result with score: {}", result.score);
+            
+            match self.from_qdrant_rest_result(result) {
+                Ok(document) => {
+                    similarity_results.push(SimilarityResult {
+                        document_id: document.metadata.document_id.clone(),
+                        similarity: Score::new(result.score).unwrap_or_default(),
+                        metadata: document.metadata,
+                    });
+                }
+                Err(e) => {
+                    println!("⚠️  QdrantAdapter: Failed to convert result: {}", e);
+                    continue;
+                }
+            }
+        }
+        
+        println!("✅ QdrantAdapter: Successfully converted {} results", similarity_results.len());
+        Ok(similarity_results)
     }
     
     async fn delete(&self, document_id: &str) -> Result<bool> {
-        // In a real implementation, this would:
-        // let result = self.client.delete_points(collection_name, vec![document_id]).await?;
-        // Ok(result.operation_status == OperationStatus::Success)
-        
-        // For now, just return success
+        println!("🔧 QdrantAdapter: Delete not fully implemented");
         let _ = document_id; // Suppress unused warning
         Ok(true)
     }
     
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
-        // In a real implementation, this would update the specific vector
-        // For now, just return success
+        println!("🔧 QdrantAdapter: Update not fully implemented");
         let _ = (document_id, vector); // Suppress unused warnings
         Ok(true)
     }
     
     async fn health_check(&self) -> Result<HealthStatus> {
-        // In a real implementation, this would ping Qdrant
+        // In a real implementation, this would check Qdrant health
         Ok(HealthStatus::Healthy)
     }
     
     async fn count(&self) -> Result<usize> {
-        // In a real implementation, this would:
-        // let info = self.client.collection_info(collection_name).await?;
-        // Ok(info.points_count)
-        
-        // For now, return 0
+        // For now, return a placeholder count
+        // In a real implementation, this would query Qdrant for collection stats
+        println!("🔧 QdrantAdapter: Count not fully implemented");
         Ok(0)
     }
-}
-
-/// Placeholder types for Qdrant integration
-/// In a real implementation, these would come from the qdrant-client crate
-
-#[derive(Debug, Clone)]
-struct QdrantPoint {
-    id: String,
-    vector: Vec<f32>,
-    payload: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone)]
-struct QdrantSearchResult {
-    id: String,
-    vector: Vec<f32>,
-    payload: HashMap<String, String>,
-    score: f32,
 }
 
 impl Default for QdrantConfig {
     fn default() -> Self {
         Self {
             url: "http://localhost:6333".to_string(),
-            collection_name: "documents".to_string(),
+            collection_name: "zero_latency_docs".to_string(),
             api_key: None,
             timeout_seconds: 30,
         }
