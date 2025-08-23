@@ -16,6 +16,7 @@ pub struct StatusResponse {
     pub total_documents: u64,
     pub index_size_bytes: u64,
     pub last_index_update: Option<String>,
+    pub docs_path: Option<String>,
 }
 
 /// Server information response

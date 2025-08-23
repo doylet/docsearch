@@ -179,7 +179,7 @@ async fn health_check(
 
 /// API status endpoint (CLI-compatible format)
 async fn api_status(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Json<ApiStatusResponse> {
     Json(ApiStatusResponse {
         status: "healthy".to_string(),
@@ -188,6 +188,7 @@ async fn api_status(
         total_documents: 0, // Would query from the database
         index_size_bytes: 0, // Would calculate from storage
         last_index_update: None, // Would get from last indexing operation
+        docs_path: Some(state.container.config().service.docs_path.display().to_string()),
     })
 }
 
@@ -371,6 +372,7 @@ pub struct ApiStatusResponse {
     pub total_documents: u64,
     pub index_size_bytes: u64,
     pub last_index_update: Option<String>,
+    pub docs_path: Option<String>,
 }
 
 // Error handling

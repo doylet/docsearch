@@ -136,6 +136,9 @@ pub struct ServiceConfig {
     
     /// Chunk overlap in characters
     pub chunk_overlap: usize,
+    
+    /// Path to documentation directory to index
+    pub docs_path: std::path::PathBuf,
 }
 
 /// Vector storage backend types
@@ -323,6 +326,9 @@ impl Config {
                     .unwrap_or_else(|_| "200".to_string())
                     .parse()
                     .unwrap_or(200),
+                docs_path: std::env::var("DOC_INDEXER_DOCS_PATH")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|_| std::path::PathBuf::from("./docs")),
             },
         };
         
@@ -417,6 +423,7 @@ DOC_INDEXER_MAX_SEARCH_LIMIT=100
 DOC_INDEXER_CHUNKING_STRATEGY=sentence
 DOC_INDEXER_CHUNK_SIZE=1000
 DOC_INDEXER_CHUNK_OVERLAP=200
+DOC_INDEXER_DOCS_PATH=./docs
 "#.to_string()
     }
 }
@@ -489,6 +496,7 @@ impl Default for Config {
                 chunking_strategy: ChunkingStrategy::Sentence,
                 chunk_size: 1000,
                 chunk_overlap: 200,
+                docs_path: std::path::PathBuf::from("./docs"),
             },
         }
     }

@@ -51,6 +51,10 @@ struct Cli {
     /// Print stdio usage information
     #[arg(long)]
     stdio_help: bool,
+
+    /// Path to documentation directory to index
+    #[arg(long, default_value = "./docs")]
+    docs_path: std::path::PathBuf,
 }
 
 #[tokio::main]
@@ -75,7 +79,7 @@ async fn main() -> Result<()> {
     info!("Starting doc-indexer service");
 
     // Load configuration
-    let config = load_config(cli.config.as_deref(), cli.port).await?;
+    let config = load_config(cli.config.as_deref(), cli.port, &cli.docs_path).await?;
     info!("Configuration loaded successfully");
 
     // Create service container with all dependencies
@@ -151,7 +155,7 @@ fn init_logging(log_level: &str, structured: bool) {
 }
 
 /// Load configuration from file or environment
-async fn load_config(config_file: Option<&str>, port_override: u16) -> Result<Config> {
+async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &std::path::Path) -> Result<Config> {
     let mut config = if let Some(path) = config_file {
         info!("Loading configuration from file: {}", path);
         Config::from_file(path)?
@@ -168,9 +172,15 @@ async fn load_config(config_file: Option<&str>, port_override: u16) -> Result<Co
         config.server.port = port_override;
     }
 
+    // Override docs_path if provided via CLI (and not using default)
+    if docs_path != std::path::Path::new("./docs") {
+        config.service.docs_path = docs_path.to_path_buf();
+    }
+
     // Validate configuration
     config.validate()?;
 
     info!("Configuration validation successful");
+    info!("Documentation path: {}", config.service.docs_path.display());
     Ok(config)
 }

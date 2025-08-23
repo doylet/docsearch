@@ -101,6 +101,10 @@ impl TableFormatter {
         table.add_row(vec!["Status".to_string(), status.status]);
         table.add_row(vec!["Version".to_string(), status.version]);
         
+        if let Some(docs_path) = &status.docs_path {
+            table.add_row(vec!["Docs Path".to_string(), docs_path.clone()]);
+        }
+        
         if detailed {
             table.add_row(vec!["Uptime (seconds)".to_string(), status.uptime_seconds.to_string()]);
             table.add_row(vec!["Total Documents".to_string(), status.total_documents.to_string()]);
