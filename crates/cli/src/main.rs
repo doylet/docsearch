@@ -33,6 +33,10 @@ struct Cli {
     #[arg(long, global = true, default_value = "http://localhost:8081")]
     server: String,
     
+    /// Collection name for vector storage
+    #[arg(long, global = true, default_value = "zero_latency_docs")]
+    collection: String,
+    
     /// Configuration file path
     #[arg(long, global = true)]
     config: Option<std::path::PathBuf>,
@@ -115,6 +119,7 @@ async fn load_config(cli: &Cli) -> ZeroLatencyResult<Config> {
     // Create base configuration
     let mut config = Config {
         server_url: cli.server.clone(),
+        collection_name: cli.collection.clone(),
         timeout_seconds: 30,
         max_retries: 3,
         log_level: if cli.verbose { "debug".to_string() } else { "info".to_string() },

@@ -238,7 +238,7 @@ impl Default for QdrantConfig {
     fn default() -> Self {
         Self {
             url: "http://localhost:6333".to_string(),
-            collection_name: "documents".to_string(),
+            collection_name: "zero_latency_docs".to_string(),
             api_key: None,
             timeout_seconds: 30,
         }

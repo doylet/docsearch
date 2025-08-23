@@ -5,6 +5,7 @@ use std::path::PathBuf;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CliConfig {
     pub server_url: String,
+    pub collection_name: String,
     pub default_limit: u32,
     pub output_format: String,
     pub verbose: bool,
@@ -14,6 +15,7 @@ impl Default for CliConfig {
     fn default() -> Self {
         Self {
             server_url: "http://localhost:8081".to_string(),
+            collection_name: "zero_latency_docs".to_string(),
             default_limit: 10,
             output_format: "table".to_string(),
             verbose: false,

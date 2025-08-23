@@ -5,7 +5,52 @@
 
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, ZeroLatencyError};
-use crate::infrastructure::{ServerConfig, QdrantConfig, OpenAIConfig, LocalEmbeddingConfig, EmbeddedConfig};
+use crate::infrastructure::ServerConfig;
+
+// For simpler compilation, we'll include all config types but make implementations conditional
+// This allows configuration to be loaded regardless of features, but actual usage is gated
+
+// Define placeholder types when features are not enabled
+#[cfg(not(feature = "cloud"))]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct QdrantConfig {
+    pub url: String,
+    pub collection_name: String,
+    pub api_key: Option<String>,
+    pub timeout_seconds: u64,
+}
+
+#[cfg(not(feature = "cloud"))]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OpenAIConfig {
+    pub api_key: String,
+    pub model: String,
+    pub base_url: Option<String>,
+    pub timeout_seconds: u64,
+    pub max_retries: u32,
+}
+
+#[cfg(not(feature = "embedded"))]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LocalEmbeddingConfig {
+    pub dimension: usize,
+    pub seed: u64,
+}
+
+#[cfg(not(feature = "embedded"))]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EmbeddedConfig {
+    pub db_path: std::path::PathBuf,
+    pub dimension: usize,
+    pub cache_size: usize,
+}
+
+// Import actual types when features are enabled
+#[cfg(feature = "cloud")]
+use crate::infrastructure::{QdrantConfig, OpenAIConfig};
+
+#[cfg(feature = "embedded")]
+use crate::infrastructure::{LocalEmbeddingConfig, EmbeddedConfig};
 
 /// Main configuration structure for the doc-indexer service
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,7 +205,7 @@ impl Config {
                     url: std::env::var("DOC_INDEXER_QDRANT_URL")
                         .unwrap_or_else(|_| "http://localhost:6333".to_string()),
                     collection_name: std::env::var("DOC_INDEXER_QDRANT_COLLECTION")
-                        .unwrap_or_else(|_| "documents".to_string()),
+                        .unwrap_or_else(|_| "zero_latency_docs".to_string()),
                     api_key: std::env::var("DOC_INDEXER_QDRANT_API_KEY").ok(),
                     timeout_seconds: std::env::var("DOC_INDEXER_QDRANT_TIMEOUT")
                         .unwrap_or_else(|_| "30".to_string())
@@ -171,18 +216,32 @@ impl Config {
                     db_path: std::env::var("DOC_INDEXER_EMBEDDED_DB_PATH")
                         .map(|p| {
                             if p.starts_with("~/") {
-                                dirs::home_dir()
-                                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                    .join(&p[2..])
+                                #[cfg(feature = "embedded")]
+                                {
+                                    dirs::home_dir()
+                                        .unwrap_or_else(|| std::path::PathBuf::from("."))
+                                        .join(&p[2..])
+                                }
+                                #[cfg(not(feature = "embedded"))]
+                                {
+                                    std::path::PathBuf::from(&p[2..])
+                                }
                             } else {
                                 std::path::PathBuf::from(p)
                             }
                         })
                         .unwrap_or_else(|_| {
-                            dirs::home_dir()
-                                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                .join(".zero-latency")
-                                .join("vectors.db")
+                            #[cfg(feature = "embedded")]
+                            {
+                                dirs::home_dir()
+                                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                                    .join(".zero-latency")
+                                    .join("vectors.db")
+                            }
+                            #[cfg(not(feature = "embedded"))]
+                            {
+                                std::path::PathBuf::from(".zero-latency").join("vectors.db")
+                            }
                         }),
                     dimension: std::env::var("DOC_INDEXER_EMBEDDED_DIMENSION")
                         .unwrap_or_else(|_| "384".to_string())

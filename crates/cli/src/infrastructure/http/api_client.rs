@@ -43,6 +43,7 @@ pub struct ReindexResult {
 pub struct HttpApiClient {
     client: Client,
     base_url: String,
+    collection_name: String,
 }
 
 impl HttpApiClient {
@@ -51,7 +52,8 @@ impl HttpApiClient {
     /// # Arguments
     /// * `base_url` - The base URL of the Zero Latency API
     /// * `timeout` - Request timeout duration
-    pub fn new(base_url: String, timeout: Duration) -> ZeroLatencyResult<Self> {
+    /// * `collection_name` - Collection name for vector storage operations
+    pub fn new(base_url: String, timeout: Duration, collection_name: String) -> ZeroLatencyResult<Self> {
         let client = Client::builder()
             .timeout(timeout)
             .build()
@@ -62,6 +64,7 @@ impl HttpApiClient {
         Ok(Self {
             client,
             base_url,
+            collection_name,
         })
     }
 
@@ -73,7 +76,8 @@ impl HttpApiClient {
             .post(&url)
             .json(&serde_json::json!({
                 "query": query.effective_query(),
-                "limit": 10
+                "limit": 10,
+                "collection_name": self.collection_name
             }))
             .send()
             .await

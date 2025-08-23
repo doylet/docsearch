@@ -29,8 +29,15 @@ impl SearchStep for VectorSearchStep {
     }
 
     async fn execute(&self, context: &mut SearchContext) -> Result<()> {
-        // Generate embedding for the query
-        let query_text = &context.request.query.raw;
+        // Use enhanced query if available, otherwise fall back to original query
+        let query_text = if let Some(ref enhanced) = context.enhanced_query {
+            println!("🔍 VectorSearchStep: Using enhanced query: '{}'", enhanced.enhanced);
+            &enhanced.enhanced
+        } else {
+            println!("🔍 VectorSearchStep: Using original query: '{}'", context.request.query.raw);
+            &context.request.query.raw
+        };
+        
         println!("🔍 VectorSearchStep: Generating embedding for query: '{}'", query_text);
         let query_embedding = self.embedding_service.generate_embedding(query_text).await?;
         println!("✅ VectorSearchStep: Generated embedding with {} dimensions", query_embedding.len());

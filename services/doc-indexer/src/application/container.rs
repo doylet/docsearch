@@ -6,10 +6,11 @@
 
 use std::sync::Arc;
 use zero_latency_core::{Result, ZeroLatencyError};
-use zero_latency_search::{SearchOrchestrator, SimpleSearchOrchestrator, SearchPipeline};
+use zero_latency_search::{SearchOrchestrator, SimpleSearchOrchestrator, SearchPipeline, QueryEnhancementStep, ResultRankingStep};
 use zero_latency_vector::{VectorRepository, EmbeddingGenerator};
 
 use crate::config::Config;
+use crate::infrastructure::search_enhancement::{SimpleQueryEnhancer, MultiFactorResultRanker};
 
 /// Central dependency injection container for the doc-indexer service
 pub struct ServiceContainer {
@@ -71,37 +72,76 @@ impl ServiceContainer {
     
     /// Create vector repository based on configuration
     async fn create_vector_repository(config: &Config) -> Result<Arc<dyn VectorRepository>> {
-        use crate::infrastructure::{InMemoryVectorStore, QdrantAdapter, EmbeddedVectorStore};
+        use crate::infrastructure::InMemoryVectorStore;
         use crate::config::VectorBackend;
+        
+        #[cfg(feature = "cloud")]
+        use crate::infrastructure::QdrantAdapter;
+        
+        #[cfg(feature = "embedded")]
+        use crate::infrastructure::EmbeddedVectorStore;
         
         match config.vector.backend {
             VectorBackend::Memory => {
                 Ok(Arc::new(InMemoryVectorStore::new()))
             }
+            #[cfg(feature = "cloud")]
             VectorBackend::Qdrant => {
                 let adapter = QdrantAdapter::new(config.vector.qdrant.clone()).await?;
                 Ok(Arc::new(adapter))
             }
+            #[cfg(not(feature = "cloud"))]
+            VectorBackend::Qdrant => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Qdrant backend requires 'cloud' feature to be enabled".to_string()
+                })
+            }
+            #[cfg(feature = "embedded")]
             VectorBackend::Embedded => {
                 let adapter = EmbeddedVectorStore::new(config.vector.embedded.clone()).await?;
                 Ok(Arc::new(adapter))
+            }
+            #[cfg(not(feature = "embedded"))]
+            VectorBackend::Embedded => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Embedded backend requires 'embedded' feature to be enabled".to_string()
+                })
             }
         }
     }
     
     /// Create embedding generator based on configuration
     async fn create_embedding_generator(config: &Config) -> Result<Arc<dyn EmbeddingGenerator>> {
-        use crate::infrastructure::{LocalEmbeddingAdapter, OpenAIAdapter};
         use crate::config::EmbeddingProvider;
         
+        #[cfg(feature = "embedded")]
+        use crate::infrastructure::LocalEmbeddingAdapter;
+        
+        #[cfg(feature = "cloud")]
+        use crate::infrastructure::OpenAIAdapter;
+        
         match config.embedding.provider {
+            #[cfg(feature = "embedded")]
             EmbeddingProvider::Local => {
                 let adapter = LocalEmbeddingAdapter::new(config.embedding.local.clone())?;
                 Ok(Arc::new(adapter))
             }
+            #[cfg(not(feature = "embedded"))]
+            EmbeddingProvider::Local => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "Local embedding provider requires 'embedded' feature to be enabled".to_string()
+                })
+            }
+            #[cfg(feature = "cloud")]
             EmbeddingProvider::OpenAI => {
                 let adapter = OpenAIAdapter::new(config.embedding.openai.clone()).await?;
                 Ok(Arc::new(adapter))
+            }
+            #[cfg(not(feature = "cloud"))]
+            EmbeddingProvider::OpenAI => {
+                Err(ZeroLatencyError::Configuration {
+                    message: "OpenAI embedding provider requires 'cloud' feature to be enabled".to_string()
+                })
             }
         }
     }
@@ -127,34 +167,25 @@ impl ServiceContainer {
             generator: embedding_generator,
         });
         
-        // Create the vector search step
+        // Create enhanced search components
+        let query_enhancer = Arc::new(SimpleQueryEnhancer::new());
+        let result_ranker = Arc::new(MultiFactorResultRanker::new());
+        
+        // Create search steps
+        let query_enhancement_step = Box::new(QueryEnhancementStep::new(query_enhancer));
+        
         let vector_search_step = Box::new(zero_latency_search::VectorSearchStep::new(
             vector_repository,
             embedding_service,
         ));
         
-        // Create a simple ranking step that moves raw results to ranked results
-        struct SimpleRankingStep;
+        let result_ranking_step = Box::new(ResultRankingStep::new(result_ranker));
         
-        #[async_trait::async_trait]
-        impl zero_latency_search::SearchStep for SimpleRankingStep {
-            fn name(&self) -> &str {
-                "simple_ranking"
-            }
-            
-            async fn execute(&self, context: &mut zero_latency_search::SearchContext) -> zero_latency_core::Result<()> {
-                // Simply move raw results to ranked results (they're already scored by vector similarity)
-                let ranked_results = context.raw_results.clone();
-                context.set_ranked_results(ranked_results);
-                context.metadata.ranking_method = "vector_similarity".to_string();
-                Ok(())
-            }
-        }
-        
-        // Build the pipeline with vector search + ranking steps
+        // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking
         let pipeline = SearchPipeline::builder()
+            .add_step(query_enhancement_step)
             .add_step(vector_search_step)
-            .add_step(Box::new(SimpleRankingStep))
+            .add_step(result_ranking_step)
             .build();
             
         Ok(pipeline)
