@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use colored::*;
 
 use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
-use zero_latency_config::Config;
+use crate::config::CliConfig;
 
 // Clean architecture modules
 mod application;
@@ -115,15 +115,14 @@ async fn main() -> ZeroLatencyResult<()> {
 }
 
 /// Load configuration from various sources with CLI override
-async fn load_config(cli: &Cli) -> ZeroLatencyResult<Config> {
+async fn load_config(cli: &Cli) -> ZeroLatencyResult<CliConfig> {
     // Create base configuration
-    let mut config = Config {
+    let config = CliConfig {
         server_url: cli.server.clone(),
         collection_name: cli.collection.clone(),
-        timeout_seconds: 30,
-        max_retries: 3,
-        log_level: if cli.verbose { "debug".to_string() } else { "info".to_string() },
+        default_limit: 10,
         output_format: "table".to_string(),
+        verbose: cli.verbose,
     };
     
     // Load from config file if specified

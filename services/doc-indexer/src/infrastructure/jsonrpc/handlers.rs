@@ -260,17 +260,7 @@ pub async fn handle_health_check(
 ) -> JsonRpcResponse {
     match state.health_service.health_check().await {
         Ok(health) => {
-            let result = HealthCheckResult {
-                status: format!("{:?}", health.status),
-                timestamp: health.timestamp.to_rfc3339(),
-                checks: health.checks.into_iter().map(|check| {
-                    (check.component, HealthCheckItem {
-                        status: format!("{:?}", check.status),
-                        message: check.message,
-                    })
-                }).collect(),
-            };
-            JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+            JsonRpcResponse::success(id, serde_json::to_value(health).unwrap())
         }
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }
@@ -285,16 +275,7 @@ pub async fn handle_readiness_check(
 ) -> JsonRpcResponse {
     match state.health_service.readiness_check().await {
         Ok(readiness) => {
-            let result = ReadinessResult {
-                ready: readiness.ready,
-                checks: readiness.checks.into_iter().map(|check| {
-                    (check.component, HealthCheckItem {
-                        status: format!("{:?}", check.status),
-                        message: check.message,
-                    })
-                }).collect(),
-            };
-            JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+            JsonRpcResponse::success(id, serde_json::to_value(readiness).unwrap())
         }
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }
@@ -309,11 +290,7 @@ pub async fn handle_liveness_check(
 ) -> JsonRpcResponse {
     match state.health_service.liveness_check().await {
         Ok(liveness) => {
-            let result = LivenessResult {
-                alive: liveness.alive,
-                uptime_seconds: liveness.uptime.as_secs(),
-            };
-            JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+            JsonRpcResponse::success(id, serde_json::to_value(liveness).unwrap())
         }
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }

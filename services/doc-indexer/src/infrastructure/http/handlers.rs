@@ -13,8 +13,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{
-    models::{Document, HealthCheckResult, ReadinessResult, LivenessResult}, 
+    models::Document, 
     ZeroLatencyError
+};
+use crate::infrastructure::jsonrpc::types::{
+    HealthCheckResult, ReadinessResult, LivenessResult
 };
 
 use crate::application::{

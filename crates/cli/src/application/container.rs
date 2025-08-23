@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use zero_latency_core::{Result as ZeroLatencyResult};
-use zero_latency_config::Config;
+use crate::config::CliConfig;
 
 use crate::application::services::CliServiceImpl;
 use crate::infrastructure::http::{HttpApiClient};
@@ -17,7 +17,7 @@ use crate::infrastructure::config::{FileConfigLoader};
 /// Note: Using concrete types instead of trait objects to avoid 
 /// async trait object safety issues.
 pub struct CliServiceContainer {
-    config: Arc<Config>,
+    config: Arc<CliConfig>,
     config_loader: Arc<FileConfigLoader>,
     api_client: Arc<HttpApiClient>,
     output_formatter: Arc<TableFormatter>,
@@ -32,7 +32,7 @@ impl CliServiceContainer {
     /// 
     /// # Returns
     /// * `Result<Self>` - The configured container or an error
-    pub async fn new(config: Config) -> ZeroLatencyResult<Self> {
+    pub async fn new(config: CliConfig) -> ZeroLatencyResult<Self> {
         // Create infrastructure adapters
         let config_loader = Arc::new(FileConfigLoader::new());
         let api_client = Arc::new(HttpApiClient::new(
@@ -63,7 +63,7 @@ impl CliServiceContainer {
     }
     
     /// Returns the configuration for access by components.
-    pub fn config(&self) -> Arc<Config> {
+    pub fn config(&self) -> Arc<CliConfig> {
         self.config.clone()
     }
     
