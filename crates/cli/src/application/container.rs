@@ -37,7 +37,8 @@ impl CliServiceContainer {
         let config_loader = Arc::new(FileConfigLoader::new());
         let api_client = Arc::new(HttpApiClient::new(
             config.server_url.clone(),
-            Duration::from_secs(30)
+            Duration::from_secs(30),
+            config.collection_name.clone()
         )?);
         let output_formatter = Arc::new(TableFormatter::new());
         

@@ -6,6 +6,9 @@ pub struct Config {
     /// Server URL for API communication
     pub server_url: String,
     
+    /// Collection name for vector storage (CLI override)
+    pub collection_name: String,
+    
     /// Timeout for API requests in seconds
     pub timeout_seconds: u64,
     
@@ -23,6 +26,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_url: "http://localhost:8081".to_string(),
+            collection_name: "zero_latency_docs".to_string(),
             timeout_seconds: 30,
             max_retries: 3,
             log_level: "info".to_string(),

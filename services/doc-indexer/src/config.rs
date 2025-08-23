@@ -160,7 +160,7 @@ impl Config {
                     url: std::env::var("DOC_INDEXER_QDRANT_URL")
                         .unwrap_or_else(|_| "http://localhost:6333".to_string()),
                     collection_name: std::env::var("DOC_INDEXER_QDRANT_COLLECTION")
-                        .unwrap_or_else(|_| "documents".to_string()),
+                        .unwrap_or_else(|_| "zero_latency_docs".to_string()),
                     api_key: std::env::var("DOC_INDEXER_QDRANT_API_KEY").ok(),
                     timeout_seconds: std::env::var("DOC_INDEXER_QDRANT_TIMEOUT")
                         .unwrap_or_else(|_| "30".to_string())
