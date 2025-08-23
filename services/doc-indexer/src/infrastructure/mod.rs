@@ -8,6 +8,7 @@ pub mod http;
 pub mod jsonrpc;
 pub mod streaming;
 pub mod stdio;
+pub mod search_enhancement;
 pub mod vector;
 pub mod embeddings;
 
