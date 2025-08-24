@@ -102,7 +102,6 @@ impl ReindexCommand {
         }
         
         let app_command = AppReindexCommand {
-            force: self.force,
             safe_patterns: self.safe_patterns.clone(),
             ignore_patterns: self.ignore_patterns.clone(),
             clear_default_ignores: self.clear_default_ignores,

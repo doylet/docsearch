@@ -11,7 +11,6 @@ pub struct SearchCommand {
     pub query: String,
     pub limit: u32,
     pub format: String,
-    pub best: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +38,6 @@ pub struct ServerCommand {
 
 #[derive(Debug, Clone)]
 pub struct ReindexCommand {
-    pub force: bool,
     pub safe_patterns: Vec<String>,
     pub ignore_patterns: Vec<String>,
     pub clear_default_ignores: bool,

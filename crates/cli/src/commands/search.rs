@@ -37,7 +37,6 @@ impl SearchCommand {
             query: self.query.clone(),
             limit: if self.best { 1 } else { self.limit },
             format: self.format.clone(),
-            best: self.best,
         };
         
         // Delegate to application service
