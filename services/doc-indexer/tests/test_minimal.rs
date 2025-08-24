@@ -2,12 +2,12 @@
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("🚀 Starting minimal test...");
+    println!("Starting Starting minimal test...");
     
     // Initialize logging
     tracing_subscriber::fmt::init();
     tracing::info!("✅ Logging initialized");
     
-    println!("✅ Minimal test completed successfully!");
+    println!("Success: Minimal test completed successfully!");
     Ok(())
 }

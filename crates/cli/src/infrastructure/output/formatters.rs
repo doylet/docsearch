@@ -140,7 +140,7 @@ impl TableFormatter {
         
         // Add explanatory notes
         if status.total_documents == 0 {
-            println!("{}", "💡 No documents indexed yet. The server is configured to index from the docs path above.".yellow());
+            println!("{}", "Note: No documents indexed yet. The server is configured to index from the docs path above.".yellow());
         }
         
         Ok(())
@@ -252,7 +252,7 @@ impl TableFormatter {
     /// Format document detail
     pub async fn format_document_detail(&self, response: &crate::commands::document::GetDocumentResponse, format: &str) -> ZeroLatencyResult<()> {
         if !response.found {
-            println!("{} Document '{}' not found", "❌".red(), response.id);
+            println!("Document '{}' not found", response.id.red());
             return Ok(());
         }
         

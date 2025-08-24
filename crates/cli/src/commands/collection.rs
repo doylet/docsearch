@@ -218,12 +218,12 @@ impl CollectionCommand {
         let response = container.api_client().create_collection(request).await?;
         
         if response.success {
-            println!("✅ {}", response.message);
+            println!("Collection created successfully: {}", response.message);
             println!("Collection '{}' created with {} vector dimensions", 
                      response.collection.name, 
                      response.collection.vector_size.unwrap_or(0));
         } else {
-            println!("❌ Failed to create collection");
+            println!("Failed to create collection");
         }
         
         Ok(())
@@ -248,9 +248,9 @@ impl CollectionCommand {
         let response = container.api_client().delete_collection(&args.name).await?;
         
         if response.success {
-            println!("✅ {}", response.message);
+            println!("Collection deleted successfully: {}", response.message);
         } else {
-            println!("❌ {}", response.message);
+            println!("Failed to delete collection: {}", response.message);
         }
         
         Ok(())
@@ -303,12 +303,12 @@ impl CollectionCommand {
         config.set_collection(args.name.clone())
             .map_err(|e| ZeroLatencyError::Configuration { message: format!("Failed to save config: {}", e) })?;
         
-        println!("✅ Set default collection to '{}'", args.name);
-        println!("💡 This will be used for subsequent commands unless overridden with --collection");
+        println!("Default collection set to '{}'", args.name);
+        println!("Note: This will be used for subsequent commands unless overridden with --collection");
         
         // Show the config file location
         if let Ok(config_file) = CliConfig::config_file() {
-            println!("📝 Configuration saved to: {}", config_file.display());
+            println!("Configuration saved to: {}", config_file.display());
         }
         
         Ok(())

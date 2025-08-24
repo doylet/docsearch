@@ -45,7 +45,7 @@ impl ServerCommand {
         
         // For other operations, use the API-based approach
         if self.status || self.stop {
-            println!("{}", "🚀 Managing server via API...".bright_blue().bold());
+            println!("{}", "Managing server via API...".bright_blue().bold());
             
             if self.status {
                 use crate::application::services::cli_service::StatusCommand;
@@ -57,11 +57,11 @@ impl ServerCommand {
                 // Try to get status, but provide helpful error if server isn't running
                 match container.cli_service().status(status_command).await {
                     Ok(_) => {
-                        println!("{}", "✅ Server status retrieved successfully!".bright_green().bold());
+                        println!("{}", "Server status retrieved successfully!".bright_green().bold());
                     }
                     Err(ZeroLatencyError::Network { .. }) => {
-                        println!("{}", "❌ Server is not running".red().bold());
-                        println!("{} Start the server with: {}", "💡".yellow(), "mdx server --start".cyan());
+                        println!("{}", "Server is not running".red().bold());
+                        println!("{} Start the server with: {}", "Tip:".yellow(), "mdx server --start".cyan());
                         return Ok(());
                     }
                     Err(e) => return Err(e),
@@ -75,7 +75,7 @@ impl ServerCommand {
                 };
                 
                 container.cli_service().server(app_command).await?;
-                println!("{}", "✅ Server stop command sent!".bright_green().bold());
+                println!("{}", "Server stop command sent!".bright_green().bold());
             }
             
             return Ok(());
@@ -95,12 +95,12 @@ impl ServerCommand {
     
     /// Start the doc-indexer server directly by spawning the process
     async fn start_server_directly(&self) -> ZeroLatencyResult<()> {
-        println!("{}", "🚀 Starting doc-indexer server...".bright_blue().bold());
+        println!("{}", "Starting doc-indexer server...".bright_blue().bold());
         
         // Find the doc-indexer binary
         let binary_path = self.find_doc_indexer_binary()?;
         
-        println!("📍 Using binary: {}", binary_path.bright_cyan());
+        println!("Using binary: {}", binary_path.bright_cyan());
         
         // Build command arguments
         let args = vec![
@@ -129,12 +129,12 @@ impl ServerCommand {
                     message: format!("Failed to start server: {}", e)
                 })?;
                 
-            println!("{} Server started with PID: {}", "✅".green(), child.id());
-            println!("{} Server running on: {}", "🌐".blue(), format!("http://localhost:{}", self.port).cyan());
+            println!("Server started with PID: {}", child.id().to_string().green());
+            println!("Server running on: {}", format!("http://localhost:{}", self.port).cyan());
         } else {
             // Foreground mode
-            println!("{}", "▶️  Starting server in foreground (Ctrl+C to stop)...".yellow());
-            println!("{} Server will run on: {}", "🌐".blue(), format!("http://localhost:{}", self.port).cyan());
+            println!("{}", "Starting server in foreground (Ctrl+C to stop)...".yellow());
+            println!("Server will run on: {}", format!("http://localhost:{}", self.port).cyan());
             
             let status = Command::new(&binary_path)
                 .args(&args)

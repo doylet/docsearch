@@ -132,26 +132,29 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Initialize logging based on configuration
+/// Initialize logging and tracing based on configuration
 fn init_logging(log_level: &str, structured: bool) {
-    use tracing_subscriber::{fmt, EnvFilter};
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
     
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(format!("doc_indexer={},zero_latency_core=info,zero_latency_search=info,zero_latency_vector=info,zero_latency_observability=info", log_level)));
 
+    // Create base subscriber
+    let subscriber = tracing_subscriber::registry().with(env_filter);
+
     if structured {
-        fmt()
-            .json()
-            .with_env_filter(env_filter)
-            .with_target(false)
-            .with_current_span(false)
+        // Structured JSON logging for production
+        subscriber
+            .with(fmt::layer().json().with_target(false).with_current_span(false))
             .init();
     } else {
-        fmt()
-            .with_env_filter(env_filter)
-            .with_target(false)
+        // Human-readable logging for development
+        subscriber
+            .with(fmt::layer().with_target(false))
             .init();
     }
+    
+    tracing::info!("Tracing initialized with level: {}, structured: {}", log_level, structured);
 }
 
 /// Load configuration from file or environment

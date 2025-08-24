@@ -188,6 +188,7 @@ async fn service_info(
 }
 
 /// Index documents from a specified path
+#[tracing::instrument(skip(state), fields(path = %request.path))]
 async fn index_documents_from_path(
     State(state): State<AppState>,
     Json(request): Json<IndexPathRequest>,
@@ -203,9 +204,9 @@ async fn index_documents_from_path(
     match result {
         Ok((documents_processed, processing_time_ms)) => {
             tracing::info!(
-                "Indexing completed: {} documents processed in {:.2}ms", 
-                documents_processed, 
-                processing_time_ms
+                documents_processed = documents_processed,
+                processing_time_ms = processing_time_ms,
+                "Indexing completed successfully"
             );
             
             // Update collection statistics after successful indexing
@@ -221,13 +222,14 @@ async fn index_documents_from_path(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to index documents from path {}: {}", request.path, e);
+            tracing::error!(error = %e, path = %request.path, "Failed to index documents");
             Err(AppError(e))
         }
     }
 }
 
 /// Update collection statistics after indexing
+#[tracing::instrument(skip(state))]
 async fn update_collection_statistics(state: &AppState) -> Result<(), zero_latency_core::ZeroLatencyError> {
     // Get current vector count from the vector repository
     let vector_count = state.container.vector_repository().count().await? as u64;
@@ -243,10 +245,10 @@ async fn update_collection_statistics(state: &AppState) -> Result<(), zero_laten
         .await?;
     
     tracing::info!(
-        "Updated collection '{}' statistics: {} vectors, {} bytes", 
-        default_collection, 
-        vector_count, 
-        estimated_size_bytes
+        collection = default_collection,
+        vector_count = vector_count,
+        size_bytes = estimated_size_bytes,
+        "Updated collection statistics"
     );
     
     Ok(())

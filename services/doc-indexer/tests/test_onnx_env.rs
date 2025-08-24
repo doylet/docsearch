@@ -5,7 +5,7 @@ use ort::{Environment, LoggingLevel};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("🚀 Testing ONNX Environment creation...");
+    println!("Starting Testing ONNX Environment creation...");
     
     // Initialize logging
     tracing_subscriber::fmt::init();
@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
         .with_name("test-env")
         .with_log_level(LoggingLevel::Warning)
         .build()?;
-    println!("✅ ONNX Environment created successfully!");
+    println!("Success: ONNX Environment created successfully!");
     
     Ok(())
 }

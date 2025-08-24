@@ -29,14 +29,14 @@ pub struct QdrantAdapter {
 impl QdrantAdapter {
     /// Create a new Qdrant adapter
     pub async fn new(config: QdrantConfig) -> Result<Self> {
-        println!("🔧 QdrantAdapter: Setting up REST client for {} with collection '{}'", config.url, config.collection_name);
+        tracing::info!("QdrantAdapter: Setting up REST client for {} with collection '{}'", config.url, config.collection_name);
         
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(config.timeout_seconds))
             .build()
             .map_err(|e| ZeroLatencyError::database(&format!("Failed to create HTTP client: {}", e)))?;
         
-        println!("✅ QdrantAdapter: Successfully created REST client");
+        tracing::info!("QdrantAdapter: Successfully created REST client");
         
         Ok(Self {
             config,
@@ -125,7 +125,7 @@ impl VectorRepository for QdrantAdapter {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
         // For now, insertion is handled separately via the indexing service
         // This implementation focuses on search functionality
-        println!("🔧 QdrantAdapter: Insert not implemented (using separate indexing)");
+        tracing::debug!("QdrantAdapter: Insert not implemented (using separate indexing)");
         let _ = vectors; // Suppress unused warning
         Ok(())
     }
@@ -159,20 +159,20 @@ impl VectorRepository for QdrantAdapter {
         
         let response = request.send().await
             .map_err(|e| {
-                println!("❌ QdrantAdapter: HTTP request failed: {}", e);
+                tracing::error!("QdrantAdapter: HTTP request failed: {}", e);
                 ZeroLatencyError::database(&format!("Qdrant HTTP request failed: {}", e))
             })?;
         
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            println!("❌ QdrantAdapter: HTTP error {}: {}", status, error_text);
+            tracing::error!("QdrantAdapter: HTTP error {}: {}", status, error_text);
             return Err(ZeroLatencyError::database(&format!("Qdrant HTTP error {}: {}", status, error_text)));
         }
         
         let search_response: QdrantSearchResponse = response.json().await
             .map_err(|e| {
-                println!("❌ QdrantAdapter: Failed to parse response: {}", e);
+                tracing::error!("QdrantAdapter: Failed to parse response: {}", e);
                 ZeroLatencyError::database(&format!("Failed to parse Qdrant response: {}", e))
             })?;
         
@@ -197,18 +197,18 @@ impl VectorRepository for QdrantAdapter {
             }
         }
         
-        println!("✅ QdrantAdapter: Successfully converted {} results", similarity_results.len());
+        tracing::debug!("QdrantAdapter: Successfully converted {} results", similarity_results.len());
         Ok(similarity_results)
     }
     
     async fn delete(&self, document_id: &str) -> Result<bool> {
-        println!("🔧 QdrantAdapter: Delete not fully implemented");
+        tracing::debug!("QdrantAdapter: Delete not fully implemented");
         let _ = document_id; // Suppress unused warning
         Ok(true)
     }
     
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
-        println!("🔧 QdrantAdapter: Update not fully implemented");
+        tracing::debug!("QdrantAdapter: Update not fully implemented");
         let _ = (document_id, vector); // Suppress unused warnings
         Ok(true)
     }
@@ -221,7 +221,7 @@ impl VectorRepository for QdrantAdapter {
     async fn count(&self) -> Result<usize> {
         // For now, return a placeholder count
         // In a real implementation, this would query Qdrant for collection stats
-        println!("🔧 QdrantAdapter: Count not fully implemented");
+        tracing::debug!("QdrantAdapter: Count not fully implemented");
         Ok(0)
     }
 }

@@ -94,21 +94,21 @@ async fn main() -> ZeroLatencyResult<()> {
     
     // Handle errors with user-friendly messages
     if let Err(e) = result {
-        eprintln!("{} {}", "❌ Error:".red().bold(), e);
+        eprintln!("Error: {}", e.to_string().red().bold());
         
-        // Add helpful suggestions based on error type
+        // Provide helpful suggestions based on error type
         match &e {
-            ZeroLatencyError::Network { message } if message.contains("Connection refused") => {
-                eprintln!("{} Try: {}", "💡".yellow(), "mdx server --start".cyan());
+            ZeroLatencyError::Network { .. } => {
+                eprintln!("Tip: Try: {}", "mdx server --start".cyan());
             }
-            ZeroLatencyError::ExternalService { service: _, message } if message.contains("404") => {
-                eprintln!("{} The requested resource was not found", "💡".yellow());
+            ZeroLatencyError::NotFound { .. } => {
+                eprintln!("Tip: The requested resource was not found");
             }
             ZeroLatencyError::Configuration { message } => {
-                eprintln!("{} Check your configuration: {}", "💡".yellow(), message);
+                eprintln!("Tip: Check your configuration: {}", message);
             }
             _ => {
-                eprintln!("{} Check the server status: {}", "💡".yellow(), "mdx status".cyan());
+                eprintln!("Tip: Check the server status: {}", "mdx status".cyan());
             }
         }
         

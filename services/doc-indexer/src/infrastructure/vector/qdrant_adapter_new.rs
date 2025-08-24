@@ -32,7 +32,7 @@ pub struct QdrantAdapter {
 impl QdrantAdapter {
     /// Create a new Qdrant adapter
     pub async fn new(config: QdrantConfig) -> Result<Self> {
-        println!("🔧 QdrantAdapter: Connecting to {} with collection '{}'", config.url, config.collection_name);
+        tracing::info!("QdrantAdapter: Connecting to {} with collection '{}'", config.url, config.collection_name);
         
         let client = if let Some(api_key) = &config.api_key {
             Qdrant::from_url(&config.url)
@@ -45,7 +45,7 @@ impl QdrantAdapter {
                 .map_err(|e| ZeroLatencyError::database(&format!("Failed to connect to Qdrant: {}", e)))?
         };
         
-        println!("✅ QdrantAdapter: Successfully connected to Qdrant");
+        tracing::info!(" QdrantAdapter: Successfully connected to Qdrant");
         
         Ok(Self {
             config,
@@ -152,7 +152,7 @@ impl VectorRepository for QdrantAdapter {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
         // For now, insertion is handled separately via the indexing service
         // This implementation focuses on search functionality
-        println!("🔧 QdrantAdapter: Insert not implemented (using separate indexing)");
+        tracing::debug!(" QdrantAdapter: Insert not implemented (using separate indexing)");
         let _ = vectors; // Suppress unused warning
         Ok(())
     }
@@ -176,7 +176,7 @@ impl VectorRepository for QdrantAdapter {
         
         let response = self.client.search_points(&search_request).await
             .map_err(|e| {
-                println!("❌ QdrantAdapter: Search failed: {}", e);
+                tracing::error!(" QdrantAdapter: Search failed: {}", e);
                 ZeroLatencyError::database(&format!("Qdrant search failed: {}", e))
             })?;
         
@@ -201,18 +201,18 @@ impl VectorRepository for QdrantAdapter {
             }
         }
         
-        println!("✅ QdrantAdapter: Successfully converted {} results", similarity_results.len());
+        tracing::info!(" QdrantAdapter: Successfully converted {} results", similarity_results.len());
         Ok(similarity_results)
     }
     
     async fn delete(&self, document_id: &str) -> Result<bool> {
-        println!("🔧 QdrantAdapter: Delete not fully implemented");
+        tracing::debug!(" QdrantAdapter: Delete not fully implemented");
         let _ = document_id; // Suppress unused warning
         Ok(true)
     }
     
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
-        println!("🔧 QdrantAdapter: Update not fully implemented");
+        tracing::debug!(" QdrantAdapter: Update not fully implemented");
         let _ = (document_id, vector); // Suppress unused warnings
         Ok(true)
     }

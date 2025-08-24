@@ -141,7 +141,7 @@ impl CollectionService {
             collections_guard.insert(request.name.clone(), collection.clone());
         }
 
-        println!("🔧 Created collection: {}", collection.name);
+        tracing::info!("Created collection: {}", collection.name);
         Ok(collection)
     }
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("🚀 Testing ONNX SessionBuilder creation...");
+    println!("Starting Testing ONNX SessionBuilder creation...");
     
     // Initialize logging
     tracing_subscriber::fmt::init();
@@ -17,15 +17,15 @@ async fn main() -> Result<()> {
         .with_name("test-env")
         .with_log_level(LoggingLevel::Warning)
         .build()?);
-    println!("✅ ONNX Environment created successfully!");
+    println!("Success: ONNX Environment created successfully!");
     
     println!("🔄 Creating SessionBuilder...");
     let builder = SessionBuilder::new(&environment)?;
-    println!("✅ SessionBuilder created successfully!");
+    println!("Success: SessionBuilder created successfully!");
     
     println!("🔄 Setting execution providers...");
     let _builder = builder.with_execution_providers([ExecutionProvider::CPU(Default::default())])?;
-    println!("✅ Execution providers set successfully!");
+    println!("Success: Execution providers set successfully!");
     
     Ok(())
 }
