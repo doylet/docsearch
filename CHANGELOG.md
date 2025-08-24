@@ -5,6 +5,25 @@ All notable changes to the Zero-Latency Documentation Search project will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-08-24
+
+### Fixed
+- **Search Limit Parameter Bug**: CLI `--limit` parameter now properly respected throughout search pipeline
+  - Enhanced `SearchQuery` domain model to include limit field with default of 10
+  - Updated CLI service to pass limit parameter using `with_limit()` builder method
+  - Fixed API client hardcoded limit of 10 to use actual query limit
+  - Resolves issue where `mdx search "query" --limit 3` returned 10 results instead of 3
+  - Eliminates duplicate results in search output
+- **Collection Metadata Synchronization**: Fixed discrepancy between reported collection stats and actual vector count
+  - Enhanced `CollectionService` to initialize from actual database vector count
+  - Added async initialization pattern to ensure collection stats reflect database state
+  - Resolves issue where collection showed 0 vectors despite 203,381 actual vectors in database
+
+### Technical Details
+- Request flow now correctly: CLI args → SearchCommand → SearchQuery → API request → VectorSearchStep
+- Collection metadata properly synchronized with persistent vector storage on service startup
+- Documentation added: `docs/implementation/SEARCH_LIMIT_BUG_FIX.md`
+
 ## [1.1.0] - 2025-08-23
 
 ### Added - Phase 4D Service Extension Complete

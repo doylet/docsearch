@@ -138,7 +138,6 @@ async fn search_documents(
     State(state): State<AppState>,
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
-    println!("🔍 API received search request: query='{}', limit={:?}", request.query, request.limit);
     let search_response = state.document_service
         .search_documents(&request.query, request.limit.unwrap_or(10))
         .await?;
