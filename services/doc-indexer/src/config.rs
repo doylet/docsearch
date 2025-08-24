@@ -328,7 +328,14 @@ impl Config {
                     .unwrap_or(200),
                 docs_path: std::env::var("DOC_INDEXER_DOCS_PATH")
                     .map(std::path::PathBuf::from)
-                    .unwrap_or_else(|_| std::path::PathBuf::from("./docs")),
+                    .unwrap_or_else(|_| {
+                        // Default to ~/Documents in production, but allow ~/Documents to be expanded
+                        if let Ok(home) = std::env::var("HOME") {
+                            std::path::PathBuf::from(home).join("Documents")
+                        } else {
+                            std::path::PathBuf::from("~/Documents")
+                        }
+                    }),
             },
         };
         
@@ -423,7 +430,7 @@ DOC_INDEXER_MAX_SEARCH_LIMIT=100
 DOC_INDEXER_CHUNKING_STRATEGY=sentence
 DOC_INDEXER_CHUNK_SIZE=1000
 DOC_INDEXER_CHUNK_OVERLAP=200
-DOC_INDEXER_DOCS_PATH=./docs
+DOC_INDEXER_DOCS_PATH=~/Documents
 "#.to_string()
     }
 }
@@ -496,7 +503,11 @@ impl Default for Config {
                 chunking_strategy: ChunkingStrategy::Sentence,
                 chunk_size: 1000,
                 chunk_overlap: 200,
-                docs_path: std::path::PathBuf::from("./docs"),
+                docs_path: if let Ok(home) = std::env::var("HOME") {
+                    std::path::PathBuf::from(home).join("Documents")
+                } else {
+                    std::path::PathBuf::from("~/Documents")
+                },
             },
         }
     }

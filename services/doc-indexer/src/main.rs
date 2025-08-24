@@ -53,7 +53,7 @@ struct Cli {
     stdio_help: bool,
 
     /// Path to documentation directory to index
-    #[arg(long, default_value = "./docs")]
+    #[arg(long, default_value = "~/Documents")]
     docs_path: std::path::PathBuf,
 }
 
@@ -178,7 +178,13 @@ async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &
     }
 
     // Override docs_path if provided via CLI (and not using default)
-    if docs_path != std::path::Path::new("./docs") {
+    let default_docs_path = if let Ok(home) = std::env::var("HOME") {
+        std::path::PathBuf::from(home).join("Documents")
+    } else {
+        std::path::PathBuf::from("~/Documents")
+    };
+    
+    if docs_path != default_docs_path {
         // Convert to absolute path using the current working directory
         if docs_path.is_absolute() {
             config.service.docs_path = docs_path.to_path_buf();
