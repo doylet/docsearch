@@ -14,4 +14,4 @@ pub use services::{
     health_service::HealthService,
     collection_service::CollectionService,
 };
-pub use content_processor::{ContentProcessor, ContentType};
+pub use content_processor::ContentProcessor;
