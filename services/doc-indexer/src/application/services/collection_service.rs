@@ -4,6 +4,7 @@
 /// and managing vector collections in the storage backend.
 
 use std::sync::Arc;
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, ZeroLatencyError};
 use crate::application::ServiceContainer;
@@ -41,47 +42,72 @@ pub struct CreateCollectionRequest {
 /// Service for managing collections
 #[derive(Clone)]
 pub struct CollectionService {
-    #[allow(dead_code)]
     container: Arc<ServiceContainer>,
+    // In-memory registry of collections (in production, this would be persistent storage)
+    collections: Arc<tokio::sync::RwLock<HashMap<String, CollectionInfo>>>,
 }
 
 impl CollectionService {
     /// Create a new collection service
     pub fn new(container: &Arc<ServiceContainer>) -> Self {
+        let mut initial_collections = HashMap::new();
+        
+        // Add the default collection with actual vector store data
+        // Note: In a real implementation, each collection would have its own vector store
+        let default_collection = CollectionInfo {
+            name: "zero_latency_docs".to_string(),
+            vector_count: 0, // Will be updated when documents are indexed
+            size_bytes: 0,   // Will be updated when documents are indexed
+            created_at: Some(chrono::Utc::now() - chrono::Duration::days(30)),
+            last_modified: Some(chrono::Utc::now()),
+            vector_size: Some(384),
+            status: CollectionStatus::Active,
+        };
+        
+        initial_collections.insert("zero_latency_docs".to_string(), default_collection);
+        
         Self {
             container: container.clone(),
+            collections: Arc::new(tokio::sync::RwLock::new(initial_collections)),
         }
+    }
+
+    /// Update collection statistics when documents are indexed
+    pub async fn update_collection_stats(&self, collection_name: &str, vector_count: u64, size_bytes: u64) -> Result<()> {
+        let mut collections_guard = self.collections.write().await;
+        if let Some(collection) = collections_guard.get_mut(collection_name) {
+            collection.vector_count = vector_count;
+            collection.size_bytes = size_bytes;
+            collection.last_modified = Some(chrono::Utc::now());
+        }
+        Ok(())
     }
 
     /// List all available collections
     pub async fn list_collections(&self) -> Result<Vec<CollectionInfo>> {
-        // For now, return the current collection info
-        // In a real implementation, this would query the vector store for all collections
-        let collections = vec![
-            CollectionInfo {
-                name: "zero_latency_docs".to_string(),
-                vector_count: self.get_document_count().await.unwrap_or(0),
-                size_bytes: self.get_collection_size().await.unwrap_or(0),
-                created_at: Some(chrono::Utc::now() - chrono::Duration::days(30)),
-                last_modified: Some(chrono::Utc::now()),
-                vector_size: Some(384), // BERT base dimension
-                status: CollectionStatus::Active,
-            }
-        ];
+        let collections_guard = self.collections.read().await;
+        let collections: Vec<_> = collections_guard.values().cloned().collect();
         
+        // Return collections as-is, without overwriting with shared vector store data
+        // In a full implementation, each collection would have its own vector store instance
+        // For now, we track collection statistics independently
         Ok(collections)
     }
 
     /// Get information about a specific collection
     pub async fn get_collection_info(&self, name: &str) -> Result<Option<CollectionInfo>> {
-        let collections = self.list_collections().await?;
-        Ok(collections.into_iter().find(|c| c.name == name))
+        let collections_guard = self.collections.read().await;
+        if let Some(collection) = collections_guard.get(name).cloned() {
+            // Return the collection as-is from our registry
+            // In a full implementation, we would query the collection-specific vector store
+            Ok(Some(collection))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Create a new collection
     pub async fn create_collection(&self, request: CreateCollectionRequest) -> Result<CollectionInfo> {
-        // In a real implementation, this would create the collection in the vector store
-        // For now, return a mock response
         if request.name.is_empty() {
             return Err(ZeroLatencyError::validation("name", "Collection name cannot be empty"));
         }
@@ -91,13 +117,16 @@ impl CollectionService {
         }
 
         // Check if collection already exists
-        if let Some(_existing) = self.get_collection_info(&request.name).await? {
-            return Err(ZeroLatencyError::validation("name", "Collection already exists"));
+        {
+            let collections_guard = self.collections.read().await;
+            if collections_guard.contains_key(&request.name) {
+                return Err(ZeroLatencyError::validation("name", "Collection already exists"));
+            }
         }
 
-        // Create the collection
+        // Create the collection info
         let collection = CollectionInfo {
-            name: request.name,
+            name: request.name.clone(),
             vector_count: 0,
             size_bytes: 0,
             created_at: Some(chrono::Utc::now()),
@@ -106,15 +135,20 @@ impl CollectionService {
             status: CollectionStatus::Active,
         };
 
+        // Add to registry
+        {
+            let mut collections_guard = self.collections.write().await;
+            collections_guard.insert(request.name.clone(), collection.clone());
+        }
+
         println!("🔧 Created collection: {}", collection.name);
         Ok(collection)
     }
 
     /// Delete a collection
     pub async fn delete_collection(&self, name: &str) -> Result<bool> {
-        // In a real implementation, this would delete the collection from the vector store
-        // For now, return success if collection exists
-        if let Some(_collection) = self.get_collection_info(name).await? {
+        let mut collections_guard = self.collections.write().await;
+        if collections_guard.remove(name).is_some() {
             println!("🗑️ Deleted collection: {}", name);
             Ok(true)
         } else {
@@ -139,16 +173,15 @@ impl CollectionService {
         }
     }
 
-    /// Private helper to get document count
-    async fn get_document_count(&self) -> Result<u64> {
-        // Mock implementation - in real code this would query the vector store
-        Ok(71) // Based on previous indexing results
-    }
-
     /// Private helper to get collection size
     async fn get_collection_size(&self) -> Result<u64> {
-        // Mock implementation - in real code this would query the vector store
-        Ok(2_048_576) // 2MB mock size
+        // Estimate size based on vector count and dimensions
+        if let Ok(count) = self.container.vector_repository().count().await {
+            let estimated_size = count * 384 * 4; // 384 dimensions * 4 bytes per f32
+            Ok(estimated_size as u64)
+        } else {
+            Ok(0)
+        }
     }
 }
 

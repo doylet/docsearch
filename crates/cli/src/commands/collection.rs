@@ -28,6 +28,8 @@ pub enum CollectionAction {
     Delete(DeleteArgs),
     /// Show collection statistics
     Stats(StatsArgs),
+    /// Set the default collection for subsequent operations
+    Set(SetArgs),
 }
 
 #[derive(Debug, Args)]
@@ -82,6 +84,12 @@ pub struct StatsArgs {
     format: String,
 }
 
+#[derive(Debug, Args)]
+pub struct SetArgs {
+    /// Collection name to set as default
+    name: String,
+}
+
 impl CollectionCommand {
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
         match &self.action {
@@ -90,6 +98,7 @@ impl CollectionCommand {
             CollectionAction::Create(args) => self.create_collection(container, args).await,
             CollectionAction::Delete(args) => self.delete_collection(container, args).await,
             CollectionAction::Stats(args) => self.get_collection_stats(container, args).await,
+            CollectionAction::Set(args) => self.set_default_collection(container, args).await,
         }
     }
     
@@ -279,6 +288,27 @@ impl CollectionCommand {
                     println!("{:<20} {}", "Last Indexed", last_indexed.format("%Y-%m-%d %H:%M:%S UTC"));
                 }
             }
+        }
+        
+        Ok(())
+    }
+    
+    async fn set_default_collection(&self, _container: &CliServiceContainer, args: &SetArgs) -> ZeroLatencyResult<()> {
+        use crate::config::CliConfig;
+        use zero_latency_core::ZeroLatencyError;
+        
+        let mut config = CliConfig::load()
+            .map_err(|e| ZeroLatencyError::Configuration { message: format!("Failed to load config: {}", e) })?;
+            
+        config.set_collection(args.name.clone())
+            .map_err(|e| ZeroLatencyError::Configuration { message: format!("Failed to save config: {}", e) })?;
+        
+        println!("✅ Set default collection to '{}'", args.name);
+        println!("💡 This will be used for subsequent commands unless overridden with --collection");
+        
+        // Show the config file location
+        if let Ok(config_file) = CliConfig::config_file() {
+            println!("📝 Configuration saved to: {}", config_file.display());
         }
         
         Ok(())

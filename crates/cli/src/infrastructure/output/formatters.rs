@@ -285,25 +285,4 @@ impl TableFormatter {
         }
         Ok(())
     }
-    
-    /// Format delete result
-    pub async fn format_delete_result(&self, response: &crate::commands::document::DeleteDocumentResponse) -> ZeroLatencyResult<()> {
-        if response.success {
-            println!("{} {}", "✅".green(), response.message);
-        } else {
-            println!("{} {}", "❌".red(), response.message);
-        }
-        Ok(())
-    }
-    
-    /// Format create result
-    pub async fn format_create_result(&self, response: &crate::commands::document::CreateDocumentResponse) -> ZeroLatencyResult<()> {
-        if response.success {
-            println!("{} {}", "✅".green(), response.message);
-            println!("Document ID: {}", response.id.bright_blue());
-        } else {
-            println!("{} {}", "❌".red(), response.message);
-        }
-        Ok(())
-    }
 }

@@ -208,6 +208,11 @@ async fn index_documents_from_path(
                 processing_time_ms
             );
             
+            // Update collection statistics after successful indexing
+            if let Err(e) = update_collection_statistics(&state).await {
+                tracing::warn!("Failed to update collection statistics: {}", e);
+            }
+            
             Ok(Json(IndexPathResponse {
                 documents_processed,
                 processing_time_ms,
@@ -220,6 +225,31 @@ async fn index_documents_from_path(
             Err(AppError(e))
         }
     }
+}
+
+/// Update collection statistics after indexing
+async fn update_collection_statistics(state: &AppState) -> Result<(), zero_latency_core::ZeroLatencyError> {
+    // Get current vector count from the vector repository
+    let vector_count = state.container.vector_repository().count().await? as u64;
+    
+    // Estimate size (384 dimensions * 4 bytes per float + metadata overhead)
+    let estimated_size_bytes = vector_count * (384 * 4 + 100); // ~1640 bytes per vector with metadata
+    
+    // Update statistics for the default collection
+    // In a full implementation, we would track which collection each vector belongs to
+    let default_collection = "zero_latency_docs";
+    state.collection_service
+        .update_collection_stats(default_collection, vector_count, estimated_size_bytes)
+        .await?;
+    
+    tracing::info!(
+        "Updated collection '{}' statistics: {} vectors, {} bytes", 
+        default_collection, 
+        vector_count, 
+        estimated_size_bytes
+    );
+    
+    Ok(())
 }
 
 /// Start server endpoint (for CLI compatibility)

@@ -28,8 +28,6 @@ install_binaries() {
         chmod +x "$INSTALL_DIR/mdx"
     fi
 
-    ln -s "$INSTALL_DIR/mdx" "$HOME/bin/mdx"
-
     echo "✅ Binaries installed"
 }
 

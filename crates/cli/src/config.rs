@@ -14,7 +14,7 @@ pub struct CliConfig {
 impl Default for CliConfig {
     fn default() -> Self {
         Self {
-            server_url: "http://localhost:8081".to_string(),
+            server_url: "http://localhost:8080".to_string(),
             collection_name: "zero_latency_docs".to_string(),
             default_limit: 10,
             output_format: "table".to_string(),
@@ -24,14 +24,29 @@ impl Default for CliConfig {
 }
 
 impl CliConfig {
-    #[allow(dead_code)]
     pub fn load() -> Result<Self> {
-        // For now, just return default config
-        // In the future, we can load from ~/.config/mdx/config.toml
-        Ok(Self::default())
+        let config_file = Self::config_file()?;
+        if config_file.exists() {
+            let content = std::fs::read_to_string(&config_file)?;
+            let config: Self = toml::from_str(&content)?;
+            Ok(config)
+        } else {
+            Ok(Self::default())
+        }
     }
     
-    #[allow(dead_code)]
+    pub fn save(&self) -> Result<()> {
+        let config_file = Self::config_file()?;
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(&config_file, content)?;
+        Ok(())
+    }
+    
+    pub fn set_collection(&mut self, collection_name: String) -> Result<()> {
+        self.collection_name = collection_name;
+        self.save()
+    }
+    
     pub fn config_dir() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
@@ -41,7 +56,6 @@ impl CliConfig {
         Ok(config_dir)
     }
     
-    #[allow(dead_code)]
     pub fn config_file() -> Result<PathBuf> {
         Ok(Self::config_dir()?.join("config.toml"))
     }
