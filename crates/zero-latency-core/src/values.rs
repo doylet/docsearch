@@ -7,6 +7,7 @@ pub struct SearchQuery {
     pub raw: String,
     pub normalized: String,
     pub enhanced: Option<String>,
+    pub limit: u32,
 }
 
 impl SearchQuery {
@@ -18,7 +19,13 @@ impl SearchQuery {
             raw,
             normalized,
             enhanced: None,
+            limit: 10, // Default limit
         }
+    }
+
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = limit;
+        self
     }
 
     pub fn with_enhancement(mut self, enhanced: impl Into<String>) -> Self {

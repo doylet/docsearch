@@ -44,13 +44,14 @@ pub struct HttpServer {
 
 impl HttpServer {
     /// Create a new HTTP server
-    pub fn new(config: ServerConfig, container: Arc<ServiceContainer>) -> Self {
-        let app_state = AppState::new(container);
+    pub async fn new(config: ServerConfig, container: Arc<ServiceContainer>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let app_state = AppState::new_async(container).await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
         
-        Self {
+        Ok(Self {
             config,
             app_state,
-        }
+        })
     }
     
     /// Build the complete router with middleware

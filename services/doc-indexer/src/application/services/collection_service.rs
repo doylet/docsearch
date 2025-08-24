@@ -50,26 +50,42 @@ pub struct CollectionService {
 impl CollectionService {
     /// Create a new collection service
     pub fn new(container: &Arc<ServiceContainer>) -> Self {
-        let mut initial_collections = HashMap::new();
+        let collections = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+        
+        Self {
+            container: container.clone(),
+            collections,
+        }
+    }
+
+    /// Initialize collection with actual data from vector repository
+    pub async fn initialize(&self) -> Result<()> {
+        let mut collections_guard = self.collections.write().await;
+        
+        // Get actual vector count from the vector repository
+        let vector_count = self.container.vector_repository().count().await.unwrap_or(0) as u64;
+        let estimated_size = vector_count * (384 * 4 + 100); // ~1640 bytes per vector with metadata
         
         // Add the default collection with actual vector store data
-        // Note: In a real implementation, each collection would have its own vector store
         let default_collection = CollectionInfo {
             name: "zero_latency_docs".to_string(),
-            vector_count: 0, // Will be updated when documents are indexed
-            size_bytes: 0,   // Will be updated when documents are indexed
+            vector_count,
+            size_bytes: estimated_size,
             created_at: Some(chrono::Utc::now() - chrono::Duration::days(30)),
             last_modified: Some(chrono::Utc::now()),
             vector_size: Some(384),
             status: CollectionStatus::Active,
         };
         
-        initial_collections.insert("zero_latency_docs".to_string(), default_collection);
+        collections_guard.insert("zero_latency_docs".to_string(), default_collection);
         
-        Self {
-            container: container.clone(),
-            collections: Arc::new(tokio::sync::RwLock::new(initial_collections)),
-        }
+        tracing::info!(
+            "Initialized collection 'zero_latency_docs' with {} vectors ({} bytes)",
+            vector_count,
+            estimated_size
+        );
+        
+        Ok(())
     }
 
     /// Update collection statistics when documents are indexed

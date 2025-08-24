@@ -96,7 +96,8 @@ async fn main() -> Result<()> {
 
     // Check if stdio mode is requested
     if cli.stdio || cli.batch {
-        let app_state = infrastructure::http::handlers::AppState::new(container.clone());
+        let app_state = infrastructure::http::handlers::AppState::new_async(container.clone()).await
+            .map_err(|e| anyhow::Error::msg(format!("Failed to initialize app state: {}", e)))?;
 
         if cli.batch {
             info!("Starting stdio batch processing mode");
@@ -119,7 +120,8 @@ async fn main() -> Result<()> {
     }
 
     // Create and start HTTP server
-    let server = HttpServer::new(config.server.clone(), container);
+    let server = HttpServer::new(config.server.clone(), container).await
+        .map_err(|e| anyhow::Error::msg(format!("Failed to create HTTP server: {}", e)))?;
     
     info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
     

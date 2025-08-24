@@ -46,6 +46,23 @@ impl AppState {
             collection_service,
         }
     }
+
+    /// Create a new AppState and initialize collection stats from actual data
+    pub async fn new_async(container: Arc<ServiceContainer>) -> zero_latency_core::Result<Self> {
+        let document_service = DocumentIndexingService::new(&container);
+        let health_service = HealthService::new();
+        let collection_service = CollectionService::new(&container);
+        
+        // Initialize collection stats from actual vector repository
+        collection_service.initialize().await?;
+        
+        Ok(Self {
+            container,
+            document_service,
+            health_service,
+            collection_service,
+        })
+    }
 }
 
 /// Create the application router with all routes
@@ -121,6 +138,7 @@ async fn search_documents(
     State(state): State<AppState>,
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
+    println!("🔍 API received search request: query='{}', limit={:?}", request.query, request.limit);
     let search_response = state.document_service
         .search_documents(&request.query, request.limit.unwrap_or(10))
         .await?;

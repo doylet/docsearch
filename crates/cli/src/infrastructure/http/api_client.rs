@@ -77,7 +77,7 @@ impl HttpApiClient {
             .post(&url)
             .json(&serde_json::json!({
                 "query": query.effective_query(),
-                "limit": 10,
+                "limit": query.limit,
                 "collection_name": self.collection_name
             }))
             .send()

@@ -9,10 +9,8 @@ use crate::infrastructure::output::{TableFormatter};
 #[derive(Debug, Clone)]
 pub struct SearchCommand {
     pub query: String,
-    #[allow(dead_code)]
     pub limit: u32,
     pub format: String,
-    #[allow(dead_code)]
     pub best: bool,
 }
 
@@ -76,7 +74,7 @@ impl CliServiceImpl {
     /// Execute a search command
     pub async fn search(&self, request: SearchCommand) -> ZeroLatencyResult<()> {
         // Convert CLI command to domain model
-        let search_query = SearchQuery::new(request.query);
+        let search_query = SearchQuery::new(request.query).with_limit(request.limit);
         
         // Execute search via API client
         let response = self.api_client.search(search_query).await?;
