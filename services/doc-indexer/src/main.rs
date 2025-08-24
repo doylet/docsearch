@@ -179,7 +179,49 @@ async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &
 
     // Override docs_path if provided via CLI (and not using default)
     if docs_path != std::path::Path::new("./docs") {
-        config.service.docs_path = docs_path.to_path_buf();
+        // Convert to absolute path using the current working directory
+        if docs_path.is_absolute() {
+            config.service.docs_path = docs_path.to_path_buf();
+        } else {
+            let absolute_path = std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join(docs_path);
+            // Try to canonicalize to resolve .. and . components
+            config.service.docs_path = match absolute_path.canonicalize() {
+                Ok(canonical) => canonical,
+                Err(_) => {
+                    // If canonicalize fails (e.g., path doesn't exist), clean manually
+                    let mut components = Vec::new();
+                    for component in absolute_path.components() {
+                        match component {
+                            std::path::Component::ParentDir => {
+                                components.pop();
+                            }
+                            std::path::Component::CurDir => {
+                                // Skip current directory
+                            }
+                            _ => {
+                                components.push(component);
+                            }
+                        }
+                    }
+                    components.iter().collect()
+                }
+            };
+        }
+    } else {
+        // Canonicalize the default path as well
+        if config.service.docs_path.is_absolute() {
+            // Already absolute, try to canonicalize
+            config.service.docs_path = config.service.docs_path.canonicalize()
+                .unwrap_or_else(|_| config.service.docs_path.clone());
+        } else {
+            let absolute_path = std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join(&config.service.docs_path);
+            config.service.docs_path = absolute_path.canonicalize()
+                .unwrap_or_else(|_| absolute_path);
+        }
     }
 
     // Validate configuration

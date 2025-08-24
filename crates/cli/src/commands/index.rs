@@ -29,7 +29,7 @@ impl IndexCommand {
     /// This method delegates to the application service layer,
     /// maintaining separation of concerns between UI and business logic.
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
-        println!("{}", "🚀 Starting document indexing...".bright_blue().bold());
+        println!("{}", "Starting document indexing...".bright_blue().bold());
         
         let app_command = AppIndexCommand {
             path: self.path.clone(),
@@ -39,7 +39,7 @@ impl IndexCommand {
         
         container.cli_service().index(app_command).await?;
         
-        println!("{}", "✅ Indexing completed successfully!".bright_green().bold());
+        println!("{}", "Indexing completed successfully!".bright_green().bold());
         
         Ok(())
     }

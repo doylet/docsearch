@@ -1,6 +1,7 @@
 use colored::*;
 use comfy_table::{Table, presets::UTF8_FULL, modifiers::UTF8_ROUND_CORNERS, ContentArrangement};
 use serde_json;
+use std::path::Path;
 
 use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
 use zero_latency_search::SearchResponse;
@@ -114,11 +115,24 @@ impl TableFormatter {
         table.add_row(vec!["Version".to_string(), status.version]);
         
         if let Some(docs_path) = &status.docs_path {
-            // Truncate long paths
-            let truncated_path = if docs_path.len() > 50 {
-                format!("...{}", &docs_path[docs_path.len()-47..])
-            } else {
+            // Convert relative path to absolute path for clarity
+            let absolute_path = if Path::new(docs_path).is_absolute() {
                 docs_path.clone()
+            } else {
+                // For relative paths, convert to absolute
+                match std::env::current_dir() {
+                    Ok(current_dir) => {
+                        current_dir.join(docs_path).display().to_string()
+                    }
+                    Err(_) => docs_path.clone(), // Fallback to original if we can't get current dir
+                }
+            };
+            
+            // Truncate long paths
+            let truncated_path = if absolute_path.len() > 50 {
+                format!("...{}", &absolute_path[absolute_path.len()-47..])
+            } else {
+                absolute_path
             };
             table.add_row(vec!["Docs Path".to_string(), truncated_path]);
         }
@@ -240,7 +254,7 @@ impl TableFormatter {
                 }
                 
                 println!("\n{} Total: {} documents, {:.2} MB", 
-                    "📊".bright_blue(),
+                    "".bright_blue(),
                     response.total_count, 
                     response.index_size_bytes as f64 / (1024.0 * 1024.0)
                 );

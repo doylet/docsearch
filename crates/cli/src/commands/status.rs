@@ -26,7 +26,7 @@ impl StatusCommand {
     /// This method delegates to the application service layer,
     /// maintaining separation of concerns between UI and business logic.
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
-        println!("{}", "📊 Checking system status...".bright_blue().bold());
+        println!("{}", "Checking system status...".bright_blue().bold());
         
         let app_command = AppStatusCommand {
             detailed: self.detailed,
@@ -34,7 +34,7 @@ impl StatusCommand {
         
         container.cli_service().status(app_command).await?;
         
-        println!("{}", "✅ Status check completed!".bright_green().bold());
+        println!("{}", "Status check completed!".bright_green().bold());
         
         Ok(())
     }

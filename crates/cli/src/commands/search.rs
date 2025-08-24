@@ -30,7 +30,7 @@ impl SearchCommand {
     /// maintaining separation of concerns between UI and business logic.
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
         // Show search indicator
-        println!("{} Searching for: {}", "🔍".blue(), self.query.cyan().bold());
+        println!("{} Searching for: {}", "".blue(), self.query.cyan().bold());
         
         // Convert CLI args to application command
         let app_command = AppSearchCommand {
@@ -43,7 +43,7 @@ impl SearchCommand {
         // Delegate to application service
         container.cli_service().search(app_command).await?;
         
-        println!("{}", "✅ Search completed successfully!".bright_green().bold());
+        println!("{}", "Search completed successfully!".bright_green().bold());
         
         Ok(())
     }

@@ -24,7 +24,7 @@ impl ReindexCommand {
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
         // Confirmation prompt (unless --yes is specified)
         if !self.yes {
-            println!("⚠️  This will rebuild the entire index from source documents.");
+            println!("This will rebuild the entire index from source documents.");
             print!("Are you sure you want to continue? [y/N]: ");
             
             let mut input = String::new();
@@ -40,7 +40,7 @@ impl ReindexCommand {
             }
         }
         
-        println!("{}", "🚀 Starting reindexing...".bright_blue().bold());
+        println!("{}", "Starting reindexing...".bright_blue().bold());
         
         let app_command = AppReindexCommand {
             force: self.force,
@@ -48,7 +48,7 @@ impl ReindexCommand {
         
         container.cli_service().reindex(app_command).await?;
         
-        println!("{}", "✅ Reindexing completed successfully!".bright_green().bold());
+        println!("{}", "Reindexing completed successfully!".bright_green().bold());
         
         Ok(())
     }
