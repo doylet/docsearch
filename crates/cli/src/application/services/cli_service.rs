@@ -19,6 +19,11 @@ pub struct IndexCommand {
     pub path: String,
     pub recursive: bool,
     pub force: bool,
+    pub safe_patterns: Vec<String>,
+    pub ignore_patterns: Vec<String>,
+    pub clear_default_ignores: bool,
+    pub follow_symlinks: bool,
+    pub case_sensitive: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +40,11 @@ pub struct ServerCommand {
 #[derive(Debug, Clone)]
 pub struct ReindexCommand {
     pub force: bool,
+    pub safe_patterns: Vec<String>,
+    pub ignore_patterns: Vec<String>,
+    pub clear_default_ignores: bool,
+    pub follow_symlinks: bool,
+    pub case_sensitive: bool,
 }
 
 // Temporary response types until we create proper domain models
@@ -118,14 +128,8 @@ impl CliServiceImpl {
         Ok(())
     }
     
-    /// Execute a reindex command
-    pub async fn reindex(&self, request: ReindexCommand) -> ZeroLatencyResult<()> {
-        // Trigger reindexing via API client
-        let result = self.api_client.reindex(request.force).await?;
-        
-        // Format and display reindexing results
-        self.output_formatter.format_reindex_results(result).await?;
-        
-        Ok(())
+    /// Reindex documents using current server configuration
+    pub async fn reindex(&self, command: ReindexCommand) -> ZeroLatencyResult<IndexResponse> {
+        self.api_client.reindex(command).await
     }
 }

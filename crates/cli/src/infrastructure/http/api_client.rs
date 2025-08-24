@@ -28,15 +28,6 @@ pub struct ServerInfo {
     pub message: String,
 }
 
-/// Reindex operation result
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct ReindexResult {
-    pub status: String,
-    pub documents_processed: u64,
-    pub processing_time_ms: f64,
-    pub errors: Vec<String>,
-}
-
 /// HTTP client for communicating with the Zero Latency API.
 /// 
 /// This adapter provides concrete implementations for all API operations,
@@ -103,41 +94,60 @@ impl HttpApiClient {
         Ok(search_response)
     }
     
-    /// Execute an index operation via the API
+    /// Index documents from a path
     pub async fn index(&self, request: IndexCommand) -> ZeroLatencyResult<IndexResponse> {
-        let url = format!("{}/api/index", self.base_url);
+        let mut json_body = serde_json::json!({
+            "path": request.path,
+            "recursive": request.recursive,
+            "force": request.force
+        });
         
-        let response = self.client
-            .post(&url)
-            .json(&serde_json::json!({
-                "path": request.path,
-                "recursive": request.recursive,
-                "force": request.force
-            }))
-            .send()
-            .await
-            .map_err(|e| ZeroLatencyError::Network { 
-                message: format!("Index request failed: {}", e)
-            })?;
-            
-        if !response.status().is_success() {
-            return Err(ZeroLatencyError::ExternalService {
-                service: "index_api".to_string(),
-                message: format!("Index request failed: {}", response.status())
-            });
+        // Add filtering parameters if present
+        if !request.safe_patterns.is_empty() {
+            json_body["safe_patterns"] = serde_json::Value::Array(
+                request.safe_patterns.into_iter().map(serde_json::Value::String).collect()
+            );
         }
         
-        let index_response: IndexResponse = response
-            .json()
+        if !request.ignore_patterns.is_empty() {
+            json_body["ignore_patterns"] = serde_json::Value::Array(
+                request.ignore_patterns.into_iter().map(serde_json::Value::String).collect()
+            );
+        }
+        
+        if request.clear_default_ignores {
+            json_body["clear_default_ignores"] = serde_json::Value::Bool(request.clear_default_ignores);
+        }
+        
+        if request.follow_symlinks {
+            json_body["follow_symlinks"] = serde_json::Value::Bool(request.follow_symlinks);
+        }
+        
+        if request.case_sensitive {
+            json_body["case_sensitive"] = serde_json::Value::Bool(request.case_sensitive);
+        }
+
+        let response = self.client
+            .post(&format!("{}/api/index", self.base_url))
+            .json(&json_body)
+            .send()
             .await
-            .map_err(|e| ZeroLatencyError::Serialization { 
-                message: format!("Failed to parse index response: {}", e)
-            })?;
-            
-        Ok(index_response)
-    }
-    
-    /// Get server status from the API
+            .map_err(|e| zero_latency_core::ZeroLatencyError::network(format!("Request failed: {}", e)))?;
+
+        if response.status().is_success() {
+            let index_response: IndexResponse = response
+                .json()
+                .await
+                .map_err(|e| zero_latency_core::ZeroLatencyError::serialization(format!("Failed to parse response: {}", e)))?;
+            Ok(index_response)
+        } else {
+            let error_text = response
+                .text()
+                .await
+                .map_err(|e| zero_latency_core::ZeroLatencyError::network(format!("Failed to read error response: {}", e)))?;
+            Err(zero_latency_core::ZeroLatencyError::external_service("doc-indexer", format!("Index failed: {}", error_text)))
+        }
+    }    /// Get server status from the API
     pub async fn get_status(&self) -> ZeroLatencyResult<StatusResponse> {
         let url = format!("{}/api/status", self.base_url);
         
@@ -200,35 +210,28 @@ impl HttpApiClient {
     }
     
     /// Trigger reindexing via the API
-    pub async fn reindex(&self, force: bool) -> ZeroLatencyResult<ReindexResult> {
-        let url = format!("{}/api/reindex", self.base_url);
+    pub async fn reindex(&self, request: crate::application::services::cli_service::ReindexCommand) -> ZeroLatencyResult<IndexResponse> {
+        // Get the server status to find the current docs path
+        let status = self.get_status().await?;
         
-        let response = self.client
-            .post(&url)
-            .json(&serde_json::json!({
-                "force": force
-            }))
-            .send()
-            .await
-            .map_err(|e| ZeroLatencyError::Network { 
-                message: format!("Reindex request failed: {}", e)
-            })?;
-            
-        if !response.status().is_success() {
-            return Err(ZeroLatencyError::ExternalService {
-                service: "reindex_api".to_string(),
-                message: format!("Reindex request failed: {}", response.status())
-            });
-        }
+        let docs_path = status.docs_path.ok_or_else(|| {
+            zero_latency_core::ZeroLatencyError::configuration("Server has no configured docs path for reindexing")
+        })?;
         
-        let reindex_result: ReindexResult = response
-            .json()
-            .await
-            .map_err(|e| ZeroLatencyError::Serialization { 
-                message: format!("Failed to parse reindex result: {}", e)
-            })?;
-            
-        Ok(reindex_result)
+        // Create an IndexCommand with the server's docs path and force=true
+        let index_request = crate::application::services::cli_service::IndexCommand {
+            path: docs_path,
+            recursive: true, // Always recursive for reindex
+            force: true,     // Always force for reindex
+            safe_patterns: request.safe_patterns,
+            ignore_patterns: request.ignore_patterns,
+            clear_default_ignores: request.clear_default_ignores,
+            follow_symlinks: request.follow_symlinks,
+            case_sensitive: request.case_sensitive,
+        };
+        
+        // Use the existing index method
+        self.index(index_request).await
     }
     
     // Document CRUD operations

@@ -7,7 +7,7 @@ use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
 use zero_latency_search::SearchResponse;
 
 use crate::application::services::cli_service::IndexResponse;
-use crate::infrastructure::http::api_client::{StatusResponse, ServerInfo, ReindexResult};
+use crate::infrastructure::http::api_client::{StatusResponse, ServerInfo};
 
 /// Table-based output formatter for CLI command results.
 /// 
@@ -169,23 +169,6 @@ impl TableFormatter {
         table.add_row(vec!["Port".to_string(), info.port.to_string()]);
         table.add_row(vec!["Status".to_string(), info.status]);
         table.add_row(vec!["Message".to_string(), info.message]);
-        
-        println!("{}", table);
-        Ok(())
-    }
-    
-    /// Format reindex results
-    pub async fn format_reindex_results(&self, result: ReindexResult) -> ZeroLatencyResult<()> {
-        println!("{}", "Reindexing completed!".green().bold());
-        
-        let mut table = self.create_table();
-        table.add_row(vec!["Status".to_string(), result.status]);
-        table.add_row(vec!["Documents Processed".to_string(), result.documents_processed.to_string()]);
-        table.add_row(vec!["Processing Time (ms)".to_string(), result.processing_time_ms.to_string()]);
-        
-        if !result.errors.is_empty() {
-            table.add_row(vec!["Errors".to_string(), result.errors.join(", ")]);
-        }
         
         println!("{}", table);
         Ok(())

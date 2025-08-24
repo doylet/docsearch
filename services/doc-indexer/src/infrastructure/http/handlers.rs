@@ -212,10 +212,38 @@ async fn index_documents_from_path(
 ) -> Result<Json<IndexPathResponse>, AppError> {
     tracing::info!("Starting document indexing from path: {}", request.path);
     
+    // Create filtering configuration from request
+    let filters = if request.safe_patterns.is_some() || request.ignore_patterns.is_some() ||
+        request.clear_default_ignores.is_some() || request.follow_symlinks.is_some() ||
+        request.case_sensitive.is_some() {
+        
+        use crate::application::services::filter_service::IndexingFilters;
+        
+        let mut ignore_list = if request.clear_default_ignores.unwrap_or(false) {
+            Vec::new() // Start with empty ignore list
+        } else {
+            IndexingFilters::new().ignore_list // Use default ignores
+        };
+        
+        // Add any additional ignore patterns
+        if let Some(additional_ignores) = request.ignore_patterns {
+            ignore_list.extend(additional_ignores);
+        }
+        
+        Some(IndexingFilters {
+            safe_list: request.safe_patterns.unwrap_or_default(),
+            ignore_list,
+            case_sensitive: request.case_sensitive.unwrap_or(false),
+            follow_symlinks: request.follow_symlinks.unwrap_or(false),
+        })
+    } else {
+        None
+    };
+    
     // Use the document service to actually index documents
     let result = state
         .document_service
-        .index_documents_from_path(&request.path, request.recursive.unwrap_or(true))
+        .index_documents_from_path_with_filters(&request.path, request.recursive.unwrap_or(true), filters)
         .await;
     
     match result {
@@ -331,6 +359,16 @@ pub struct IndexPathRequest {
     pub recursive: Option<bool>,
     #[allow(dead_code)]
     pub force: Option<bool>,
+    #[allow(dead_code)]
+    pub safe_patterns: Option<Vec<String>>,
+    #[allow(dead_code)]
+    pub ignore_patterns: Option<Vec<String>>,
+    #[allow(dead_code)]
+    pub clear_default_ignores: Option<bool>,
+    #[allow(dead_code)]
+    pub follow_symlinks: Option<bool>,
+    #[allow(dead_code)]
+    pub case_sensitive: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

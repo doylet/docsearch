@@ -12,6 +12,7 @@ use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
 
 use crate::application::container::ServiceContainer;
 use crate::application::ContentProcessor;
+use crate::application::services::filter_service::{FilterService, IndexingFilters};
 
 /// Application service for document indexing operations
 #[derive(Clone)]
@@ -19,15 +20,23 @@ pub struct DocumentIndexingService {
     vector_repository: Arc<dyn VectorRepository>,
     embedding_generator: Arc<dyn EmbeddingGenerator>,
     search_orchestrator: Arc<dyn SearchOrchestrator>,
+    filter_service: Arc<FilterService>,
 }
 
 impl DocumentIndexingService {
-    /// Create a new document indexing service
+    /// Create a new document indexing service with default filters
     pub fn new(container: &ServiceContainer) -> Self {
+        let default_filters = IndexingFilters::new();
+        Self::with_filters(container, default_filters)
+    }
+    
+    /// Create a new document indexing service with custom filters
+    pub fn with_filters(container: &ServiceContainer, filters: IndexingFilters) -> Self {
         Self {
             vector_repository: container.vector_repository(),
             embedding_generator: container.embedding_generator(),
             search_orchestrator: container.search_orchestrator(),
+            filter_service: Arc::new(FilterService::new(filters)),
         }
     }
     
@@ -120,13 +129,67 @@ impl DocumentIndexingService {
         Ok(count * 1024) // Rough estimate: 1KB per document
     }
     
+    /// Get current filtering configuration
+    pub fn get_filters(&self) -> &IndexingFilters {
+        self.filter_service.filters()
+    }
+    
+    /// Update the filtering configuration
+    /// 
+    /// This creates a new FilterService with the updated configuration.
+    /// Note: This updates the current service instance.
+    pub fn update_filters(&mut self, filters: IndexingFilters) {
+        self.filter_service = Arc::new(FilterService::new(filters));
+    }
+    
+    /// Create a new DocumentIndexingService with updated filters
+    /// 
+    /// This is useful when you need to preserve immutability or when
+    /// the service is shared across multiple contexts.
+    pub fn with_updated_filters(&self, filters: IndexingFilters) -> Self {
+        Self {
+            vector_repository: Arc::clone(&self.vector_repository),
+            embedding_generator: Arc::clone(&self.embedding_generator),
+            search_orchestrator: Arc::clone(&self.search_orchestrator),
+            filter_service: Arc::new(FilterService::new(filters)),
+        }
+    }
+    
     /// Index all documents from a directory path
     pub async fn index_documents_from_path(&self, path: &str, recursive: bool) -> Result<(u64, f64)> {
+        self.index_documents_from_path_with_filters(path, recursive, None).await
+    }
+    
+    /// Index all documents from a directory path with optional filtering
+    pub async fn index_documents_from_path_with_filters(
+        &self, 
+        path: &str, 
+        recursive: bool, 
+        filters: Option<IndexingFilters>
+    ) -> Result<(u64, f64)> {
         use std::time::Instant;
         use std::fs;
         
         let start_time = Instant::now();
         let mut documents_processed = 0u64;
+        
+        // Create a temporary service with filters if provided
+        let service = if let Some(filters) = filters {
+            Self {
+                vector_repository: Arc::clone(&self.vector_repository),
+                embedding_generator: Arc::clone(&self.embedding_generator),
+                search_orchestrator: Arc::clone(&self.search_orchestrator),
+                filter_service: Arc::new(FilterService::new(filters)),
+            }
+        } else {
+            // Clone current service (uses existing filters)
+            Self {
+                vector_repository: Arc::clone(&self.vector_repository),
+                embedding_generator: Arc::clone(&self.embedding_generator),
+                search_orchestrator: Arc::clone(&self.search_orchestrator),
+                filter_service: Arc::clone(&self.filter_service),
+            }
+        };
         
         let path = std::path::Path::new(path);
         if !path.exists() {
@@ -134,6 +197,11 @@ impl DocumentIndexingService {
         }
         
         if path.is_file() {
+            // Check if we should index this file
+            if !service.filter_service.should_index(path) {
+                return Ok((0, 0.0));
+            }
+            
             // Index single file
             if let Ok(content) = fs::read_to_string(path) {
                 let document = Document {
@@ -149,12 +217,12 @@ impl DocumentIndexingService {
                     metadata: zero_latency_core::models::DocumentMetadata::default(),
                 };
                 
-                self.index_document(document).await?;
+                service.index_document(document).await?;
                 documents_processed += 1;
             }
         } else if path.is_dir() {
             // Index directory
-            documents_processed = self.index_directory(path, recursive).await?;
+            documents_processed = service.index_directory(path, recursive).await?;
         }
         
         let processing_time = start_time.elapsed().as_millis() as f64;
@@ -185,6 +253,17 @@ impl DocumentIndexingService {
                 for (index, entry) in entries.into_iter().enumerate() {
                     let path = entry.path();
                     files_scanned += 1;
+                    
+                    // Apply filtering rules early to skip unwanted files/directories
+                    if path.is_file() && !self.filter_service.should_index(&path) {
+                        tracing::debug!("Skipping file (filtered): {}", path.display());
+                        continue;
+                    }
+                    
+                    if path.is_dir() && !self.filter_service.should_traverse(&path) {
+                        tracing::debug!("Skipping directory (filtered): {}", path.display());
+                        continue;
+                    }
                     
                     // Log progress every 100 files or every 10 seconds
                     if files_scanned % 100 == 0 || start_time.elapsed().as_secs() % 10 == 0 {

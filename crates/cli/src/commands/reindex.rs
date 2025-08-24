@@ -14,6 +14,31 @@ pub struct ReindexCommand {
     /// Force reindexing even if already running
     #[arg(short, long)]
     pub force: bool,
+    
+    /// Safe list patterns - only index files matching these patterns
+    /// Can be specified multiple times. If not specified, all files are allowed (subject to ignore list).
+    /// Supports glob patterns like *.rs, *.md, etc.
+    #[arg(long = "safe", value_name = "PATTERN")]
+    pub safe_patterns: Vec<String>,
+    
+    /// Ignore list patterns - skip files matching these patterns
+    /// Can be specified multiple times. These override safe list patterns.
+    /// Supports glob patterns like *.log, .git, target, etc.
+    #[arg(long = "ignore", value_name = "PATTERN")]
+    pub ignore_patterns: Vec<String>,
+    
+    /// Clear default ignore patterns before applying custom ones
+    /// By default, common build artifacts and system files are ignored
+    #[arg(long)]
+    pub clear_default_ignores: bool,
+    
+    /// Follow symbolic links during directory traversal
+    #[arg(long)]
+    pub follow_symlinks: bool,
+    
+    /// Use case-sensitive pattern matching
+    #[arg(long)]
+    pub case_sensitive: bool,
 }
 
 impl ReindexCommand {
@@ -42,13 +67,48 @@ impl ReindexCommand {
         
         println!("{}", "Starting reindexing...".bright_blue().bold());
         
+        // Display filtering configuration if any custom patterns are specified
+        if !self.safe_patterns.is_empty() || !self.ignore_patterns.is_empty() || self.clear_default_ignores {
+            println!("{}", "Filtering Configuration:".bright_yellow().bold());
+            
+            if !self.safe_patterns.is_empty() {
+                println!("  Safe list: {}", self.safe_patterns.join(", ").green());
+            }
+            
+            if !self.ignore_patterns.is_empty() {
+                println!("  Ignore list: {}", self.ignore_patterns.join(", ").red());
+            }
+            
+            if self.clear_default_ignores {
+                println!("  Default ignores: {}", "cleared".yellow());
+            } else {
+                println!("  Default ignores: {}", "active".cyan());
+            }
+            
+            if self.follow_symlinks {
+                println!("  Symlinks: {}", "following".green());
+            }
+            
+            if self.case_sensitive {
+                println!("  Case sensitivity: {}", "enabled".cyan());
+            }
+            
+            println!(); // Empty line for better readability
+        }
+        
         let app_command = AppReindexCommand {
             force: self.force,
+            safe_patterns: self.safe_patterns.clone(),
+            ignore_patterns: self.ignore_patterns.clone(),
+            clear_default_ignores: self.clear_default_ignores,
+            follow_symlinks: self.follow_symlinks,
+            case_sensitive: self.case_sensitive,
         };
         
-        container.cli_service().reindex(app_command).await?;
+        let result = container.cli_service().reindex(app_command).await?;
         
-        println!("{}", "Reindexing completed successfully!".bright_green().bold());
+        // Use the index formatter to display results
+        container.output_formatter().format_index_results(result).await?;
         
         Ok(())
     }
