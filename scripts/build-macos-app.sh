@@ -25,10 +25,6 @@ echo "📦 Copying binaries..."
 cp target/release/doc-indexer "$MACOS_DIR/"
 cp target/release/mdx "$MACOS_DIR/"
 
-# Copy documentation directory
-echo "📚 Copying documentation..."
-cp -r docs "$RESOURCES_DIR/"
-
 # Create Info.plist
 cat > "$CONTENTS_DIR/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -225,8 +221,6 @@ cat > "$LAUNCH_AGENTS_DIR/com.zerolatency.doc-indexer.plist" << 'PLISTEOF'
         <string>{{APP_DIR}}/doc-indexer</string>
         <string>--port</string>
         <string>8080</string>
-        <string>--docs-path</string>
-        <string>{{APP_DIR}}/../Resources/docs</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

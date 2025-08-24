@@ -38,14 +38,21 @@ INSTALLATION:
 
 USAGE:
 - The daemon runs in the background on port 8080
+- Default docs path: ~/Documents (configure as needed)
 - Use the CLI tool: /Applications/Zero-Latency.app/Contents/MacOS/mdx
 - Or open a CLI terminal from the control panel
+
+INDEXING YOUR DOCUMENTS:
+- Use: mdx index ~/Documents (or your preferred docs folder)
+- Supports filtering: mdx index ~/Documents --safe-patterns "*.md" "*.txt"
+- Configure default path: export DOC_INDEXER_DOCS_PATH=~/MyDocs
 
 FEATURES:
 ✅ Semantic document search with local embeddings
 ✅ REST API, JSON-RPC 2.0, and MCP protocol support
 ✅ HTTP streaming and stdio transport
 ✅ Clean architecture with dependency injection
+✅ Advanced file filtering with glob patterns
 
 For support: https://github.com/your-repo/zero-latency
 EOF
