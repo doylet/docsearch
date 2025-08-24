@@ -26,14 +26,14 @@ struct Cli {
     verbose: bool,
     
     /// API server URL
-    #[arg(long, global = true, default_value = "http://localhost:8081")]
-    server: String,
+    #[arg(long, global = true)]
+    server: Option<String>,
     
     /// Collection name for vector storage
-    #[arg(long, global = true, default_value = "zero_latency_docs")]
-    collection: String,
+    #[arg(long, global = true)]
+    collection: Option<String>,
     
-    /// Configuration file path
+    /// Configuration file path (or use 'config' command for advanced management)
     #[arg(long, global = true)]
     config: Option<std::path::PathBuf>,
 }
@@ -60,6 +60,9 @@ enum Commands {
     
     /// Rebuild the entire index
     Reindex(commands::reindex::ReindexCommand),
+    
+    /// Configuration management (show, set, export, reset)
+    Config(commands::config::ConfigCommand),
 }
 
 #[tokio::main]
@@ -90,6 +93,7 @@ async fn main() -> ZeroLatencyResult<()> {
         Commands::Status(cmd) => cmd.execute(&container).await,
         Commands::Server(cmd) => cmd.execute(&container).await,
         Commands::Reindex(cmd) => cmd.execute(&container).await,
+        Commands::Config(cmd) => cmd.execute(&container).await,
     };
     
     // Handle errors with user-friendly messages
@@ -120,19 +124,36 @@ async fn main() -> ZeroLatencyResult<()> {
 
 /// Load configuration from various sources with CLI override
 async fn load_config(cli: &Cli) -> ZeroLatencyResult<CliConfig> {
-    // Create base configuration
-    let config = CliConfig {
-        server_url: cli.server.clone(),
-        collection_name: cli.collection.clone(),
-        default_limit: 10,
-        output_format: "table".to_string(),
-        verbose: cli.verbose,
+    // Load base configuration from file
+    let mut config = if let Some(config_path) = &cli.config {
+        // Load from specified config file
+        if !config_path.exists() {
+            return Err(ZeroLatencyError::not_found(&format!("Config file not found: {}", config_path.display())));
+        }
+        
+        let content = std::fs::read_to_string(config_path).map_err(|e| {
+            ZeroLatencyError::configuration(&format!("Failed to read config file: {}", e))
+        })?;
+        
+        toml::from_str::<CliConfig>(&content).map_err(|e| {
+            ZeroLatencyError::configuration(&format!("Invalid config format in {}: {}", config_path.display(), e))
+        })?
+    } else {
+        // Load from default config location or use defaults
+        CliConfig::load().map_err(|e| {
+            ZeroLatencyError::configuration(&format!("Failed to load default config: {}", e))
+        })?
     };
     
-    // Load from config file if specified
-    if let Some(_config_path) = &cli.config {
-        // TODO: Use FileConfigLoader to load and merge config
-        // For now, use CLI values as override
+    // Override with CLI arguments (only if explicitly provided)
+    if let Some(server) = &cli.server {
+        config.server_url = server.clone();
+    }
+    if let Some(collection) = &cli.collection {
+        config.collection_name = collection.clone();
+    }
+    if cli.verbose {
+        config.verbose = true;
     }
     
     Ok(config)

@@ -231,7 +231,7 @@ impl CollectionCommand {
     
     async fn delete_collection(&self, container: &CliServiceContainer, args: &DeleteArgs) -> ZeroLatencyResult<()> {
         if !args.yes {
-            println!("⚠️  This will permanently delete collection '{}' and all its data.", args.name);
+            println!("WARNING: This will permanently delete collection '{}' and all its data.", args.name);
             print!("Continue? [y/N] ");
             use std::io::{self, Write};
             io::stdout().flush().unwrap();

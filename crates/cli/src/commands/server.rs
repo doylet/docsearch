@@ -111,13 +111,13 @@ impl ServerCommand {
         // Note: doc-indexer doesn't take docs path as an argument
         // It uses the default docs location or configuration
         if self.docs.is_some() {
-            println!("{} doc-indexer will use its default docs configuration", "ℹ️".blue());
+            println!("{} doc-indexer will use its default docs configuration", "INFO:".blue());
         }
         
         // Start the server
         if self.start_local {
             // Background mode
-            println!("{}", "🔄 Starting server in background...".yellow());
+            println!("{}", "Starting server in background...".yellow());
             
             let child = Command::new(&binary_path)
                 .args(&args)
