@@ -21,6 +21,7 @@ pub struct DocumentMetadata {
     pub category: Option<String>,
     pub language: Option<String>,
     pub author: Option<String>,
+    pub content_type: Option<String>,
     pub custom: HashMap<String, String>,
 }
 

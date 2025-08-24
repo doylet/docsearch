@@ -184,9 +184,9 @@ impl Config {
                     .parse()
                     .map_err(|_| ZeroLatencyError::configuration("Invalid port number"))?,
                 timeout_seconds: std::env::var("DOC_INDEXER_TIMEOUT")
-                    .unwrap_or_else(|_| "30".to_string())
+                    .unwrap_or_else(|_| "300".to_string()) // 5 minutes default
                     .parse()
-                    .unwrap_or(30),
+                    .unwrap_or(300),
                 enable_cors: std::env::var("DOC_INDEXER_ENABLE_CORS")
                     .unwrap_or_else(|_| "true".to_string())
                     .parse()

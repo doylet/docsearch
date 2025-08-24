@@ -11,6 +11,7 @@ use zero_latency_vector::{VectorRepository, EmbeddingGenerator, VectorDocument};
 use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
 
 use crate::application::container::ServiceContainer;
+use crate::application::ContentProcessor;
 
 /// Application service for document indexing operations
 #[derive(Clone)]
@@ -170,44 +171,92 @@ impl DocumentIndexingService {
             use std::fs;
             
             let mut documents_processed = 0u64;
+            let mut files_scanned = 0u64;
+            let start_time = std::time::Instant::now();
+            
+            tracing::info!("Starting directory indexing: {}", dir.display());
             
             if let Ok(entries) = fs::read_dir(dir) {
-                for entry in entries.flatten() {
+                let entries: Vec<_> = entries.flatten().collect();
+                let total_entries = entries.len();
+                
+                tracing::info!("Found {} entries to process in {}", total_entries, dir.display());
+                
+                for (index, entry) in entries.into_iter().enumerate() {
                     let path = entry.path();
+                    files_scanned += 1;
+                    
+                    // Log progress every 100 files or every 10 seconds
+                    if files_scanned % 100 == 0 || start_time.elapsed().as_secs() % 10 == 0 {
+                        tracing::info!(
+                            "Progress: {}/{} files scanned, {} documents indexed ({:.1}%)",
+                            files_scanned,
+                            total_entries,
+                            documents_processed,
+                            (index as f64 / total_entries as f64) * 100.0
+                        );
+                    }
                     
                     if path.is_file() {
-                        // Check if it's a text file we can index
-                        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
-                            if matches!(extension.to_lowercase().as_str(), "md" | "txt" | "rst" | "adoc" | "org") {
-                                if let Ok(content) = fs::read_to_string(&path) {
-                                    let document = Document {
-                                        id: zero_latency_core::Uuid::new_v4(),
-                                        title: path.file_name()
-                                            .and_then(|n| n.to_str())
-                                            .unwrap_or("Unknown")
-                                            .to_string(),
-                                        content,
-                                        path: path.clone(),
-                                        last_modified: chrono::Utc::now(),
-                                        size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
-                                        metadata: zero_latency_core::models::DocumentMetadata::default(),
-                                    };
-                                    
-                                    if let Err(e) = self.index_document(document).await {
-                                        tracing::warn!("Failed to index {}: {}", path.display(), e);
-                                    } else {
-                                        documents_processed += 1;
-                                        tracing::info!("Indexed: {}", path.display());
+                        // Read file content first
+                        if let Ok(raw_content) = fs::read_to_string(&path) {
+                            // Detect content type
+                            let content_type = ContentProcessor::detect_content_type(&path, &raw_content);
+                            
+                            // Check if this content type should be indexed
+                            if ContentProcessor::should_index(&content_type) {
+                                // Process content based on type
+                                match ContentProcessor::process_content(&raw_content, &content_type) {
+                                    Ok(processed_content) => {
+                                        let document = Document {
+                                            id: zero_latency_core::Uuid::new_v4(),
+                                            title: path.file_name()
+                                                .and_then(|n| n.to_str())
+                                                .unwrap_or("Unknown")
+                                                .to_string(),
+                                            content: processed_content,
+                                            path: path.clone(),
+                                            last_modified: chrono::Utc::now(),
+                                            size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+                                            metadata: {
+                                                let mut metadata = zero_latency_core::models::DocumentMetadata::default();
+                                                metadata.content_type = Some(format!("{:?}", content_type));
+                                                metadata
+                                            },
+                                        };
+                                        
+                                        if let Err(e) = self.index_document(document).await {
+                                            tracing::warn!("Failed to index {}: {}", path.display(), e);
+                                        } else {
+                                            documents_processed += 1;
+                                            tracing::debug!("Indexed {} as {:?}", path.display(), content_type);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to process content for {}: {}", path.display(), e);
                                     }
                                 }
+                            } else {
+                                tracing::debug!("Skipping {:?} file: {}", content_type, path.display());
                             }
+                        } else {
+                            tracing::debug!("Could not read file as UTF-8: {}", path.display());
                         }
                     } else if path.is_dir() && recursive {
                         // Recursively index subdirectories
+                        tracing::debug!("Recursing into directory: {}", path.display());
                         documents_processed += self.index_directory(&path, recursive).await?;
                     }
                 }
             }
+            
+            let elapsed = start_time.elapsed();
+            tracing::info!(
+                "Completed directory indexing: {} - {} documents processed in {:.2}s",
+                dir.display(),
+                documents_processed,
+                elapsed.as_secs_f64()
+            );
             
             Ok(documents_processed)
         })

@@ -5,6 +5,7 @@
 
 pub mod container;
 pub mod services;
+pub mod content_processor;
 
 // Re-export commonly used types
 pub use container::ServiceContainer;
@@ -13,3 +14,4 @@ pub use services::{
     health_service::HealthService,
     collection_service::CollectionService,
 };
+pub use content_processor::{ContentProcessor, ContentType};

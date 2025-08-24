@@ -194,7 +194,7 @@ impl Default for ServerConfig {
         Self {
             host: "0.0.0.0".to_string(),
             port: 8080,
-            timeout_seconds: 30,
+            timeout_seconds: 300, // 5 minutes for large indexing operations
             enable_cors: true,
             cors_origins: vec![],
         }
