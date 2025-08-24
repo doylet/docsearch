@@ -1,5 +1,5 @@
 use colored::*;
-use comfy_table::{Table, presets::UTF8_FULL};
+use comfy_table::{Table, presets::UTF8_FULL, modifiers::UTF8_ROUND_CORNERS, ContentArrangement};
 use serde_json;
 
 use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
@@ -25,6 +25,12 @@ impl TableFormatter {
     fn create_table(&self) -> Table {
         let mut table = Table::new();
         table.load_preset(UTF8_FULL);
+        table.apply_modifier(UTF8_ROUND_CORNERS);
+        
+        // Set column constraints to prevent line wrapping
+        table.set_content_arrangement(ContentArrangement::Dynamic);
+        table.set_width(80); // Limit total table width to 80 characters
+        
         table
     }
     
@@ -81,12 +87,18 @@ impl TableFormatter {
         println!("{}", "Indexing completed successfully!".green().bold());
         
         let mut table = self.create_table();
-        table.add_row(vec!["Documents Processed".to_string(), response.documents_processed.to_string()]);
-        table.add_row(vec!["Processing Time (ms)".to_string(), response.processing_time_ms.to_string()]);
+        table.add_row(vec!["Docs Processed".to_string(), response.documents_processed.to_string()]);
+        table.add_row(vec!["Time (ms)".to_string(), response.processing_time_ms.to_string()]);
         table.add_row(vec!["Status".to_string(), response.status]);
         
         if let Some(message) = response.message {
-            table.add_row(vec!["Message".to_string(), message]);
+            // Truncate long messages to prevent line wrapping
+            let truncated_message = if message.len() > 60 {
+                format!("{}...", &message[..57])
+            } else {
+                message
+            };
+            table.add_row(vec!["Message".to_string(), truncated_message]);
         }
         
         println!("{}", table);
@@ -102,20 +114,35 @@ impl TableFormatter {
         table.add_row(vec!["Version".to_string(), status.version]);
         
         if let Some(docs_path) = &status.docs_path {
-            table.add_row(vec!["Docs Path".to_string(), docs_path.clone()]);
+            // Truncate long paths
+            let truncated_path = if docs_path.len() > 50 {
+                format!("...{}", &docs_path[docs_path.len()-47..])
+            } else {
+                docs_path.clone()
+            };
+            table.add_row(vec!["Docs Path".to_string(), truncated_path]);
         }
         
+        // Always show key operational metrics with shorter labels
+        table.add_row(vec!["Documents".to_string(), status.total_documents.to_string()]);
+        table.add_row(vec!["Index Size".to_string(), format!("{} bytes", status.index_size_bytes)]);
+        table.add_row(vec!["Uptime".to_string(), format!("{}s", status.uptime_seconds)]);
+        
         if detailed {
-            table.add_row(vec!["Uptime (seconds)".to_string(), status.uptime_seconds.to_string()]);
-            table.add_row(vec!["Total Documents".to_string(), status.total_documents.to_string()]);
-            table.add_row(vec!["Index Size (bytes)".to_string(), status.index_size_bytes.to_string()]);
-            
             if let Some(last_update) = status.last_index_update {
-                table.add_row(vec!["Last Index Update".to_string(), last_update]);
+                table.add_row(vec!["Last Update".to_string(), last_update]);
+            } else {
+                table.add_row(vec!["Last Update".to_string(), "Never".to_string()]);
             }
         }
         
         println!("{}", table);
+        
+        // Add explanatory notes
+        if status.total_documents == 0 {
+            println!("{}", "💡 No documents indexed yet. The server is configured to index from the docs path above.".yellow());
+        }
+        
         Ok(())
     }
     
@@ -147,6 +174,136 @@ impl TableFormatter {
         }
         
         println!("{}", table);
+        Ok(())
+    }
+    
+    /// Format document list
+    pub async fn format_document_list(&self, response: &crate::commands::document::ListDocumentsResponse, format: &str) -> ZeroLatencyResult<()> {
+        match format {
+            "json" => {
+                let json = serde_json::to_string_pretty(response)
+                    .map_err(|e| ZeroLatencyError::Serialization { 
+                        message: format!("Failed to serialize response: {}", e)
+                    })?;
+                println!("{}", json);
+            }
+            "simple" => {
+                if response.documents.is_empty() {
+                    println!("{}", "No documents found.".yellow());
+                } else {
+                    for doc in &response.documents {
+                        println!("{} - {} ({})", 
+                            doc.id.bright_blue(), 
+                            doc.title.white(),
+                            doc.path.dimmed()
+                        );
+                    }
+                }
+                println!("\nTotal: {} documents, {} bytes", response.total_count, response.index_size_bytes);
+            }
+            "table" | _ => {
+                println!("{}", format!("Documents (Page {} of {})", response.page, response.total_pages).green().bold());
+                
+                if response.documents.is_empty() {
+                    println!("{}", "No documents found.".yellow());
+                } else {
+                    let mut table = self.create_table();
+                    table.set_header(vec!["ID", "Title", "Path", "Size", "Modified"]);
+                    
+                    for doc in &response.documents {
+                        let truncated_id = if doc.id.len() > 8 { 
+                            format!("{}...", &doc.id[..8]) 
+                        } else { 
+                            doc.id.clone() 
+                        };
+                        let truncated_title = if doc.title.len() > 25 { 
+                            format!("{}...", &doc.title[..22]) 
+                        } else { 
+                            doc.title.clone() 
+                        };
+                        let truncated_path = if doc.path.len() > 30 { 
+                            format!("...{}", &doc.path[doc.path.len()-27..]) 
+                        } else { 
+                            doc.path.clone() 
+                        };
+                        
+                        table.add_row(vec![
+                            truncated_id,
+                            truncated_title,
+                            truncated_path,
+                            format!("{} B", doc.size),
+                            doc.last_modified.clone(),
+                        ]);
+                    }
+                    
+                    println!("{}", table);
+                }
+                
+                println!("\n{} Total: {} documents, {:.2} MB", 
+                    "📊".bright_blue(),
+                    response.total_count, 
+                    response.index_size_bytes as f64 / (1024.0 * 1024.0)
+                );
+            }
+        }
+        Ok(())
+    }
+    
+    /// Format document detail
+    pub async fn format_document_detail(&self, response: &crate::commands::document::GetDocumentResponse, format: &str) -> ZeroLatencyResult<()> {
+        if !response.found {
+            println!("{} Document '{}' not found", "❌".red(), response.id);
+            return Ok(());
+        }
+        
+        match format {
+            "json" => {
+                let json = serde_json::to_string_pretty(response)
+                    .map_err(|e| ZeroLatencyError::Serialization { 
+                        message: format!("Failed to serialize response: {}", e)
+                    })?;
+                println!("{}", json);
+            }
+            "metadata" => {
+                println!("{}", format!("Document {}", response.id).green().bold());
+                if let Some(metadata) = &response.metadata {
+                    let formatted = serde_json::to_string_pretty(metadata)
+                        .unwrap_or_else(|_| "Invalid metadata".to_string());
+                    println!("{}", formatted);
+                } else {
+                    println!("{}", "No metadata available".yellow());
+                }
+            }
+            "content" | _ => {
+                println!("{}", format!("Document {}", response.id).green().bold());
+                if let Some(content) = &response.content {
+                    println!("{}", content);
+                } else {
+                    println!("{}", "No content available".yellow());
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    /// Format delete result
+    pub async fn format_delete_result(&self, response: &crate::commands::document::DeleteDocumentResponse) -> ZeroLatencyResult<()> {
+        if response.success {
+            println!("{} {}", "✅".green(), response.message);
+        } else {
+            println!("{} {}", "❌".red(), response.message);
+        }
+        Ok(())
+    }
+    
+    /// Format create result
+    pub async fn format_create_result(&self, response: &crate::commands::document::CreateDocumentResponse) -> ZeroLatencyResult<()> {
+        if response.success {
+            println!("{} {}", "✅".green(), response.message);
+            println!("Document ID: {}", response.id.bright_blue());
+        } else {
+            println!("{} {}", "❌".red(), response.message);
+        }
         Ok(())
     }
 }

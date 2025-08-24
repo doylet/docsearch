@@ -1999,6 +1999,7 @@ name = "mdx"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "colored",
  "comfy-table",
@@ -2014,6 +2015,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "uuid",
  "zero-latency-config",
  "zero-latency-core",
  "zero-latency-observability",

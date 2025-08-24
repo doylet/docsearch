@@ -6,7 +6,7 @@ set -e
 APP_NAME="Zero-Latency"
 VERSION="1.0.0"
 DMG_NAME="Zero-Latency-v${VERSION}"
-BUNDLE_DIR="$APP_NAME.app"
+BUNDLE_DIR="./dist/$APP_NAME.app"
 
 echo "🚀 Creating DMG package..."
 

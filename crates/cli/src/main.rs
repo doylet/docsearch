@@ -46,6 +46,12 @@ enum Commands {
     /// Index documents from a directory
     Index(commands::index::IndexCommand),
     
+    /// Document discovery operations (list, get)
+    Document(commands::document::DocumentCommand),
+    
+    /// Collection management operations (list, get, create, delete, stats)
+    Collection(commands::collection::CollectionCommand),
+    
     /// Show collection statistics and health
     Status(commands::status::StatusCommand),
     
@@ -79,6 +85,8 @@ async fn main() -> ZeroLatencyResult<()> {
     let result = match cli.command {
         Commands::Search(cmd) => cmd.execute(&container).await,
         Commands::Index(cmd) => cmd.execute(&container).await,
+        Commands::Document(cmd) => cmd.execute(&container).await,
+        Commands::Collection(cmd) => cmd.execute(&container).await,
         Commands::Status(cmd) => cmd.execute(&container).await,
         Commands::Server(cmd) => cmd.execute(&container).await,
         Commands::Reindex(cmd) => cmd.execute(&container).await,

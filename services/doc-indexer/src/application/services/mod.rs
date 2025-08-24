@@ -4,3 +4,4 @@
 
 pub mod document_service;
 pub mod health_service;
+pub mod collection_service;

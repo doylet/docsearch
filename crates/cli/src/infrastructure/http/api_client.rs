@@ -230,4 +230,220 @@ impl HttpApiClient {
             
         Ok(reindex_result)
     }
+    
+    // Document CRUD operations
+    
+    /// List all documents with pagination
+    pub async fn list_documents(&self, page: u64, limit: u64) -> ZeroLatencyResult<crate::commands::document::ListDocumentsResponse> {
+        let url = format!("{}/documents?page={}&limit={}", self.base_url, page, limit);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to list documents: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("List documents request failed: {}", response.status())
+            });
+        }
+        
+        let list_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse document list: {}", e)
+            })?;
+            
+        Ok(list_response)
+    }
+    
+    /// Get a specific document by ID
+    pub async fn get_document(&self, id: &str) -> ZeroLatencyResult<crate::commands::document::GetDocumentResponse> {
+        let url = format!("{}/documents/{}", self.base_url, id);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to get document: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("Get document request failed: {}", response.status())
+            });
+        }
+        
+        let document_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse document: {}", e)
+            })?;
+            
+        Ok(document_response)
+    }
+    
+    //
+    // Collection Management Methods
+    //
+    
+    /// List all collections
+    pub async fn list_collections(&self) -> ZeroLatencyResult<Vec<crate::commands::collection::CollectionInfo>> {
+        let url = format!("{}/collections", self.base_url);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to list collections: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("List collections request failed: {}", response.status())
+            });
+        }
+        
+        let list_response: ListCollectionsApiResponse = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse collections list: {}", e)
+            })?;
+            
+        Ok(list_response.collections)
+    }
+    
+    /// Get a specific collection by name
+    pub async fn get_collection(&self, name: &str) -> ZeroLatencyResult<crate::commands::collection::GetCollectionResponse> {
+        let url = format!("{}/collections/{}", self.base_url, name);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to get collection: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("Get collection request failed: {}", response.status())
+            });
+        }
+        
+        let get_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse collection info: {}", e)
+            })?;
+            
+        Ok(get_response)
+    }
+    
+    /// Create a new collection
+    pub async fn create_collection(&self, request: crate::commands::collection::CreateCollectionRequest) -> ZeroLatencyResult<crate::commands::collection::CreateCollectionResponse> {
+        let url = format!("{}/collections", self.base_url);
+        
+        let response = self.client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to create collection: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("Create collection request failed: {}", response.status())
+            });
+        }
+        
+        let create_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse create collection response: {}", e)
+            })?;
+            
+        Ok(create_response)
+    }
+    
+    /// Delete a collection
+    pub async fn delete_collection(&self, name: &str) -> ZeroLatencyResult<crate::commands::collection::DeleteCollectionResponse> {
+        let url = format!("{}/collections/{}", self.base_url, name);
+        
+        let response = self.client
+            .delete(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to delete collection: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("Delete collection request failed: {}", response.status())
+            });
+        }
+        
+        let delete_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse delete collection response: {}", e)
+            })?;
+            
+        Ok(delete_response)
+    }
+    
+    /// Get collection statistics
+    pub async fn get_collection_stats(&self, name: &str) -> ZeroLatencyResult<crate::commands::collection::GetCollectionStatsResponse> {
+        let url = format!("{}/collections/{}/stats", self.base_url, name);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ZeroLatencyError::Network { 
+                message: format!("Failed to get collection stats: {}", e)
+            })?;
+        
+        if !response.status().is_success() {
+            return Err(ZeroLatencyError::ExternalService { 
+                service: "doc-indexer".to_string(),
+                message: format!("Get collection stats request failed: {}", response.status())
+            });
+        }
+        
+        let stats_response = response
+            .json()
+            .await
+            .map_err(|e| ZeroLatencyError::Serialization { 
+                message: format!("Failed to parse collection stats: {}", e)
+            })?;
+            
+        Ok(stats_response)
+    }
+}
+
+/// API response types for collection operations
+#[derive(Debug, serde::Deserialize)]
+struct ListCollectionsApiResponse {
+    pub collections: Vec<crate::commands::collection::CollectionInfo>,
 }

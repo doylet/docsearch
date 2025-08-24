@@ -4,7 +4,7 @@
 set -e
 
 APP_NAME="Zero-Latency"
-BUNDLE_DIR="$APP_NAME.app"
+BUNDLE_DIR="./dist/$APP_NAME.app"
 CONTENTS_DIR="$BUNDLE_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"

@@ -105,6 +105,114 @@ impl DocumentIndexingService {
         })
     }
     
+    /// Get total document count
+    pub async fn get_document_count(&self) -> Result<u64> {
+        // Query the vector repository for document count
+        self.vector_repository.count().await.map(|c| c as u64)
+    }
+    
+    /// Get approximate index size in bytes
+    pub async fn get_index_size(&self) -> Result<u64> {
+        // This would calculate storage size from vector database
+        // For now, return an estimate based on document count
+        let count = self.get_document_count().await?;
+        Ok(count * 1024) // Rough estimate: 1KB per document
+    }
+    
+    /// Index all documents from a directory path
+    pub async fn index_documents_from_path(&self, path: &str, recursive: bool) -> Result<(u64, f64)> {
+        use std::time::Instant;
+        use std::fs;
+        
+        let start_time = Instant::now();
+        let mut documents_processed = 0u64;
+        
+        let path = std::path::Path::new(path);
+        if !path.exists() {
+            return Err(zero_latency_core::ZeroLatencyError::validation("path", "Path does not exist"));
+        }
+        
+        if path.is_file() {
+            // Index single file
+            if let Ok(content) = fs::read_to_string(path) {
+                let document = Document {
+                    id: zero_latency_core::Uuid::new_v4(),
+                    title: path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                    content,
+                    path: path.to_path_buf(),
+                    last_modified: chrono::Utc::now(),
+                    size: fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+                    metadata: zero_latency_core::models::DocumentMetadata::default(),
+                };
+                
+                self.index_document(document).await?;
+                documents_processed += 1;
+            }
+        } else if path.is_dir() {
+            // Index directory
+            documents_processed = self.index_directory(path, recursive).await?;
+        }
+        
+        let processing_time = start_time.elapsed().as_millis() as f64;
+        Ok((documents_processed, processing_time))
+    }
+    
+    /// Recursively index documents in a directory
+    fn index_directory<'a>(
+        &'a self, 
+        dir: &'a std::path::Path, 
+        recursive: bool
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
+        Box::pin(async move {
+            use std::fs;
+            
+            let mut documents_processed = 0u64;
+            
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    
+                    if path.is_file() {
+                        // Check if it's a text file we can index
+                        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
+                            if matches!(extension.to_lowercase().as_str(), "md" | "txt" | "rst" | "adoc" | "org") {
+                                if let Ok(content) = fs::read_to_string(&path) {
+                                    let document = Document {
+                                        id: zero_latency_core::Uuid::new_v4(),
+                                        title: path.file_name()
+                                            .and_then(|n| n.to_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string(),
+                                        content,
+                                        path: path.clone(),
+                                        last_modified: chrono::Utc::now(),
+                                        size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+                                        metadata: zero_latency_core::models::DocumentMetadata::default(),
+                                    };
+                                    
+                                    if let Err(e) = self.index_document(document).await {
+                                        tracing::warn!("Failed to index {}: {}", path.display(), e);
+                                    } else {
+                                        documents_processed += 1;
+                                        tracing::info!("Indexed: {}", path.display());
+                                    }
+                                }
+                            }
+                        }
+                    } else if path.is_dir() && recursive {
+                        // Recursively index subdirectories
+                        documents_processed += self.index_directory(&path, recursive).await?;
+                    }
+                }
+            }
+            
+            Ok(documents_processed)
+        })
+    }
+    
     /// Create document chunks from a document
     async fn create_document_chunks(&self, document: &Document) -> Result<Vec<DocumentChunk>> {
         // Simple chunking strategy - split by sentences

@@ -8,12 +8,11 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{
-    models::Document, 
     ZeroLatencyError
 };
 use crate::infrastructure::jsonrpc::types::{
@@ -21,7 +20,7 @@ use crate::infrastructure::jsonrpc::types::{
 };
 
 use crate::application::{
-    ServiceContainer, DocumentIndexingService, HealthService,
+    ServiceContainer, DocumentIndexingService, HealthService, CollectionService,
 };
 
 /// Application state shared across all handlers
@@ -31,17 +30,20 @@ pub struct AppState {
     pub container: Arc<ServiceContainer>,
     pub document_service: DocumentIndexingService,
     pub health_service: HealthService,
+    pub collection_service: CollectionService,
 }
 
 impl AppState {
     pub fn new(container: Arc<ServiceContainer>) -> Self {
         let document_service = DocumentIndexingService::new(&container);
         let health_service = HealthService::new();
+        let collection_service = CollectionService::new(&container);
         
         Self {
             container,
             document_service,
             health_service,
+            collection_service,
         }
     }
 }
@@ -56,11 +58,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))
         
-        // Document endpoints (internal)
-        .route("/documents", post(index_document))
+        // Collection endpoints
+        .route("/collections", get(list_collections))
+        .route("/collections", post(create_collection))
+        .route("/collections/:name", get(get_collection))
+        .route("/collections/:name", delete(delete_collection))
+        .route("/collections/:name/stats", get(get_collection_stats))
+        
+        // Document endpoints (read-only for discovery)
+        .route("/documents", get(list_documents))
         .route("/documents/:id", get(get_document))
-        .route("/documents/:id", put(update_document))
-        .route("/documents/:id", delete(delete_document))
         .route("/documents/search", post(search_documents))
         
         // Health endpoints
@@ -74,30 +81,23 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// Index a new document
-async fn index_document(
+/// List all documents with pagination
+async fn list_documents(
     State(state): State<AppState>,
-    Json(request): Json<IndexDocumentRequest>,
-) -> Result<Json<IndexDocumentResponse>, AppError> {
-    let document = Document {
-        id: zero_latency_core::Uuid::parse_str(&request.id)
-            .map_err(|_| ZeroLatencyError::validation("id", "Invalid UUID format"))?,
-        title: request.title.unwrap_or_else(|| "Untitled".to_string()),
-        content: request.content,
-        path: std::path::PathBuf::from(request.path.unwrap_or_else(|| "/tmp/unknown".to_string())),
-        last_modified: chrono::Utc::now(),
-        size: 0, // Would be calculated in real implementation
-        metadata: zero_latency_core::models::DocumentMetadata {
-            custom: request.metadata.unwrap_or_default(),
-            ..Default::default()
-        },
-    };
+) -> Result<Json<ListDocumentsResponse>, AppError> {
+    // Get document count and some basic metadata
+    let total_count = state.document_service.get_document_count().await.unwrap_or(0);
+    let index_size = state.document_service.get_index_size().await.unwrap_or(0);
     
-    state.document_service.index_document(document).await?;
-    
-    Ok(Json(IndexDocumentResponse {
-        success: true,
-        message: "Document indexed successfully".to_string(),
+    // For now, return metadata instead of full documents
+    // In a real implementation, this would paginate through actual documents
+    Ok(Json(ListDocumentsResponse {
+        documents: vec![], // TODO: Implement actual document listing
+        total_count,
+        page: 1,
+        per_page: 50,
+        total_pages: (total_count as f64 / 50.0).ceil() as u64,
+        index_size_bytes: index_size,
     }))
 }
 
@@ -113,47 +113,6 @@ async fn get_document(
         found: false,
         content: None,
         metadata: None,
-    }))
-}
-
-/// Update an existing document
-async fn update_document(
-    Path(id): Path<String>,
-    State(state): State<AppState>,
-    Json(request): Json<UpdateDocumentRequest>,
-) -> Result<Json<UpdateDocumentResponse>, AppError> {
-    let document = Document {
-        id: zero_latency_core::Uuid::parse_str(&id)
-            .map_err(|_| ZeroLatencyError::validation("id", "Invalid UUID"))?,
-        title: request.title.unwrap_or_else(|| "Untitled".to_string()),
-        content: request.content,
-        path: std::path::PathBuf::from(request.path.unwrap_or_else(|| "/tmp/unknown".to_string())),
-        last_modified: chrono::Utc::now(),
-        size: 0, // Would be calculated in real implementation
-        metadata: zero_latency_core::models::DocumentMetadata {
-            custom: request.metadata.unwrap_or_default(),
-            ..Default::default()
-        },
-    };
-    
-    state.document_service.update_document(document).await?;
-    
-    Ok(Json(UpdateDocumentResponse {
-        success: true,
-        message: "Document updated successfully".to_string(),
-    }))
-}
-
-/// Delete a document
-async fn delete_document(
-    Path(id): Path<String>,
-    State(state): State<AppState>,
-) -> Result<Json<DeleteDocumentResponse>, AppError> {
-    state.document_service.delete_document(&id).await?;
-    
-    Ok(Json(DeleteDocumentResponse {
-        success: true,
-        message: "Document deleted successfully".to_string(),
     }))
 }
 
@@ -181,12 +140,16 @@ async fn health_check(
 async fn api_status(
     State(state): State<AppState>,
 ) -> Json<ApiStatusResponse> {
+    // Get actual metrics from the services
+    let document_count = state.document_service.get_document_count().await.unwrap_or(0);
+    let index_size = state.document_service.get_index_size().await.unwrap_or(0);
+    
     Json(ApiStatusResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: 0, // Would calculate from service start time
-        total_documents: 0, // Would query from the database
-        index_size_bytes: 0, // Would calculate from storage
+        total_documents: document_count,
+        index_size_bytes: index_size,
         last_index_update: None, // Would get from last indexing operation
         docs_path: Some(state.container.config().service.docs_path.display().to_string()),
     })
@@ -224,19 +187,39 @@ async fn service_info(
     })
 }
 
-/// Index documents from a file path (CLI API endpoint)
+/// Index documents from a specified path
 async fn index_documents_from_path(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(request): Json<IndexPathRequest>,
 ) -> Result<Json<IndexPathResponse>, AppError> {
-    // This would integrate with the actual indexing service
-    // For now, return a success response
-    Ok(Json(IndexPathResponse {
-        documents_processed: 0, // Would be calculated in real implementation
-        processing_time_ms: 0.0, // Would be measured in real implementation
-        status: "success".to_string(),
-        message: Some(format!("Started indexing documents from path: {}", request.path)),
-    }))
+    tracing::info!("Starting document indexing from path: {}", request.path);
+    
+    // Use the document service to actually index documents
+    let result = state
+        .document_service
+        .index_documents_from_path(&request.path, request.recursive.unwrap_or(true))
+        .await;
+    
+    match result {
+        Ok((documents_processed, processing_time_ms)) => {
+            tracing::info!(
+                "Indexing completed: {} documents processed in {:.2}ms", 
+                documents_processed, 
+                processing_time_ms
+            );
+            
+            Ok(Json(IndexPathResponse {
+                documents_processed,
+                processing_time_ms,
+                status: "success".to_string(),
+                message: Some(format!("Successfully indexed {} documents from path: {}", documents_processed, request.path)),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to index documents from path {}: {}", request.path, e);
+            Err(AppError(e))
+        }
+    }
 }
 
 /// Start server endpoint (for CLI compatibility)
@@ -268,47 +251,12 @@ async fn stop_server(
 
 // Request/Response types
 
-#[derive(Debug, Deserialize)]
-pub struct IndexDocumentRequest {
-    pub id: String,
-    pub title: Option<String>,
-    pub content: String,
-    pub path: Option<String>,
-    pub metadata: Option<std::collections::HashMap<String, String>>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct IndexDocumentResponse {
-    pub success: bool,
-    pub message: String,
-}
-
 #[derive(Debug, Serialize)]
 pub struct GetDocumentResponse {
     pub id: String,
     pub found: bool,
     pub content: Option<String>,
     pub metadata: Option<std::collections::HashMap<String, String>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateDocumentRequest {
-    pub title: Option<String>,
-    pub content: String,
-    pub path: Option<String>,
-    pub metadata: Option<std::collections::HashMap<String, String>>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct UpdateDocumentResponse {
-    pub success: bool,
-    pub message: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DeleteDocumentResponse {
-    pub success: bool,
-    pub message: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -375,6 +323,25 @@ pub struct ApiStatusResponse {
     pub docs_path: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ListDocumentsResponse {
+    pub documents: Vec<DocumentSummary>,
+    pub total_count: u64,
+    pub page: u64,
+    pub per_page: u64,
+    pub total_pages: u64,
+    pub index_size_bytes: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DocumentSummary {
+    pub id: String,
+    pub title: String,
+    pub path: String,
+    pub size: u64,
+    pub last_modified: String,
+}
+
 // Error handling
 
 #[derive(Debug)]
@@ -427,4 +394,138 @@ impl axum::response::IntoResponse for AppError {
         
         (status, Json(error_response)).into_response()
     }
+}
+
+//
+// Collection API Handlers
+//
+
+/// List all collections
+async fn list_collections(
+    State(state): State<AppState>,
+) -> Result<Json<ListCollectionsResponse>, AppError> {
+    let collections = state.collection_service.list_collections().await?;
+    Ok(Json(ListCollectionsResponse { collections }))
+}
+
+/// Get a specific collection
+async fn get_collection(
+    Path(name): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<GetCollectionResponse>, AppError> {
+    if let Some(collection) = state.collection_service.get_collection_info(&name).await? {
+        Ok(Json(GetCollectionResponse {
+            found: true,
+            collection: Some(collection),
+        }))
+    } else {
+        Ok(Json(GetCollectionResponse {
+            found: false,
+            collection: None,
+        }))
+    }
+}
+
+/// Create a new collection
+async fn create_collection(
+    State(state): State<AppState>,
+    Json(request): Json<CreateCollectionApiRequest>,
+) -> Result<Json<CreateCollectionResponse>, AppError> {
+    use crate::application::services::collection_service::CreateCollectionRequest;
+    
+    let create_request = CreateCollectionRequest {
+        name: request.name,
+        vector_size: request.vector_size,
+        distance_metric: request.distance_metric,
+        description: request.description,
+    };
+    
+    let collection = state.collection_service.create_collection(create_request).await?;
+    Ok(Json(CreateCollectionResponse {
+        success: true,
+        collection,
+        message: "Collection created successfully".to_string(),
+    }))
+}
+
+/// Delete a collection
+async fn delete_collection(
+    Path(name): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<DeleteCollectionResponse>, AppError> {
+    let deleted = state.collection_service.delete_collection(&name).await?;
+    Ok(Json(DeleteCollectionResponse {
+        success: deleted,
+        message: if deleted {
+            "Collection deleted successfully".to_string()
+        } else {
+            "Collection not found".to_string()
+        },
+    }))
+}
+
+/// Get collection statistics
+async fn get_collection_stats(
+    Path(name): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<GetCollectionStatsResponse>, AppError> {
+    if let Some(stats) = state.collection_service.get_collection_stats(&name).await? {
+        Ok(Json(GetCollectionStatsResponse {
+            found: true,
+            stats: Some(stats),
+        }))
+    } else {
+        Ok(Json(GetCollectionStatsResponse {
+            found: false,
+            stats: None,
+        }))
+    }
+}
+
+//
+// Collection API Request/Response Types
+//
+
+/// Response for listing collections
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListCollectionsResponse {
+    pub collections: Vec<crate::application::services::collection_service::CollectionInfo>,
+}
+
+/// Response for getting a collection
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetCollectionResponse {
+    pub found: bool,
+    pub collection: Option<crate::application::services::collection_service::CollectionInfo>,
+}
+
+/// Request for creating a collection
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateCollectionApiRequest {
+    pub name: String,
+    pub vector_size: u64,
+    pub distance_metric: Option<String>,
+    pub description: Option<String>,
+}
+
+/// Response for creating a collection
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateCollectionResponse {
+    pub success: bool,
+    pub collection: crate::application::services::collection_service::CollectionInfo,
+    pub message: String,
+}
+
+/// Response for deleting a collection
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeleteCollectionResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// Response for getting collection statistics
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetCollectionStatsResponse {
+    pub found: bool,
+    pub stats: Option<crate::application::services::collection_service::CollectionStats>,
 }

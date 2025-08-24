@@ -11,4 +11,5 @@ pub use container::ServiceContainer;
 pub use services::{
     document_service::DocumentIndexingService,
     health_service::HealthService,
+    collection_service::CollectionService,
 };
