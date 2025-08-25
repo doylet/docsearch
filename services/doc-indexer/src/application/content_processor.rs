@@ -103,6 +103,11 @@ impl ContentProcessor {
                 | ContentType::Json
                 | ContentType::Yaml
                 | ContentType::Toml
+                | ContentType::Rust
+                | ContentType::JavaScript
+                | ContentType::Python
+                | ContentType::Shell
+                | ContentType::Config
         )
     }
 

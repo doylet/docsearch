@@ -229,8 +229,7 @@ impl VectorRepository for EmbeddedVectorStore {
             let metadata: VectorMetadata = serde_json::from_str(&metadata_json)
                 .map_err(|e| ZeroLatencyError::database(format!("Failed to parse metadata: {}", e)))?;
 
-            let calculator = CosineCalculator;
-            let similarity = calculator.calculate_similarity(&query_vector, &embedding);
+            let similarity = calculate_cosine_similarity(&query_vector, &embedding);
 
             let document_id = Uuid::parse_str(&id)
                 .map_err(|e| ZeroLatencyError::database(format!("Invalid UUID: {}", e)))?;
@@ -253,6 +252,79 @@ impl VectorRepository for EmbeddedVectorStore {
         // Limit results
         results.truncate(k);
 
+        Ok(results)
+    }
+
+    async fn search_in_collection(&self, collection_name: &str, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
+        let conn = self.connection.lock().await;
+        let mut stmt = conn.prepare("SELECT id, embedding, metadata FROM vectors")
+            .map_err(|e| ZeroLatencyError::database(format!("Failed to prepare collection search: {}", e)))?;
+
+        let rows = stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let embedding_blob: Vec<u8> = row.get(1)?;
+            let metadata_json: String = row.get(2)?;
+            Ok((id, embedding_blob, metadata_json))
+        }).map_err(|e| ZeroLatencyError::database(format!("Failed to execute collection search: {}", e)))?;
+
+        let mut results = Vec::new();
+        let mut total_processed = 0;
+        let mut collection_matches = 0;
+        let mut collection_mismatches = 0;
+
+        for row in rows {
+            total_processed += 1;
+            let (id_str, embedding_blob, metadata_json) = row
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to read row: {}", e)))?;
+
+            // Deserialize metadata to check collection
+            let metadata: VectorMetadata = serde_json::from_str(&metadata_json)
+                .map_err(|e| ZeroLatencyError::database(format!("Failed to deserialize metadata: {}", e)))?;
+
+            // Filter by collection - handle legacy data without collection field
+            if let Some(doc_collection) = &metadata.collection {
+                if doc_collection != collection_name {
+                    collection_mismatches += 1;
+                    continue; // Skip documents not in this collection
+                }
+                collection_matches += 1;
+            } else {
+                // Legacy documents without collection field - assume they belong to zero_latency_docs
+                // This provides backward compatibility for existing data
+                if collection_name != "zero_latency_docs" && collection_name != "default" {
+                    collection_mismatches += 1;
+                    continue; // Skip legacy documents if searching for specific non-default collection
+                }
+                collection_matches += 1;
+                tracing::debug!("Legacy document (no collection field) included in search for '{}'", collection_name);
+            }
+
+            let document_embedding = self.deserialize_vector(&embedding_blob)?;
+            let similarity = calculate_cosine_similarity(&query_vector, &document_embedding);
+
+            let document_id = Uuid::parse_str(&id_str)
+                .map_err(|e| ZeroLatencyError::database(format!("Invalid UUID: {}", e)))?;
+
+            results.push(SimilarityResult {
+                document_id,
+                similarity: Score::new(similarity).unwrap_or_else(|_| {
+                    Score::new(0.0).unwrap()
+                }),
+                metadata,
+            });
+        }
+
+        // Sort by similarity score (descending)
+        results.sort_by(|a, b| {
+            b.similarity.value().partial_cmp(&a.similarity.value())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Limit results
+        results.truncate(k);
+
+        tracing::debug!("EmbeddedVectorStore: Collection-specific search in '{}' - processed {} vectors, {} matches, {} mismatches, returned {} results", 
+                       collection_name, total_processed, collection_matches, collection_mismatches, results.len());
         Ok(results)
     }
 
@@ -374,6 +446,7 @@ mod tests {
                 heading_path: vec![],
                 url: None,
                 custom: std::collections::HashMap::new(),
+                collection: Some("default".to_string()),
             },
         };
 
@@ -417,6 +490,7 @@ mod tests {
                     heading_path: vec![],
                     url: None,
                     custom: std::collections::HashMap::new(),
+                    collection: Some("default".to_string()),
                 },
             };
             store.insert(vec![doc]).await.unwrap();
@@ -432,4 +506,21 @@ mod tests {
             assert_eq!(results[0].metadata.title, "persist1");
         }
     }
+}
+
+/// Calculate cosine similarity between two vectors
+fn calculate_cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+    
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+    
+    if magnitude_a == 0.0 || magnitude_b == 0.0 {
+        return 0.0;
+    }
+    
+    dot_product / (magnitude_a * magnitude_b)
 }

@@ -19,6 +19,7 @@ pub struct VectorMetadata {
     pub title: String,
     pub heading_path: Vec<String>,
     pub url: Option<String>,
+    pub collection: Option<String>,
     pub custom: HashMap<String, String>,
 }
 

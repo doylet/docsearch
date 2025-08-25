@@ -16,6 +16,7 @@ zero-latency-core = { path = "../zero-latency-core" }
 zero-latency-search = { path = "../zero-latency-search" }
 zero-latency-config = { path = "../zero-latency-config" }
 zero-latency-observability = { path = "../zero-latency-observability" }
+zero-latency-contracts = { path = "../zero-latency-contracts" }
 
 # CLI framework
 clap = { version = "4.0", features = ["derive", "color"] }

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use zero_latency_contracts::config::helpers;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CliConfig {
@@ -13,9 +14,10 @@ pub struct CliConfig {
 
 impl Default for CliConfig {
     fn default() -> Self {
+        let standard_config = helpers::default_cli_config();
         Self {
-            server_url: "http://localhost:8080".to_string(),
-            collection_name: "zero_latency_docs".to_string(),
+            server_url: standard_config.server_url(),
+            collection_name: standard_config.collection_name,
             default_limit: 10,
             output_format: "table".to_string(),
             verbose: false,

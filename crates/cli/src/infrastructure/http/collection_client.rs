@@ -1,10 +1,18 @@
 use std::time::Duration;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
+use zero_latency_contracts::api::{endpoints, urls};
 use crate::commands::collection::{
     CollectionInfo, GetCollectionResponse, CreateCollectionRequest, 
     CreateCollectionResponse, DeleteCollectionResponse, GetCollectionStatsResponse
 };
+
+/// Response wrapper for list collections API call
+#[derive(Debug, Deserialize, Serialize)]
+struct ListCollectionsApiResponse {
+    collections: Vec<CollectionInfo>,
+}
 
 /// HTTP client for collection management operations against the Zero Latency API.
 /// 
@@ -37,7 +45,7 @@ impl CollectionApiClient {
 
     /// List all collections
     pub async fn list_collections(&self) -> ZeroLatencyResult<Vec<CollectionInfo>> {
-        let url = format!("{}/api/collections", self.base_url);
+        let url = format!("{}{}", self.base_url, endpoints::COLLECTIONS);
         
         let response = self.client
             .get(&url)
@@ -54,19 +62,19 @@ impl CollectionApiClient {
             });
         }
         
-        let collections: Vec<CollectionInfo> = response
+        let response_wrapper: ListCollectionsApiResponse = response
             .json()
             .await
             .map_err(|e| ZeroLatencyError::Serialization { 
                 message: format!("Failed to parse list collections response: {}", e)
             })?;
             
-        Ok(collections)
+        Ok(response_wrapper.collections)
     }
 
     /// Get information about a specific collection
     pub async fn get_collection(&self, name: &str) -> ZeroLatencyResult<GetCollectionResponse> {
-        let url = format!("{}/api/collections/{}", self.base_url, name);
+        let url = urls::collection_by_name(&self.base_url, name);
         
         let response = self.client
             .get(&url)
@@ -95,7 +103,7 @@ impl CollectionApiClient {
 
     /// Create a new collection
     pub async fn create_collection(&self, request: CreateCollectionRequest) -> ZeroLatencyResult<CreateCollectionResponse> {
-        let url = format!("{}/api/collections", self.base_url);
+        let url = format!("{}{}", self.base_url, endpoints::COLLECTIONS);
         
         let response = self.client
             .post(&url)
@@ -125,7 +133,7 @@ impl CollectionApiClient {
 
     /// Delete a collection
     pub async fn delete_collection(&self, name: &str) -> ZeroLatencyResult<DeleteCollectionResponse> {
-        let url = format!("{}/api/collections/{}", self.base_url, name);
+        let url = urls::collection_by_name(&self.base_url, name);
         
         let response = self.client
             .delete(&url)
@@ -154,7 +162,7 @@ impl CollectionApiClient {
 
     /// Get collection statistics
     pub async fn get_collection_stats(&self, name: &str) -> ZeroLatencyResult<GetCollectionStatsResponse> {
-        let url = format!("{}/api/collections/{}/stats", self.base_url, name);
+        let url = urls::collection_stats(&self.base_url, name);
         
         let response = self.client
             .get(&url)

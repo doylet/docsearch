@@ -37,9 +37,16 @@ impl IndexApiClient {
 
     /// Index documents from a path
     pub async fn index(&self, request: IndexCommand) -> ZeroLatencyResult<IndexResponse> {
+        // Convert path to absolute path to ensure server processes the correct directory
+        let absolute_path = std::path::Path::new(&request.path)
+            .canonicalize()
+            .map_err(|e| ZeroLatencyError::validation("path", &format!("Invalid path '{}': {}", request.path, e)))?
+            .to_string_lossy()
+            .to_string();
+        
         let json_body = serde_json::json!({
-            "path": request.path,
-            "collection_name": self.collection_name,
+            "path": absolute_path,
+            "collection": self.collection_name,  // Fixed: was "collection_name", should be "collection"
             "recursive": request.recursive,
             "force": request.force,
             "safe_patterns": request.safe_patterns,
@@ -80,7 +87,7 @@ impl IndexApiClient {
     /// Reindex documents
     pub async fn reindex(&self, request: ReindexCommand) -> ZeroLatencyResult<IndexResponse> {
         let json_body = serde_json::json!({
-            "collection_name": self.collection_name,
+            "collection": self.collection_name,  // Fixed: was "collection_name", should be "collection"
             "safe_patterns": request.safe_patterns,
             "ignore_patterns": request.ignore_patterns,
             "clear_default_ignores": request.clear_default_ignores,

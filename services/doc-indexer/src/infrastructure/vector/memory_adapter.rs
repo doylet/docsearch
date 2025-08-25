@@ -84,6 +84,42 @@ impl VectorRepository for InMemoryVectorStore {
         
         Ok(results)
     }
+
+    async fn search_in_collection(&self, collection_name: &str, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
+        // For memory adapter, we'll filter by collection name in metadata
+        let docs = self.documents.read().await;
+        let mut results = Vec::new();
+        
+        // Calculate similarity for each document in the specified collection
+        for document in docs.values() {
+            // Check if document belongs to the specified collection
+            if let Some(doc_collection) = document.metadata.collection.as_ref() {
+                if doc_collection != collection_name {
+                    continue; // Skip documents not in this collection
+                }
+            } else if collection_name != "default" {
+                continue; // Skip documents without collection if not searching default
+            }
+            
+            let similarity = self.similarity_calculator
+                .calculate_similarity(&query_vector, &document.embedding);
+            
+            results.push(SimilarityResult {
+                document_id: document.id,
+                similarity: Score::new(similarity).unwrap_or_else(|_| Score::new(0.0).unwrap()),
+                metadata: document.metadata.clone(),
+            });
+        }
+        
+        // Sort by similarity score (descending)
+        results.sort_by(|a, b| b.similarity.value().partial_cmp(&a.similarity.value()).unwrap_or(std::cmp::Ordering::Equal));
+        
+        // Limit results
+        results.truncate(k);
+        
+        tracing::debug!("MemoryAdapter: Collection-specific search in '{}' returned {} results", collection_name, results.len());
+        Ok(results)
+    }
     
     async fn delete(&self, document_id: &str) -> Result<bool> {
         let mut docs = self.documents.write().await;

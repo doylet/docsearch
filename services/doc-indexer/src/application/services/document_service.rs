@@ -6,7 +6,8 @@
 
 use std::sync::Arc;
 use std::collections::HashMap;
-use zero_latency_core::{Result, models::{Document, DocumentChunk}};
+use std::time::Duration;
+use zero_latency_core::{Result, models::{Document, DocumentChunk}, Uuid, values::SearchQuery};
 use zero_latency_vector::{VectorRepository, EmbeddingGenerator, VectorDocument};
 use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
 
@@ -21,6 +22,7 @@ pub struct DocumentIndexingService {
     embedding_generator: Arc<dyn EmbeddingGenerator>,
     search_orchestrator: Arc<dyn SearchOrchestrator>,
     filter_service: Arc<FilterService>,
+    content_processor: ContentProcessor,
 }
 
 impl DocumentIndexingService {
@@ -37,11 +39,22 @@ impl DocumentIndexingService {
             embedding_generator: container.embedding_generator(),
             search_orchestrator: container.search_orchestrator(),
             filter_service: Arc::new(FilterService::new(filters)),
+            content_processor: ContentProcessor::new(),
         }
+    }
+    
+    /// Get a reference to the vector repository for advanced operations
+    pub fn vector_repository(&self) -> &Arc<dyn VectorRepository> {
+        &self.vector_repository
     }
     
     /// Index a document by chunking it and creating embeddings
     pub async fn index_document(&self, document: Document) -> Result<()> {
+        self.index_document_with_collection(document, "zero_latency_docs").await
+    }
+
+    /// Index a document with specific collection information
+    pub async fn index_document_with_collection(&self, document: Document, collection_name: &str) -> Result<()> {
         // Create chunks from the document
         let chunks = self.create_document_chunks(&document).await?;
         
@@ -51,6 +64,9 @@ impl DocumentIndexingService {
             let embedding = self.embedding_generator
                 .generate_embedding(&chunk.content)
                 .await?;
+            
+            let mut custom_metadata = chunk.metadata.custom.clone();
+            custom_metadata.insert("collection".to_string(), collection_name.to_string());
             
             let vector_doc = VectorDocument {
                 id: chunk.id,
@@ -62,7 +78,8 @@ impl DocumentIndexingService {
                     title: document.title.clone(),
                     heading_path: chunk.heading_path.clone(),
                     url: None,
-                    custom: chunk.metadata.custom.clone(),
+                    collection: Some(collection_name.to_string()),
+                    custom: custom_metadata,
                 },
             };
             
@@ -92,6 +109,54 @@ impl DocumentIndexingService {
         self.search_orchestrator
             .search(search_request)
             .await
+    }
+    
+    /// Search for documents similar to a query in a specific collection
+    pub async fn search_documents_in_collection(&self, query: &str, collection_name: &str, limit: usize) -> Result<SearchResponse> {
+        // Generate embedding for the query
+        let query_embedding = self.embedding_generator
+            .generate_embedding(query)
+            .await?;
+        
+        // Search in the specified collection
+        let similarity_results = self.vector_repository
+            .search_in_collection(collection_name, query_embedding, limit)
+            .await?;
+        
+        // Convert to SearchResponse format
+        let mut documents = Vec::new();
+        for result in similarity_results {
+            documents.push(zero_latency_search::SearchResult {
+                chunk_id: Uuid::new_v4(),
+                document_id: result.document_id,
+                document_title: result.metadata.title.clone(),
+                document_path: format!("collection:{}", collection_name), // Use collection as path info
+                content: result.metadata.content.clone(),
+                snippet: None,
+                heading_path: result.metadata.heading_path.clone(),
+                final_score: result.similarity,
+                ranking_signals: None,
+                url: result.metadata.url.clone(),
+            });
+        }
+        
+        let search_metadata = zero_latency_search::SearchMetadata {
+            query: SearchQuery::new(query),
+            execution_time: Duration::from_millis(0), // Would be measured in real implementation
+            query_enhancement_applied: false,
+            ranking_method: "vector_similarity".to_string(),
+            result_sources: vec![collection_name.to_string()],
+            debug_info: None,
+        };
+        
+        let total_count = documents.len();
+        
+        Ok(SearchResponse {
+            results: documents,
+            total_count: Some(total_count),
+            search_metadata,
+            pagination: None,
+        })
     }
     
     /// Update an existing document in the index
@@ -152,6 +217,7 @@ impl DocumentIndexingService {
             embedding_generator: Arc::clone(&self.embedding_generator),
             search_orchestrator: Arc::clone(&self.search_orchestrator),
             filter_service: Arc::new(FilterService::new(filters)),
+            content_processor: self.content_processor.clone(),
         }
     }
     
@@ -167,6 +233,17 @@ impl DocumentIndexingService {
         recursive: bool, 
         filters: Option<IndexingFilters>
     ) -> Result<(u64, f64)> {
+        self.index_documents_from_path_with_filters_and_collection(path, recursive, filters, "zero_latency_docs").await
+    }
+
+    /// Index all documents from a directory path with optional filtering and collection
+    pub async fn index_documents_from_path_with_filters_and_collection(
+        &self, 
+        path: &str, 
+        recursive: bool, 
+        filters: Option<IndexingFilters>,
+        collection_name: &str
+    ) -> Result<(u64, f64)> {
         use std::time::Instant;
         use std::fs;
         
@@ -180,6 +257,7 @@ impl DocumentIndexingService {
                 embedding_generator: Arc::clone(&self.embedding_generator),
                 search_orchestrator: Arc::clone(&self.search_orchestrator),
                 filter_service: Arc::new(FilterService::new(filters)),
+                content_processor: self.content_processor.clone(),
             }
         } else {
             // Clone current service (uses existing filters)
@@ -188,6 +266,7 @@ impl DocumentIndexingService {
                 embedding_generator: Arc::clone(&self.embedding_generator),
                 search_orchestrator: Arc::clone(&self.search_orchestrator),
                 filter_service: Arc::clone(&self.filter_service),
+                content_processor: self.content_processor.clone(),
             }
         };
         
@@ -204,7 +283,7 @@ impl DocumentIndexingService {
             
             // Index single file
             if let Ok(content) = fs::read_to_string(path) {
-                let document = Document {
+                let mut document = Document {
                     id: zero_latency_core::Uuid::new_v4(),
                     title: path.file_name()
                         .and_then(|n| n.to_str())
@@ -217,12 +296,15 @@ impl DocumentIndexingService {
                     metadata: zero_latency_core::models::DocumentMetadata::default(),
                 };
                 
-                service.index_document(document).await?;
+                // Add collection information to document metadata
+                document.metadata.custom.insert("collection".to_string(), collection_name.to_string());
+                
+                service.index_document_with_collection(document, collection_name).await?;
                 documents_processed += 1;
             }
         } else if path.is_dir() {
-            // Index directory
-            documents_processed = service.index_directory(path, recursive).await?;
+            // Index directory with collection awareness
+            documents_processed = service.index_directory_with_collection(path, recursive, collection_name).await?;
         }
         
         let processing_time = start_time.elapsed().as_millis() as f64;
@@ -234,6 +316,16 @@ impl DocumentIndexingService {
         &'a self, 
         dir: &'a std::path::Path, 
         recursive: bool
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
+        self.index_directory_with_collection(dir, recursive, "zero_latency_docs")
+    }
+
+    /// Recursively index documents in a directory with collection awareness
+    fn index_directory_with_collection<'a>(
+        &'a self, 
+        dir: &'a std::path::Path, 
+        recursive: bool,
+        collection_name: &'a str
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
         Box::pin(async move {
             use std::fs;
@@ -280,12 +372,12 @@ impl DocumentIndexingService {
                         // Read file content first
                         if let Ok(raw_content) = fs::read_to_string(&path) {
                             // Detect content type
-                            let content_type = ContentProcessor::detect_content_type(&path, &raw_content);
+                            let content_type = self.content_processor.detect_content_type(&path, &raw_content);
                             
                             // Check if this content type should be indexed
-                            if ContentProcessor::should_index(&content_type) {
+                            if self.content_processor.should_index(&content_type) {
                                 // Process content based on type
-                                match ContentProcessor::process_content(&raw_content, &content_type) {
+                                match self.content_processor.process_content(&raw_content, &content_type) {
                                     Ok(processed_content) => {
                                         let document = Document {
                                             id: zero_latency_core::Uuid::new_v4(),
@@ -300,11 +392,12 @@ impl DocumentIndexingService {
                                             metadata: {
                                                 let mut metadata = zero_latency_core::models::DocumentMetadata::default();
                                                 metadata.content_type = Some(format!("{:?}", content_type));
+                                                metadata.custom.insert("collection".to_string(), collection_name.to_string());
                                                 metadata
                                             },
                                         };
                                         
-                                        if let Err(e) = self.index_document(document).await {
+                                        if let Err(e) = self.index_document_with_collection(document, collection_name).await {
                                             tracing::warn!("Failed to index {}: {}", path.display(), e);
                                         } else {
                                             documents_processed += 1;
@@ -324,7 +417,7 @@ impl DocumentIndexingService {
                     } else if path.is_dir() && recursive {
                         // Recursively index subdirectories
                         tracing::debug!("Recursing into directory: {}", path.display());
-                        documents_processed += self.index_directory(&path, recursive).await?;
+                        documents_processed += self.index_directory_with_collection(&path, recursive, collection_name).await?;
                     }
                 }
             }

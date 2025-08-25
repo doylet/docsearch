@@ -10,7 +10,6 @@ use crate::infrastructure::http::{
     CollectionApiClient, ServerApiClient
 };
 use crate::infrastructure::output::{TableFormatter};
-use crate::infrastructure::config::{FileConfigLoader};
 
 /// Dependency injection container for the CLI application.
 /// 
@@ -21,7 +20,6 @@ use crate::infrastructure::config::{FileConfigLoader};
 /// to follow the Single Responsibility Principle and improve maintainability.
 pub struct CliServiceContainer {
     config: Arc<CliConfig>,
-    config_loader: Arc<FileConfigLoader>,
     search_client: Arc<SearchApiClient>,
     index_client: Arc<IndexApiClient>,
     document_client: Arc<DocumentApiClient>,
@@ -41,9 +39,6 @@ impl CliServiceContainer {
     /// * `Result<Self>` - The configured container or an error
     pub async fn new(config: CliConfig) -> ZeroLatencyResult<Self> {
         let timeout = Duration::from_secs(30);
-        
-        // Create infrastructure adapters
-        let config_loader = Arc::new(FileConfigLoader::new());
         
         // Create domain-specific API clients
         let search_client = Arc::new(SearchApiClient::new(
@@ -86,7 +81,6 @@ impl CliServiceContainer {
         
         Ok(Self {
             config: Arc::new(config),
-            config_loader,
             search_client,
             index_client,
             document_client,
@@ -107,16 +101,6 @@ impl CliServiceContainer {
         self.config.clone()
     }
     
-    /// Returns the search API client for direct access if needed.
-    pub fn search_client(&self) -> Arc<SearchApiClient> {
-        self.search_client.clone()
-    }
-    
-    /// Returns the index API client for direct access if needed.
-    pub fn index_client(&self) -> Arc<IndexApiClient> {
-        self.index_client.clone()
-    }
-    
     /// Returns the document API client for direct access if needed.
     pub fn document_client(&self) -> Arc<DocumentApiClient> {
         self.document_client.clone()
@@ -125,11 +109,6 @@ impl CliServiceContainer {
     /// Returns the collection API client for direct access if needed.
     pub fn collection_client(&self) -> Arc<CollectionApiClient> {
         self.collection_client.clone()
-    }
-    
-    /// Returns the server API client for direct access if needed.
-    pub fn server_client(&self) -> Arc<ServerApiClient> {
-        self.server_client.clone()
     }
     
     /// Returns the output formatter for direct access if needed.

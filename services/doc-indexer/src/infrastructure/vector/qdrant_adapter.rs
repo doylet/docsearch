@@ -200,6 +200,73 @@ impl VectorRepository for QdrantAdapter {
         tracing::debug!("QdrantAdapter: Successfully converted {} results", similarity_results.len());
         Ok(similarity_results)
     }
+
+    async fn search_in_collection(&self, collection_name: &str, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
+        println!("🔍 QdrantAdapter: Searching in collection '{}' with vector size {} for {} results", 
+                 collection_name, query_vector.len(), k);
+        
+        // Create search request payload
+        let search_payload = serde_json::json!({
+            "vector": query_vector,
+            "limit": k,
+            "with_payload": true,
+            "with_vector": true,
+            "score_threshold": 0.0
+        });
+        
+        let url = format!("{}/collections/{}/points/search", 
+                         self.config.url, collection_name);
+        
+        println!("📡 QdrantAdapter: Sending REST search request to {}", url);
+        
+        let request = self.client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .json(&search_payload);
+        
+        let response = request.send().await
+            .map_err(|e| {
+                tracing::error!("QdrantAdapter: HTTP request failed: {}", e);
+                ZeroLatencyError::database(&format!("Qdrant HTTP request failed: {}", e))
+            })?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            tracing::error!("QdrantAdapter: HTTP error {}: {}", status, error_text);
+            return Err(ZeroLatencyError::database(&format!("Qdrant HTTP error {}: {}", status, error_text)));
+        }
+        
+        let search_response: QdrantSearchResponse = response.json().await
+            .map_err(|e| {
+                tracing::error!("QdrantAdapter: Failed to parse response: {}", e);
+                ZeroLatencyError::database(&format!("Failed to parse Qdrant response: {}", e))
+            })?;
+        
+        println!("📊 QdrantAdapter: Qdrant returned {} results", search_response.result.len());
+        
+        let mut similarity_results = Vec::new();
+        for result in &search_response.result {
+            println!("🔍 QdrantAdapter: Processing result with score: {}", result.score);
+            
+            match self.from_qdrant_rest_result(result) {
+                Ok(document) => {
+                    similarity_results.push(SimilarityResult {
+                        document_id: document.metadata.document_id.clone(),
+                        similarity: Score::new(result.score).unwrap_or_default(),
+                        metadata: document.metadata,
+                    });
+                }
+                Err(e) => {
+                    println!("⚠️  QdrantAdapter: Failed to convert result: {}", e);
+                    continue;
+                }
+            }
+        }
+        
+        tracing::debug!("QdrantAdapter: Successfully converted {} results to collection-specific search", similarity_results.len());
+        Ok(similarity_results)
+    }
     
     async fn delete(&self, document_id: &str) -> Result<bool> {
         tracing::debug!("QdrantAdapter: Delete not fully implemented");

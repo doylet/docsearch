@@ -1,11 +1,12 @@
 [workspace]
 members = [
-    "services/doc-indexer", 
     "crates/cli",
+    "crates/zero-latency-config", 
     "crates/zero-latency-core",
+    "crates/zero-latency-observability",
     "crates/zero-latency-search",
     "crates/zero-latency-vector",
-    "crates/zero-latency-observability",
-    "crates/zero-latency-config",
+    "crates/zero-latency-contracts",
+    "services/doc-indexer",
 ]
 resolver = "2"

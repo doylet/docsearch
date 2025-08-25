@@ -7,7 +7,6 @@ use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
 use zero_latency_search::SearchResponse;
 
 use crate::application::services::cli_service::IndexResponse;
-use crate::infrastructure::http::server_client::{StatusResponse, ServerInfo};
 
 /// Table-based output formatter for CLI command results.
 /// 
@@ -110,74 +109,6 @@ impl TableFormatter {
             };
             table.add_row(vec!["Message".to_string(), truncated_message]);
         }
-        
-        println!("{}", table);
-        Ok(())
-    }
-    
-    /// Format server status
-    pub async fn format_status(&self, status: StatusResponse, detailed: bool) -> ZeroLatencyResult<()> {
-        println!("{}", "Server Status".green().bold());
-        
-        let mut table = self.create_table();
-        table.add_row(vec!["Status".to_string(), status.status]);
-        table.add_row(vec!["Version".to_string(), status.version]);
-        
-        if let Some(docs_path) = &status.docs_path {
-            // Convert relative path to absolute path for clarity
-            let absolute_path = if Path::new(docs_path).is_absolute() {
-                docs_path.clone()
-            } else {
-                // For relative paths, convert to absolute
-                match std::env::current_dir() {
-                    Ok(current_dir) => {
-                        current_dir.join(docs_path).display().to_string()
-                    }
-                    Err(_) => docs_path.clone(), // Fallback to original if we can't get current dir
-                }
-            };
-            
-            // Truncate long paths
-            let truncated_path = if absolute_path.len() > 50 {
-                format!("...{}", &absolute_path[absolute_path.len()-47..])
-            } else {
-                absolute_path
-            };
-            table.add_row(vec!["Docs Path".to_string(), truncated_path]);
-        }
-        
-        // Always show key operational metrics with shorter labels
-        table.add_row(vec!["Documents".to_string(), status.total_documents.to_string()]);
-        table.add_row(vec!["Index Size".to_string(), format!("{} bytes", status.index_size_bytes)]);
-        table.add_row(vec!["Uptime".to_string(), format!("{}s", status.uptime_seconds)]);
-        
-        if detailed {
-            if let Some(last_update) = status.last_index_update {
-                table.add_row(vec!["Last Update".to_string(), last_update]);
-            } else {
-                table.add_row(vec!["Last Update".to_string(), "Never".to_string()]);
-            }
-        }
-        
-        println!("{}", table);
-        
-        // Add explanatory notes
-        if status.total_documents == 0 {
-            println!("{}", "Note: No documents indexed yet. The server is configured to index from the docs path above.".yellow());
-        }
-        
-        Ok(())
-    }
-    
-    /// Format server information
-    pub async fn format_server_info(&self, info: ServerInfo) -> ZeroLatencyResult<()> {
-        println!("{}", "Server Information".green().bold());
-        
-        let mut table = self.create_table();
-        table.add_row(vec!["Host".to_string(), info.host]);
-        table.add_row(vec!["Port".to_string(), info.port.to_string()]);
-        table.add_row(vec!["Status".to_string(), info.status]);
-        table.add_row(vec!["Message".to_string(), info.message]);
         
         println!("{}", table);
         Ok(())

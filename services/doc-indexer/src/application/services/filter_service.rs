@@ -88,8 +88,6 @@ impl IndexingFilters {
             "*.temp".to_string(),
             "*.cache".to_string(),
             ".cache".to_string(),
-            "tmp".to_string(),
-            "temp".to_string(),
             
             // Log files
             "*.log".to_string(),
@@ -187,6 +185,9 @@ impl FilterService {
             .and_then(|name| name.to_str())
             .unwrap_or("");
         
+        tracing::debug!("Checking if should index: {} (file_name: {})", path.display(), file_name);
+        tracing::debug!("Safe list size: {}, Ignore list size: {}", self.filters.safe_list.len(), self.filters.ignore_list.len());
+        
         // Check ignore list first - if matched, always skip
         if self.matches_patterns(&path_str, &file_name, &self.filters.ignore_list) {
             tracing::debug!("Skipping (ignored): {}", path.display());
@@ -195,6 +196,7 @@ impl FilterService {
         
         // If safe list is empty, allow everything (that wasn't ignored)
         if self.filters.safe_list.is_empty() {
+            tracing::debug!("Allowing (safe list empty): {}", path.display());
             return true;
         }
         
@@ -232,6 +234,7 @@ impl FilterService {
     fn matches_patterns(&self, path_str: &str, file_name: &str, patterns: &[String]) -> bool {
         for pattern in patterns {
             if self.matches_pattern(path_str, file_name, pattern) {
+                tracing::debug!("Pattern '{}' matched file: {}", pattern, path_str);
                 return true;
             }
         }
