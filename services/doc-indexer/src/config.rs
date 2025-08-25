@@ -254,6 +254,14 @@ impl Config {
                         .unwrap_or_else(|_| "10000".to_string())
                         .parse()
                         .unwrap_or(10000),
+                    enable_string_interning: std::env::var("DOC_INDEXER_EMBEDDED_STRING_INTERNING")
+                        .unwrap_or_else(|_| "true".to_string())
+                        .parse()
+                        .unwrap_or(true),
+                    enable_smart_caching: std::env::var("DOC_INDEXER_EMBEDDED_SMART_CACHING")
+                        .unwrap_or_else(|_| "true".to_string())
+                        .parse()
+                        .unwrap_or(true),
                 },
             },
             
@@ -285,6 +293,10 @@ impl Config {
                         .unwrap_or_else(|_| "42".to_string())
                         .parse()
                         .unwrap_or(42),
+                    enable_vector_pooling: std::env::var("DOC_INDEXER_LOCAL_EMBEDDING_VECTOR_POOLING")
+                        .unwrap_or_else(|_| "true".to_string())
+                        .parse()
+                        .unwrap_or(true),
                 },
             },
             

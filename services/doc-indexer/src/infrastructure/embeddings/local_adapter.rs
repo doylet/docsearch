@@ -6,22 +6,26 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use zero_latency_core::{Result, ZeroLatencyError};
 use zero_latency_vector::EmbeddingGenerator;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use crate::infrastructure::memory::{VectorPool, VectorPoolConfig, PooledVector};
 
 /// Configuration for local embeddings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalEmbeddingConfig {
     pub dimension: usize,
     pub seed: u64,
+    pub enable_vector_pooling: bool,
 }
 
 /// Local embeddings adapter that generates deterministic embeddings
 /// based on text content using a simple algorithm
 pub struct LocalEmbeddingAdapter {
     config: LocalEmbeddingConfig,
+    vector_pool: Option<Arc<VectorPool>>,
 }
 
 impl LocalEmbeddingAdapter {
@@ -31,13 +35,51 @@ impl LocalEmbeddingAdapter {
             return Err(ZeroLatencyError::configuration("Embedding dimension must be greater than 0"));
         }
         
-        Ok(Self { config })
+        let vector_pool = if config.enable_vector_pooling {
+            let pool_config = VectorPoolConfig {
+                max_pool_size: 50,
+                dimension: config.dimension,
+                dimension_tolerance: 16,
+            };
+            Some(Arc::new(VectorPool::new(pool_config)))
+        } else {
+            None
+        };
+        
+        Ok(Self { 
+            config,
+            vector_pool,
+        })
     }
     
-    /// Generate embedding for text using deterministic algorithm
+    /// Generate embedding for text using deterministic algorithm with optional pooling
     fn generate_deterministic_embedding(&self, text: &str) -> Vec<f32> {
-        let mut embedding = vec![0.0; self.config.dimension];
+        let mut embedding = if let Some(ref pool) = self.vector_pool {
+            // Use pooled vector for better memory efficiency
+            let mut pooled = PooledVector::new(pool.clone(), self.config.dimension);
+            pooled.resize(self.config.dimension, 0.0);
+            
+            // Process the embedding in-place
+            self.fill_embedding(&mut pooled, text);
+            
+            // Take ownership to return
+            pooled.into_inner()
+        } else {
+            // Traditional allocation
+            let mut embedding = Vec::with_capacity(self.config.dimension);
+            embedding.resize(self.config.dimension, 0.0);
+            self.fill_embedding(&mut embedding, text);
+            embedding
+        };
         
+        // Normalize the vector to unit length
+        self.normalize_vector(&mut embedding);
+        
+        embedding
+    }
+    
+    /// Fill embedding vector with values based on text content
+    fn fill_embedding(&self, embedding: &mut [f32], text: &str) {
         // Simple but more predictable embedding based on character frequencies
         // This will make similar texts have more similar embeddings
         let chars: Vec<char> = text.to_lowercase().chars().collect();
@@ -61,11 +103,6 @@ impl LocalEmbeddingAdapter {
             let dimension_bias = ((text_hash.wrapping_add(i as u64)) % 1000) as f32 / 10000.0;
             *value += dimension_bias;
         }
-        
-        // Normalize the vector to unit length
-        self.normalize_vector(&mut embedding);
-        
-        embedding
     }
     
     /// Hash text content
@@ -94,6 +131,11 @@ impl LocalEmbeddingAdapter {
         base_hash.hash(&mut hasher);
         seed.hash(&mut hasher);
         hasher.finish()
+    }
+    
+    /// Get vector pool statistics if pooling is enabled
+    pub fn pool_stats(&self) -> Option<String> {
+        self.vector_pool.as_ref().map(|pool| pool.stats().to_string())
     }
     
     /// Normalize vector to unit length
@@ -165,6 +207,7 @@ impl Default for LocalEmbeddingConfig {
         Self {
             dimension: 384, // Common dimension for smaller models
             seed: 42,       // Default seed for reproducibility
+            enable_vector_pooling: true, // Enable memory optimization by default
         }
     }
 }
@@ -184,6 +227,7 @@ mod tests {
         let config = LocalEmbeddingConfig {
             dimension: 128,
             seed: 12345,
+            enable_vector_pooling: true,
         };
         
         let adapter = LocalEmbeddingAdapter::new(config).unwrap();
@@ -266,10 +310,12 @@ mod tests {
         let config1 = LocalEmbeddingConfig {
             dimension: 128,
             seed: 1,
+            enable_vector_pooling: false,
         };
         let config2 = LocalEmbeddingConfig {
             dimension: 128,
             seed: 2,
+            enable_vector_pooling: false,
         };
         
         let adapter1 = LocalEmbeddingAdapter::new(config1).unwrap();

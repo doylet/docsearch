@@ -13,6 +13,7 @@ use serde::{Serialize, Deserialize};
 use zero_latency_core::{Result, ZeroLatencyError, models::HealthStatus, values::Score, Uuid};
 use zero_latency_vector::{VectorRepository, VectorDocument, SimilarityResult, SimilarityCalculator, SimilarityMetric, VectorMetadata};
 use lru::LruCache;
+use crate::infrastructure::memory::{StringInterner, MemoryEfficientCache, CacheConfig};
 
 /// Configuration for embedded vector store
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +24,10 @@ pub struct EmbeddedConfig {
     pub dimension: usize,
     /// Maximum documents to cache in memory
     pub cache_size: usize,
+    /// Enable string interning for metadata optimization
+    pub enable_string_interning: bool,
+    /// Enable memory-efficient caching
+    pub enable_smart_caching: bool,
 }
 
 impl Default for EmbeddedConfig {
@@ -32,6 +37,8 @@ impl Default for EmbeddedConfig {
             db_path: home_dir.join(".zero-latency").join("vectors.db"),
             dimension: 384, // gte-small default
             cache_size: 10000,
+            enable_string_interning: true,
+            enable_smart_caching: true,
         }
     }
 }
@@ -42,6 +49,8 @@ pub struct EmbeddedVectorStore {
     connection: Arc<Mutex<Connection>>,
     config: EmbeddedConfig,
     cache: Arc<Mutex<LruCache<String, Vec<f32>>>>,
+    string_interner: Option<Arc<StringInterner>>,
+    smart_cache: Option<Arc<MemoryEfficientCache<String, Vec<f32>>>>,
 }impl EmbeddedVectorStore {
     /// Create a new embedded vector store
     pub async fn new(config: EmbeddedConfig) -> Result<Self> {
@@ -57,6 +66,24 @@ pub struct EmbeddedVectorStore {
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
         ).map_err(|e| ZeroLatencyError::database(format!("Failed to open database: {}", e)))?;
 
+        // Initialize optional optimizations
+        let string_interner = if config.enable_string_interning {
+            Some(StringInterner::new())
+        } else {
+            None
+        };
+
+        let smart_cache = if config.enable_smart_caching {
+            let cache_config = CacheConfig {
+                max_entries: config.cache_size,
+                max_memory_bytes: 32 * 1024 * 1024, // 32MB
+                ..Default::default()
+            };
+            Some(Arc::new(MemoryEfficientCache::new(cache_config)))
+        } else {
+            None
+        };
+
         let store = Self {
             db_path: config.db_path.clone(),
             connection: Arc::new(Mutex::new(connection)),
@@ -64,6 +91,8 @@ pub struct EmbeddedVectorStore {
             cache: Arc::new(Mutex::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(config.cache_size).unwrap()
             ))),
+            string_interner,
+            smart_cache,
         };
 
         // Initialize database schema
@@ -430,6 +459,8 @@ mod tests {
             db_path: temp_dir.path().join("test_vectors.db"),
             dimension: 3,
             cache_size: 100,
+            enable_string_interning: false,
+            enable_smart_caching: false,
         };
 
         let store = EmbeddedVectorStore::new(config).await.unwrap();
@@ -475,6 +506,8 @@ mod tests {
             db_path: db_path.clone(),
             dimension: 3,
             cache_size: 100,
+            enable_string_interning: false,
+            enable_smart_caching: false,
         };
 
         // Create store and insert data
