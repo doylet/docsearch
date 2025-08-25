@@ -51,7 +51,6 @@ impl ServerCommand {
                 use crate::application::services::cli_service::StatusCommand;
                 
                 let status_command = StatusCommand {
-                    detailed: false, // You could add a --detailed flag later
                 };
                 
                 // Try to get status, but provide helpful error if server isn't running
@@ -74,7 +73,7 @@ impl ServerCommand {
                     host: "localhost".to_string(),
                 };
                 
-                container.cli_service().server(app_command).await?;
+                container.cli_service().start_server(app_command).await?;
                 println!("{}", "Server stop command sent!".bright_green().bold());
             }
             

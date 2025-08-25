@@ -110,7 +110,7 @@ impl DocumentCommand {
     
     async fn list_documents(&self, container: &CliServiceContainer, args: &ListArgs) -> ZeroLatencyResult<()> {
         let response = container
-            .api_client()
+            .document_client()
             .list_documents(args.page, args.limit)
             .await?;
         
@@ -119,7 +119,7 @@ impl DocumentCommand {
     
     async fn get_document(&self, container: &CliServiceContainer, args: &GetArgs) -> ZeroLatencyResult<()> {
         let response = container
-            .api_client()
+            .document_client()
             .get_document(&args.id)
             .await?;
         

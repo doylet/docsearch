@@ -29,7 +29,6 @@ impl StatusCommand {
         println!("{}", "Checking system status...".bright_blue().bold());
         
         let app_command = AppStatusCommand {
-            detailed: self.detailed,
         };
         
         container.cli_service().status(app_command).await?;
