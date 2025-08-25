@@ -154,17 +154,27 @@ impl ServerCommand {
     
     /// Find the doc-indexer binary in expected locations
     fn find_doc_indexer_binary(&self) -> ZeroLatencyResult<String> {
-        let possible_paths = vec![
+        let local_paths = vec![
             "./target/release/doc-indexer",
             "./target/debug/doc-indexer", 
             "./services/doc-indexer/target/release/doc-indexer",
             "./services/doc-indexer/target/debug/doc-indexer",
-            "doc-indexer", // In PATH
         ];
         
-        for path in possible_paths {
+        // Check local paths first
+        for path in local_paths {
             if std::path::Path::new(path).exists() {
                 return Ok(path.to_string());
+            }
+        }
+        
+        // Check if doc-indexer is available in PATH by trying to run it with --help
+        if let Ok(output) = std::process::Command::new("doc-indexer")
+            .arg("--help")
+            .output() 
+        {
+            if output.status.success() {
+                return Ok("doc-indexer".to_string());
             }
         }
         

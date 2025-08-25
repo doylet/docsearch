@@ -50,8 +50,10 @@ impl TableFormatter {
                     println!("{}", "No results found.".yellow());
                 } else {
                     for (index, result) in response.results.iter().enumerate() {
-                        println!("{}. {}", 
+                        let score = format!("{:.3}", result.final_score.value());
+                        println!("{}. {} {}", 
                             (index + 1).to_string().bold(),
+                            format!("({})", score).dimmed(),
                             result.content.trim()
                         );
                         println!("   Source: {}", result.document_path.dimmed());
@@ -64,13 +66,20 @@ impl TableFormatter {
                     println!("{}", "No results found.".yellow());
                 } else {
                     let mut table = self.create_table();
-                    table.set_header(vec!["#", "Content", "Source"]);
+                    table.set_header(vec!["#", "Score", "Content", "Source"]);
                     
                     for (index, result) in response.results.iter().enumerate() {
-                        let source = result.document_path.clone();
+                        // Format the score to 3 decimal places
+                        let score = format!("{:.3}", result.final_score.value());
+                        let source = if !result.document_title.is_empty() && result.document_title != result.document_path {
+                            format!("{} ({})", result.document_title, result.document_path)
+                        } else {
+                            result.document_path.clone()
+                        };
                         
                         table.add_row(vec![
                             (index + 1).to_string(),
+                            score,
                             result.content.trim().to_string(),
                             source,
                         ]);
