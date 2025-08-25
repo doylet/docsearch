@@ -31,6 +31,8 @@ impl ContentTypeDetector {
                 "py" => return ContentType::Python,
                 "sh" | "bash" | "zsh" | "fish" => return ContentType::Shell,
                 "conf" | "config" | "cfg" | "ini" => return ContentType::Config,
+                // Binary and unknown extensions
+                "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => return ContentType::Unknown,
                 _ => {}
             }
         }
@@ -42,6 +44,11 @@ impl ContentTypeDetector {
     /// Detect content type by analyzing content
     fn detect_by_content(content: &str) -> ContentType {
         let content_lower = content.to_lowercase();
+        
+        // Check for binary content (non-UTF8 or binary indicators)
+        if content.contains('\0') || content_lower.contains("binary content") {
+            return ContentType::Unknown;
+        }
         
         // Check for HTML
         if content_lower.contains("<html") || content_lower.contains("<!doctype html") {
@@ -58,7 +65,7 @@ impl ContentTypeDetector {
             return ContentType::Markdown;
         }
 
-        // Default to plain text
+        // Default to plain text for text content
         ContentType::PlainText
     }
 }

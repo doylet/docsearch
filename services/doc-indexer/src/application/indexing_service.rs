@@ -4,7 +4,7 @@
 /// with proper separation of concerns and dependency injection patterns.
 
 use std::sync::Arc;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::collections::HashMap;
 use zero_latency_core::{Result, models::{Document, DocumentMetadata}, Uuid};
 

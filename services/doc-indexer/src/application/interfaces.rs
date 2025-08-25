@@ -6,7 +6,7 @@
 
 use std::path::Path;
 use async_trait::async_trait;
-use zero_latency_core::{Result, DateTime, Utc};
+use zero_latency_core::Result;
 use zero_latency_vector::VectorDocument;
 use zero_latency_search::{SearchRequest, SearchResponse};
 

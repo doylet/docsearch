@@ -3,10 +3,8 @@
 /// This module defines strategy interfaces and implementations for different
 /// indexing approaches. New strategies can be added without modifying existing code.
 
-use std::sync::Arc;
 use std::collections::HashMap;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, models::Document, Uuid};
 use zero_latency_vector::{VectorDocument, VectorMetadata};
 

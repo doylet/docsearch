@@ -34,19 +34,32 @@ impl LocalEmbeddingAdapter {
         Ok(Self { config })
     }
     
-    /// Generate a deterministic embedding for text using a simple algorithm
+    /// Generate embedding for text using deterministic algorithm
     fn generate_deterministic_embedding(&self, text: &str) -> Vec<f32> {
         let mut embedding = vec![0.0; self.config.dimension];
         
-        // Create multiple hash values to fill the embedding vector
-        let base_hash = self.hash_text(text);
+        // Simple but more predictable embedding based on character frequencies
+        // This will make similar texts have more similar embeddings
+        let chars: Vec<char> = text.to_lowercase().chars().collect();
+        let char_count = chars.len();
         
         for (i, value) in embedding.iter_mut().enumerate() {
-            // Create different hash for each dimension
-            let dimension_hash = self.hash_with_seed(base_hash, i as u64);
+            let mut char_sum = 0.0;
             
-            // Convert hash to float in range [-1, 1]
-            *value = ((dimension_hash % 2000) as f32 - 1000.0) / 1000.0;
+            // Sum character values at positions that map to this dimension
+            for (j, &ch) in chars.iter().enumerate() {
+                if (j + self.config.seed as usize) % self.config.dimension == i {
+                    char_sum += (ch as u32) as f32;
+                }
+            }
+            
+            // Normalize by text length and add some dimension-specific variation
+            *value = (char_sum / (char_count.max(1) as f32)) / 1000.0;
+            
+            // Add dimension-specific bias based on text hash
+            let text_hash = self.hash_text(text);
+            let dimension_bias = ((text_hash.wrapping_add(i as u64)) % 1000) as f32 / 10000.0;
+            *value += dimension_bias;
         }
         
         // Normalize the vector to unit length
@@ -58,7 +71,19 @@ impl LocalEmbeddingAdapter {
     /// Hash text content
     fn hash_text(&self, text: &str) -> u64 {
         let mut hasher = DefaultHasher::new();
+        
+        // Hash the full text
         text.hash(&mut hasher);
+        
+        // Also hash character bigrams for better sensitivity to text differences
+        let chars: Vec<char> = text.chars().collect();
+        for window in chars.windows(2) {
+            window.hash(&mut hasher);
+        }
+        
+        // Include word count to differentiate lengths
+        text.split_whitespace().count().hash(&mut hasher);
+        
         self.config.seed.hash(&mut hasher);
         hasher.finish()
     }

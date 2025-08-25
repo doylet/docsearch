@@ -435,8 +435,9 @@ mod tests {
         let store = EmbeddedVectorStore::new(config).await.unwrap();
 
         // Test insert
+        let doc_id = Uuid::new_v4();
         let doc = VectorDocument {
-            id: Uuid::new_v4(),
+            id: doc_id,
             embedding: vec![1.0, 0.0, 0.0],
             metadata: VectorMetadata {
                 document_id: Uuid::new_v4(),
@@ -460,8 +461,8 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].metadata.title, "test1");
 
-        // Test delete
-        assert!(store.delete("test1").await.unwrap());
+        // Test delete - use the document ID, not the title
+        assert!(store.delete(&doc_id.to_string()).await.unwrap());
         assert_eq!(store.count().await.unwrap(), 0);
     }
 

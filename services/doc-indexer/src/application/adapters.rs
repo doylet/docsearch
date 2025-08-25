@@ -42,7 +42,7 @@ impl VectorStorage for VectorStorageAdapter {
         self.repository.delete(document_id).await.map(|_| ())
     }
     
-    async fn has_vectors(&self, document_id: &str) -> Result<bool> {
+    async fn has_vectors(&self, _document_id: &str) -> Result<bool> {
         // This would need to be implemented in the VectorRepository trait
         // For now, we'll return false and implement this later
         Ok(false)
