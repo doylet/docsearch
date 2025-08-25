@@ -46,9 +46,6 @@ impl ConfigCommand {
     }
 
     async fn show_config(&self, container: Option<&CliServiceContainer>) -> ZeroLatencyResult<()> {
-        println!("{}", "Current Configuration".blue().bold());
-        println!();
-
         let config = if let Some(container) = container {
             // Use config from container (respects --config file loading)
             (*container.config()).clone()
@@ -59,23 +56,18 @@ impl ConfigCommand {
             })?
         };
 
-        // Display config in a nice table format
-        println!("┌─────────────────────┬─────────────────────────────────────────┐");
-        println!("│ {}              │ {}                                │", "Setting".cyan().bold(), "Value".cyan().bold());
-        println!("├─────────────────────┼─────────────────────────────────────────┤");
-        println!("│ Server URL          │ {:39} │", config.server_url);
-        println!("│ Collection Name     │ {:39} │", config.collection_name);
-        println!("│ Default Limit       │ {:39} │", config.default_limit);
-        println!("│ Output Format       │ {:39} │", config.output_format);
-        println!("│ Verbose             │ {:39} │", config.verbose);
-        println!("└─────────────────────┴─────────────────────────────────────────┘");
-        println!();
-
         let config_file = CliConfig::config_file().map_err(|e| {
             zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to get config file path: {}", e))
         })?;
-        
-        println!("Config file: {}", config_file.display().to_string().dimmed());
+
+        // Use the proper formatter instead of hardcoded table
+        if let Some(container) = container {
+            container.output_formatter().format_config(&config, &config_file).await?;
+        } else {
+            // Create a temporary formatter if no container available
+            let formatter = crate::infrastructure::output::formatters::TableFormatter::new();
+            formatter.format_config(&config, &config_file).await?;
+        }
         
         Ok(())
     }

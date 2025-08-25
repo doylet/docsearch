@@ -51,7 +51,6 @@ impl ServerCommand {
                 use crate::application::services::cli_service::StatusCommand;
                 
                 let status_command = StatusCommand {
-                    detailed: false, // You could add a --detailed flag later
                 };
                 
                 // Try to get status, but provide helpful error if server isn't running
@@ -74,7 +73,7 @@ impl ServerCommand {
                     host: "localhost".to_string(),
                 };
                 
-                container.cli_service().server(app_command).await?;
+                container.cli_service().start_server(app_command).await?;
                 println!("{}", "Server stop command sent!".bright_green().bold());
             }
             
@@ -155,17 +154,27 @@ impl ServerCommand {
     
     /// Find the doc-indexer binary in expected locations
     fn find_doc_indexer_binary(&self) -> ZeroLatencyResult<String> {
-        let possible_paths = vec![
+        let local_paths = vec![
             "./target/release/doc-indexer",
             "./target/debug/doc-indexer", 
             "./services/doc-indexer/target/release/doc-indexer",
             "./services/doc-indexer/target/debug/doc-indexer",
-            "doc-indexer", // In PATH
         ];
         
-        for path in possible_paths {
+        // Check local paths first
+        for path in local_paths {
             if std::path::Path::new(path).exists() {
                 return Ok(path.to_string());
+            }
+        }
+        
+        // Check if doc-indexer is available in PATH by trying to run it with --help
+        if let Ok(output) = std::process::Command::new("doc-indexer")
+            .arg("--help")
+            .output() 
+        {
+            if output.status.success() {
+                return Ok("doc-indexer".to_string());
             }
         }
         

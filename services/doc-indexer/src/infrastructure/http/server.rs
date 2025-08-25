@@ -211,17 +211,15 @@ mod tests {
     
     #[tokio::test]
     async fn test_router_creation() {
-        // Create test configuration and container
         let config = Config::default();
         let container = Arc::new(
             ServiceContainer::new(config).await.unwrap_or_else(|_| {
-                // Use a mock container for testing
                 panic!("Failed to create container for test")
             })
         );
         
         let server_config = ServerConfig::default();
-        let server = HttpServer::new(server_config, container);
+        let server = HttpServer::new(server_config, container).await.unwrap();
         
         // Should be able to build router without panicking
         let _router = server.build_router();
@@ -242,7 +240,7 @@ mod tests {
             ..Default::default()
         };
         
-        let server = HttpServer::new(server_config, container);
+        let server = HttpServer::new(server_config, container).await.unwrap();
         let _cors_layer = server.build_cors_layer();
     }
 }

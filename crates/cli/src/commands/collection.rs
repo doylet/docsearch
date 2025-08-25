@@ -103,7 +103,7 @@ impl CollectionCommand {
     }
     
     async fn list_collections(&self, container: &CliServiceContainer, args: &ListArgs) -> ZeroLatencyResult<()> {
-        let collections = container.api_client().list_collections().await?;
+        let collections = container.collection_client().list_collections().await?;
         
         match args.format.as_str() {
             "json" => {
@@ -142,7 +142,7 @@ impl CollectionCommand {
     }
     
     async fn get_collection(&self, container: &CliServiceContainer, args: &GetArgs) -> ZeroLatencyResult<()> {
-        let response = container.api_client().get_collection(&args.name).await?;
+        let response = container.collection_client().get_collection(&args.name).await?;
         
         if !response.found {
             println!("Collection '{}' not found", args.name);
@@ -215,7 +215,7 @@ impl CollectionCommand {
             description: args.description.clone(),
         };
         
-        let response = container.api_client().create_collection(request).await?;
+        let response = container.collection_client().create_collection(request).await?;
         
         if response.success {
             println!("Collection created successfully: {}", response.message);
@@ -245,7 +245,7 @@ impl CollectionCommand {
             }
         }
         
-        let response = container.api_client().delete_collection(&args.name).await?;
+        let response = container.collection_client().delete_collection(&args.name).await?;
         
         if response.success {
             println!("Collection deleted successfully: {}", response.message);
@@ -257,7 +257,7 @@ impl CollectionCommand {
     }
     
     async fn get_collection_stats(&self, container: &CliServiceContainer, args: &StatsArgs) -> ZeroLatencyResult<()> {
-        let response = container.api_client().get_collection_stats(&args.name).await?;
+        let response = container.collection_client().get_collection_stats(&args.name).await?;
         
         if !response.found {
             println!("Collection '{}' not found", args.name);

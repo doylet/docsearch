@@ -351,7 +351,7 @@ impl DocumentIndexingService {
             .collect();
         
         let mut chunks = Vec::new();
-        let chunk_size = 3; // 3 sentences per chunk
+        let chunk_size = 50; // 50 sentences per chunk (much more reasonable)
         
         for (i, chunk_sentences) in sentences.chunks(chunk_size).enumerate() {
             let content = chunk_sentences.join(". ") + ".";

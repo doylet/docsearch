@@ -7,7 +7,7 @@ use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
 use zero_latency_search::SearchResponse;
 
 use crate::application::services::cli_service::IndexResponse;
-use crate::infrastructure::http::api_client::{StatusResponse, ServerInfo};
+use crate::infrastructure::http::server_client::{StatusResponse, ServerInfo};
 
 /// Table-based output formatter for CLI command results.
 /// 
@@ -50,8 +50,10 @@ impl TableFormatter {
                     println!("{}", "No results found.".yellow());
                 } else {
                     for (index, result) in response.results.iter().enumerate() {
-                        println!("{}. {}", 
+                        let score = format!("{:.3}", result.final_score.value());
+                        println!("{}. {} {}", 
                             (index + 1).to_string().bold(),
+                            format!("({})", score).dimmed(),
                             result.content.trim()
                         );
                         println!("   Source: {}", result.document_path.dimmed());
@@ -64,13 +66,20 @@ impl TableFormatter {
                     println!("{}", "No results found.".yellow());
                 } else {
                     let mut table = self.create_table();
-                    table.set_header(vec!["#", "Content", "Source"]);
+                    table.set_header(vec!["#", "Score", "Content", "Source"]);
                     
                     for (index, result) in response.results.iter().enumerate() {
-                        let source = result.document_path.clone();
+                        // Format the score to 3 decimal places
+                        let score = format!("{:.3}", result.final_score.value());
+                        let source = if !result.document_title.is_empty() && result.document_title != result.document_path {
+                            format!("{} ({})", result.document_title, result.document_path)
+                        } else {
+                            result.document_path.clone()
+                        };
                         
                         table.add_row(vec![
                             (index + 1).to_string(),
+                            score,
                             result.content.trim().to_string(),
                             source,
                         ]);
@@ -280,6 +289,32 @@ impl TableFormatter {
                 }
             }
         }
+        Ok(())
+    }
+    
+    /// Format configuration display
+    pub async fn format_config(&self, config: &crate::config::CliConfig, config_file_path: &Path) -> ZeroLatencyResult<()> {
+        println!("{}", "Current Configuration".blue().bold());
+        println!();
+        
+        let mut table = self.create_table();
+        table.set_header(vec![
+            "Setting".to_string(),
+            "Value".to_string()
+        ]);
+        
+        table.add_rows(vec![
+            vec!["Server URL".to_string(), config.server_url.clone()],
+            vec!["Collection Name".to_string(), config.collection_name.clone()],
+            vec!["Default Limit".to_string(), config.default_limit.to_string()],
+            vec!["Output Format".to_string(), config.output_format.clone()],
+            vec!["Verbose".to_string(), config.verbose.to_string()],
+        ]);
+        
+        println!("{}", table);
+        println!();
+        println!("Config file: {}", config_file_path.display().to_string().dimmed());
+        
         Ok(())
     }
 }
