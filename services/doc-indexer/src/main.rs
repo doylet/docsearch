@@ -1,19 +1,18 @@
-/// Doc-Indexer service main entry point
-/// 
-/// This service provides document indexing and search capabilities using
-/// a clean architecture with shared domain crates.
-
-use std::sync::Arc;
 use anyhow::Result;
 use clap::Parser;
-use tracing::{info, error};
+/// Doc-Indexer service main entry point
+///
+/// This service provides document indexing and search capabilities using
+/// a clean architecture with shared domain crates.
+use std::sync::Arc;
+use tracing::{error, info};
 
-mod config;
 mod application;
+mod config;
 mod infrastructure;
 
-use config::Config;
 use application::ServiceContainer;
+use config::Config;
 use infrastructure::HttpServer;
 
 #[derive(Parser)]
@@ -96,7 +95,8 @@ async fn main() -> Result<()> {
 
     // Check if stdio mode is requested
     if cli.stdio || cli.batch {
-        let app_state = infrastructure::http::handlers::AppState::new_async(container.clone()).await
+        let app_state = infrastructure::http::handlers::AppState::new_async(container.clone())
+            .await
             .map_err(|e| anyhow::Error::msg(format!("Failed to initialize app state: {}", e)))?;
 
         if cli.batch {
@@ -104,7 +104,10 @@ async fn main() -> Result<()> {
             let batch_processor = infrastructure::stdio::StdioBatchProcessor::new(app_state);
             if let Err(e) = batch_processor.process_batch().await {
                 error!("Stdio batch processing error: {}", e);
-                return Err(anyhow::Error::msg(format!("Stdio batch processing error: {}", e)));
+                return Err(anyhow::Error::msg(format!(
+                    "Stdio batch processing error: {}",
+                    e
+                )));
             }
         } else {
             info!("Starting stdio JSON-RPC mode");
@@ -120,11 +123,15 @@ async fn main() -> Result<()> {
     }
 
     // Create and start HTTP server
-    let server = HttpServer::new(config.server.clone(), container).await
+    let server = HttpServer::new(config.server.clone(), container)
+        .await
         .map_err(|e| anyhow::Error::msg(format!("Failed to create HTTP server: {}", e)))?;
-    
-    info!("Starting HTTP server on {}:{}", config.server.host, config.server.port);
-    
+
+    info!(
+        "Starting HTTP server on {}:{}",
+        config.server.host, config.server.port
+    );
+
     if let Err(e) = server.start().await {
         error!("HTTP server error: {}", e);
         return Err(anyhow::Error::msg(format!("HTTP server error: {}", e)));
@@ -137,7 +144,7 @@ async fn main() -> Result<()> {
 /// Initialize logging and tracing based on configuration
 fn init_logging(log_level: &str, structured: bool) {
     use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-    
+
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(format!("doc_indexer={},zero_latency_core=info,zero_latency_search=info,zero_latency_vector=info,zero_latency_observability=info", log_level)));
 
@@ -147,27 +154,41 @@ fn init_logging(log_level: &str, structured: bool) {
     if structured {
         // Structured JSON logging for production
         subscriber
-            .with(fmt::layer().json().with_target(false).with_current_span(false))
+            .with(
+                fmt::layer()
+                    .json()
+                    .with_target(false)
+                    .with_current_span(false),
+            )
             .init();
     } else {
         // Human-readable logging for development
-        subscriber
-            .with(fmt::layer().with_target(false))
-            .init();
+        subscriber.with(fmt::layer().with_target(false)).init();
     }
-    
-    tracing::info!("Tracing initialized with level: {}, structured: {}", log_level, structured);
+
+    tracing::info!(
+        "Tracing initialized with level: {}, structured: {}",
+        log_level,
+        structured
+    );
 }
 
 /// Load configuration from file or environment
-async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &std::path::Path) -> Result<Config> {
+async fn load_config(
+    config_file: Option<&str>,
+    port_override: u16,
+    docs_path: &std::path::Path,
+) -> Result<Config> {
     let mut config = if let Some(path) = config_file {
         info!("Loading configuration from file: {}", path);
         Config::from_file(path)?
     } else {
         info!("Loading configuration from environment variables");
         Config::from_env().unwrap_or_else(|e| {
-            info!("Failed to load config from environment ({}), using defaults", e);
+            info!(
+                "Failed to load config from environment ({}), using defaults",
+                e
+            );
             Config::default()
         })
     };
@@ -183,7 +204,7 @@ async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &
     } else {
         std::path::PathBuf::from("~/Documents")
     };
-    
+
     if docs_path != default_docs_path {
         // Convert to absolute path using the current working directory
         if docs_path.is_absolute() {
@@ -219,13 +240,17 @@ async fn load_config(config_file: Option<&str>, port_override: u16, docs_path: &
         // Canonicalize the default path as well
         if config.service.docs_path.is_absolute() {
             // Already absolute, try to canonicalize
-            config.service.docs_path = config.service.docs_path.canonicalize()
+            config.service.docs_path = config
+                .service
+                .docs_path
+                .canonicalize()
                 .unwrap_or_else(|_| config.service.docs_path.clone());
         } else {
             let absolute_path = std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
                 .join(&config.service.docs_path);
-            config.service.docs_path = absolute_path.canonicalize()
+            config.service.docs_path = absolute_path
+                .canonicalize()
                 .unwrap_or_else(|_| absolute_path);
         }
     }

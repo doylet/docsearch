@@ -1,22 +1,24 @@
+use std::collections::HashMap;
+use std::path::Path;
 /// Document indexing service with dependency injection
-/// 
+///
 /// This service provides a clean, testable interface for document indexing
 /// with proper separation of concerns and dependency injection patterns.
-
 use std::sync::Arc;
-use std::path::Path;
-use std::collections::HashMap;
-use zero_latency_core::{Result, models::{Document, DocumentMetadata}, Uuid};
-
-use crate::application::interfaces::{
-    VectorStorage, EmbeddingService, FileSystemService,
-    ProgressTracker, FilteringService, CollectionManager
+use zero_latency_core::{
+    models::{Document, DocumentMetadata},
+    Result, Uuid,
 };
+
 use crate::application::content_processing::ContentProcessor;
 use crate::application::indexing_strategies::{IndexingStrategy, StandardIndexingStrategy};
+use crate::application::interfaces::{
+    CollectionManager, EmbeddingService, FileSystemService, FilteringService, ProgressTracker,
+    VectorStorage,
+};
 
 /// Document indexing service with dependency injection
-/// 
+///
 /// This service demonstrates clean architecture principles:
 /// - Single Responsibility: Only coordinates document indexing workflow
 /// - Open-Closed: Extensible via strategy injection
@@ -31,17 +33,17 @@ pub struct IndexingService {
     filtering: Arc<dyn FilteringService>,
     progress_tracker: Arc<dyn ProgressTracker>,
     collection_manager: Arc<dyn CollectionManager>,
-    
+
     // Strategy for indexing behavior (OCP)
     indexing_strategy: Arc<dyn IndexingStrategy>,
-    
+
     // Content processing (already SOLID-compliant)
     content_processor: ContentProcessor,
 }
 
 impl IndexingService {
     /// Create a new service with injected dependencies
-    /// 
+    ///
     /// This constructor follows DIP by accepting abstractions rather than concretions
     pub fn new(
         vector_storage: Arc<dyn VectorStorage>,
@@ -60,15 +62,14 @@ impl IndexingService {
             filtering,
             progress_tracker,
             collection_manager,
-            indexing_strategy: indexing_strategy.unwrap_or_else(|| 
-                Arc::new(StandardIndexingStrategy::new())
-            ),
+            indexing_strategy: indexing_strategy
+                .unwrap_or_else(|| Arc::new(StandardIndexingStrategy::new())),
             content_processor: content_processor.unwrap_or_else(ContentProcessor::new),
         }
     }
 
     /// Index a single document
-    /// 
+    ///
     /// This method orchestrates the indexing workflow while delegating
     /// specific responsibilities to injected services (SRP)
     pub async fn index_document(&self, document: Document, collection: &str) -> Result<()> {
@@ -87,7 +88,7 @@ impl IndexingService {
     }
 
     /// Index a file by path
-    /// 
+    ///
     /// Orchestrates file reading, content processing, and indexing
     pub async fn index_file(&self, path: &Path, collection: &str) -> Result<bool> {
         // Check if file should be indexed (delegation to filtering service)
@@ -122,13 +123,15 @@ impl IndexingService {
         };
 
         // Detect content type from file extension
-        let content_type = path.extension()
+        let content_type = path
+            .extension()
             .and_then(|ext| ext.to_str())
             .map(|ext| format!("text/{}", ext.to_lowercase()))
             .unwrap_or("text/plain".to_string());
 
         // Extract title from path
-        let title = path.file_stem()
+        let title = path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("untitled")
             .to_string();
@@ -166,9 +169,14 @@ impl IndexingService {
     }
 
     /// Index a directory recursively
-    /// 
+    ///
     /// Orchestrates directory traversal and file indexing
-    pub fn index_directory<'a>(&'a self, dir: &'a Path, collection: &'a str, recursive: bool) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
+    pub fn index_directory<'a>(
+        &'a self,
+        dir: &'a Path,
+        collection: &'a str,
+        recursive: bool,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
         Box::pin(async move {
             let mut files_indexed = 0u64;
 
@@ -182,7 +190,7 @@ impl IndexingService {
 
             // List directory contents
             let entries = self.file_system.list_directory(dir).await?;
-            
+
             for entry in entries {
                 if self.file_system.is_file(&entry).await? {
                     if self.index_file(&entry, collection).await? {
@@ -209,13 +217,16 @@ impl IndexingService {
     }
 
     /// Get collection statistics
-    pub async fn get_collection_stats(&self, name: &str) -> Result<crate::application::interfaces::CollectionStats> {
+    pub async fn get_collection_stats(
+        &self,
+        name: &str,
+    ) -> Result<crate::application::interfaces::CollectionStats> {
         self.collection_manager.get_collection_stats(name).await
     }
 }
 
 /// Builder pattern for creating IndexingService
-/// 
+///
 /// This builder follows the Builder pattern and makes dependency injection easier
 pub struct IndexingServiceBuilder {
     vector_storage: Option<Arc<dyn VectorStorage>>,
@@ -284,18 +295,24 @@ impl IndexingServiceBuilder {
 
     pub fn build(self) -> Result<IndexingService> {
         Ok(IndexingService::new(
-            self.vector_storage.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("VectorStorage is required"))?,
-            self.embedding_service.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("EmbeddingService is required"))?,
-            self.file_system.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("FileSystemService is required"))?,
-            self.filtering.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("FilteringService is required"))?,
-            self.progress_tracker.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("ProgressTracker is required"))?,
-            self.collection_manager.ok_or_else(|| 
-                zero_latency_core::ZeroLatencyError::configuration("CollectionManager is required"))?,
+            self.vector_storage.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("VectorStorage is required")
+            })?,
+            self.embedding_service.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("EmbeddingService is required")
+            })?,
+            self.file_system.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("FileSystemService is required")
+            })?,
+            self.filtering.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("FilteringService is required")
+            })?,
+            self.progress_tracker.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("ProgressTracker is required")
+            })?,
+            self.collection_manager.ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::configuration("CollectionManager is required")
+            })?,
             self.indexing_strategy,
             self.content_processor,
         ))

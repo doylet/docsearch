@@ -1,15 +1,14 @@
 /// Stdio transport for JSON-RPC communication
-/// 
+///
 /// This module provides stdin/stdout JSON-RPC transport, enabling
 /// doc-indexer to be used as a subprocess for process-to-process communication.
-
 use std::io::{self, BufRead, BufReader, Write};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use crate::infrastructure::{
     http::handlers::AppState,
-    jsonrpc::{handlers::route_method, JsonRpcRequest, JsonRpcResponse, JsonRpcError},
+    jsonrpc::{handlers::route_method, JsonRpcError, JsonRpcRequest, JsonRpcResponse},
 };
 
 /// Stdio JSON-RPC server
@@ -27,17 +26,17 @@ impl StdioServer {
     /// Reads JSON-RPC requests from stdin and writes responses to stdout
     pub async fn start(&self) -> io::Result<()> {
         info!("Starting stdio JSON-RPC server");
-        
+
         let stdin = io::stdin();
         let reader = BufReader::new(stdin);
-        
+
         for line in reader.lines() {
             match line {
                 Ok(line) => {
                     if line.trim().is_empty() {
                         continue;
                     }
-                    
+
                     let response = self.handle_line(&line).await;
                     self.write_response(&response)?;
                 }
@@ -47,7 +46,7 @@ impl StdioServer {
                 }
             }
         }
-        
+
         info!("Stdio JSON-RPC server stopped");
         Ok(())
     }
@@ -56,15 +55,15 @@ impl StdioServer {
     /// This version allows for non-blocking operation
     pub async fn start_async(&self) -> io::Result<()> {
         info!("Starting async stdio JSON-RPC server");
-        
+
         let (tx, mut rx) = mpsc::channel::<String>(100);
-        
+
         // Spawn stdin reader task
         let stdin_tx = tx.clone();
         tokio::spawn(async move {
             let stdin = io::stdin();
             let reader = BufReader::new(stdin);
-            
+
             for line in reader.lines() {
                 match line {
                     Ok(line) => {
@@ -88,7 +87,7 @@ impl StdioServer {
                 break;
             }
         }
-        
+
         info!("Async stdio JSON-RPC server stopped");
         Ok(())
     }
@@ -98,14 +97,9 @@ impl StdioServer {
         match serde_json::from_str::<JsonRpcRequest>(line) {
             Ok(request) => {
                 info!("Processing JSON-RPC request: {}", request.method);
-                
+
                 // Route the request through our existing handler
-                route_method(
-                    &request.method,
-                    request.params,
-                    request.id,
-                    &self.app_state,
-                ).await
+                route_method(&request.method, request.params, request.id, &self.app_state).await
             }
             Err(e) => {
                 warn!("Invalid JSON-RPC request: {}", e);
@@ -118,10 +112,10 @@ impl StdioServer {
     fn write_response(&self, response: &JsonRpcResponse) -> io::Result<()> {
         let json = serde_json::to_string(response)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        
+
         println!("{}", json);
         io::stdout().flush()?;
-        
+
         Ok(())
     }
 }
@@ -141,18 +135,18 @@ impl StdioBatchProcessor {
     /// Each line should contain a JSON-RPC request
     pub async fn process_batch(&self) -> io::Result<()> {
         info!("Starting stdio batch processing");
-        
+
         let stdin = io::stdin();
         let reader = BufReader::new(stdin);
         let mut requests = Vec::new();
-        
+
         // Read all requests from stdin
         for line in reader.lines() {
             let line = line?;
             if line.trim().is_empty() {
                 break; // Empty line signals end of batch
             }
-            
+
             match serde_json::from_str::<JsonRpcRequest>(&line) {
                 Ok(request) => requests.push(request),
                 Err(e) => {
@@ -160,28 +154,24 @@ impl StdioBatchProcessor {
                 }
             }
         }
-        
+
         info!("Processing {} requests in batch", requests.len());
-        
+
         // Process all requests and collect responses
         let mut responses = Vec::new();
         for request in requests {
-            let response = route_method(
-                &request.method,
-                request.params,
-                request.id,
-                &self.app_state,
-            ).await;
+            let response =
+                route_method(&request.method, request.params, request.id, &self.app_state).await;
             responses.push(response);
         }
-        
+
         // Output all responses
         for response in responses {
             let json = serde_json::to_string(&response)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             println!("{}", json);
         }
-        
+
         info!("Batch processing completed");
         Ok(())
     }

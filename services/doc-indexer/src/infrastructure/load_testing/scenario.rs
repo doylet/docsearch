@@ -1,13 +1,12 @@
+use serde_json::Value;
 /// Load Testing Scenarios
-/// 
+///
 /// Defines realistic production workload scenarios for comprehensive
 /// performance testing and memory optimization validation.
-
 use std::collections::HashMap;
 use std::time::Duration;
-use zero_latency_search::{SearchRequest, SearchFilters, SearchOptions};
 use zero_latency_core::values::SearchQuery;
-use serde_json::Value;
+use zero_latency_search::{SearchFilters, SearchOptions, SearchRequest};
 
 /// Embedding input for load testing scenarios
 #[derive(Debug, Clone)]
@@ -21,7 +20,7 @@ pub struct EmbeddingInput {
 pub struct ScenarioConfig {
     pub name: String,
     pub description: String,
-    pub weight: f32,  // Relative frequency in mixed workloads
+    pub weight: f32, // Relative frequency in mixed workloads
     pub timeout: Duration,
 }
 
@@ -30,13 +29,13 @@ pub trait LoadTestScenario: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
     fn config(&self) -> &ScenarioConfig;
-    
+
     /// Generate a request for this scenario
     fn generate_request(&self) -> ScenarioRequest;
-    
+
     /// Validate the response for correctness
     fn validate_response(&self, response: &ScenarioResponse) -> Result<(), String>;
-    
+
     /// Get expected memory usage pattern
     fn expected_memory_pattern(&self) -> MemoryPattern;
 }
@@ -65,7 +64,7 @@ pub enum ScenarioResponse {
 pub struct MemoryPattern {
     pub baseline_mb: f64,
     pub peak_mb: f64,
-    pub growth_rate: f64,  // MB per operation
+    pub growth_rate: f64, // MB per operation
     pub should_stabilize: bool,
 }
 
@@ -99,15 +98,21 @@ impl EmbeddingIntensiveScenario {
 }
 
 impl LoadTestScenario for EmbeddingIntensiveScenario {
-    fn name(&self) -> &str { &self.config.name }
-    fn description(&self) -> &str { &self.config.description }
-    fn config(&self) -> &ScenarioConfig { &self.config }
-    
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+    fn description(&self) -> &str {
+        &self.config.description
+    }
+    fn config(&self) -> &ScenarioConfig {
+        &self.config
+    }
+
     fn generate_request(&self) -> ScenarioRequest {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let doc = &self.document_pool[rng.gen_range(0..self.document_pool.len())];
-        
+
         ScenarioRequest::Embedding(EmbeddingInput {
             text: doc.clone(),
             metadata: Some(serde_json::json!({
@@ -116,28 +121,32 @@ impl LoadTestScenario for EmbeddingIntensiveScenario {
             })),
         })
     }
-    
+
     fn validate_response(&self, response: &ScenarioResponse) -> Result<(), String> {
         match response {
             ScenarioResponse::Embedding(embedding) => {
                 if embedding.is_empty() {
                     Err("Empty embedding vector".to_string())
-                } else if embedding.len() != 384 {  // Expected embedding dimension
-                    Err(format!("Unexpected embedding dimension: {}", embedding.len()))
+                } else if embedding.len() != 384 {
+                    // Expected embedding dimension
+                    Err(format!(
+                        "Unexpected embedding dimension: {}",
+                        embedding.len()
+                    ))
                 } else {
                     Ok(())
                 }
-            },
+            }
             ScenarioResponse::Error(err) => Err(format!("Embedding error: {}", err)),
             _ => Err("Unexpected response type for embedding scenario".to_string()),
         }
     }
-    
+
     fn expected_memory_pattern(&self) -> MemoryPattern {
         MemoryPattern {
             baseline_mb: 50.0,
             peak_mb: 200.0,
-            growth_rate: 0.1,  // Should be minimal with vector pooling
+            growth_rate: 0.1, // Should be minimal with vector pooling
             should_stabilize: true,
         }
     }
@@ -154,7 +163,8 @@ impl SearchIntensiveScenario {
         Self {
             config: ScenarioConfig {
                 name: "search_intensive".to_string(),
-                description: "High-frequency search requests with diverse query patterns".to_string(),
+                description: "High-frequency search requests with diverse query patterns"
+                    .to_string(),
                 weight: 0.3,
                 timeout: Duration::from_secs(3),
             },
@@ -170,15 +180,21 @@ impl SearchIntensiveScenario {
 }
 
 impl LoadTestScenario for SearchIntensiveScenario {
-    fn name(&self) -> &str { &self.config.name }
-    fn description(&self) -> &str { &self.config.description }
-    fn config(&self) -> &ScenarioConfig { &self.config }
-    
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+    fn description(&self) -> &str {
+        &self.config.description
+    }
+    fn config(&self) -> &ScenarioConfig {
+        &self.config
+    }
+
     fn generate_request(&self) -> ScenarioRequest {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let query = &self.query_pool[rng.gen_range(0..self.query_pool.len())];
-        
+
         ScenarioRequest::Search(SearchRequest {
             query: SearchQuery::new(query.clone()),
             limit: rng.gen_range(1..=10),
@@ -187,7 +203,7 @@ impl LoadTestScenario for SearchIntensiveScenario {
             options: SearchOptions::default(),
         })
     }
-    
+
     fn validate_response(&self, response: &ScenarioResponse) -> Result<(), String> {
         match response {
             ScenarioResponse::Search(results) => {
@@ -196,17 +212,17 @@ impl LoadTestScenario for SearchIntensiveScenario {
                 } else {
                     Ok(())
                 }
-            },
+            }
             ScenarioResponse::Error(err) => Err(format!("Search error: {}", err)),
             _ => Err("Unexpected response type for search scenario".to_string()),
         }
     }
-    
+
     fn expected_memory_pattern(&self) -> MemoryPattern {
         MemoryPattern {
             baseline_mb: 30.0,
             peak_mb: 150.0,
-            growth_rate: 0.05,  // Should be minimal with smart caching
+            growth_rate: 0.05, // Should be minimal with smart caching
             should_stabilize: true,
         }
     }
@@ -224,7 +240,9 @@ impl MixedWorkloadScenario {
         Self {
             config: ScenarioConfig {
                 name: "mixed_workload".to_string(),
-                description: "Realistic production workload with mixed embedding and search operations".to_string(),
+                description:
+                    "Realistic production workload with mixed embedding and search operations"
+                        .to_string(),
                 weight: 0.3,
                 timeout: Duration::from_secs(10),
             },
@@ -235,14 +253,20 @@ impl MixedWorkloadScenario {
 }
 
 impl LoadTestScenario for MixedWorkloadScenario {
-    fn name(&self) -> &str { &self.config.name }
-    fn description(&self) -> &str { &self.config.description }
-    fn config(&self) -> &ScenarioConfig { &self.config }
-    
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+    fn description(&self) -> &str {
+        &self.config.description
+    }
+    fn config(&self) -> &ScenarioConfig {
+        &self.config
+    }
+
     fn generate_request(&self) -> ScenarioRequest {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        
+
         // 70% embedding, 30% search for realistic workload
         if rng.gen::<f32>() < 0.7 {
             self.embedding_scenario.generate_request()
@@ -250,7 +274,7 @@ impl LoadTestScenario for MixedWorkloadScenario {
             self.search_scenario.generate_request()
         }
     }
-    
+
     fn validate_response(&self, response: &ScenarioResponse) -> Result<(), String> {
         match response {
             ScenarioResponse::Embedding(_) => self.embedding_scenario.validate_response(response),
@@ -259,12 +283,12 @@ impl LoadTestScenario for MixedWorkloadScenario {
             _ => Err("Unexpected response type for mixed workload scenario".to_string()),
         }
     }
-    
+
     fn expected_memory_pattern(&self) -> MemoryPattern {
         MemoryPattern {
             baseline_mb: 60.0,
             peak_mb: 250.0,
-            growth_rate: 0.08,  // Combination of both scenarios
+            growth_rate: 0.08, // Combination of both scenarios
             should_stabilize: true,
         }
     }

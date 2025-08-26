@@ -1,11 +1,10 @@
+use crate::infrastructure::ServerConfig;
 /// Configuration management for doc-indexer service
-/// 
+///
 /// This module handles loading and validating configuration from various sources
 /// including environment variables, configuration files, and command line arguments.
-
 use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, ZeroLatencyError};
-use crate::infrastructure::ServerConfig;
 
 // For simpler compilation, we'll include all config types but make implementations conditional
 // This allows configuration to be loaded regardless of features, but actual usage is gated
@@ -47,10 +46,10 @@ pub struct EmbeddedConfig {
 
 // Import actual types when features are enabled
 #[cfg(feature = "cloud")]
-use crate::infrastructure::{QdrantConfig, OpenAIConfig};
+use crate::infrastructure::{OpenAIConfig, QdrantConfig};
 
 #[cfg(feature = "embedded")]
-use crate::infrastructure::{LocalEmbeddingConfig, EmbeddedConfig};
+use crate::infrastructure::{EmbeddedConfig, LocalEmbeddingConfig};
 
 /// Load testing configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,16 +99,16 @@ pub struct ProductionConfig {
     pub health_check_enabled: bool,
     pub health_check_interval_seconds: u64,
     pub health_check_timeout_seconds: u64,
-    
+
     /// Monitoring configuration
     pub monitoring_enabled: bool,
     pub metrics_collection_interval_seconds: u64,
     pub performance_alerts_enabled: bool,
-    
+
     /// Shutdown configuration
     pub graceful_shutdown_timeout_seconds: u64,
     pub shutdown_signal_handlers: bool,
-    
+
     /// Startup validation configuration
     pub startup_validation_enabled: bool,
     pub startup_timeout_seconds: u64,
@@ -135,10 +134,12 @@ impl Default for ProductionConfig {
                 .ok()
                 .map(|v| v.to_lowercase() == "true")
                 .unwrap_or(true),
-            metrics_collection_interval_seconds: std::env::var("METRICS_COLLECTION_INTERVAL_SECONDS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(10),
+            metrics_collection_interval_seconds: std::env::var(
+                "METRICS_COLLECTION_INTERVAL_SECONDS",
+            )
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10),
             performance_alerts_enabled: std::env::var("PERFORMANCE_ALERTS_ENABLED")
                 .ok()
                 .map(|v| v.to_lowercase() == "true")
@@ -172,22 +173,22 @@ impl Default for ProductionConfig {
 pub struct Config {
     /// HTTP server configuration
     pub server: ServerConfig,
-    
+
     /// Vector storage configuration
     pub vector: VectorConfig,
-    
+
     /// Embedding generation configuration
     pub embedding: EmbeddingConfig,
-    
+
     /// Logging configuration
     pub logging: LoggingConfig,
-    
+
     /// Service-specific settings
     pub service: ServiceConfig,
-    
+
     /// Load testing configuration
     pub load_testing: LoadTestingConfig,
-    
+
     /// Production deployment configuration
     pub production: ProductionConfig,
 }
@@ -197,10 +198,10 @@ pub struct Config {
 pub struct VectorConfig {
     /// Vector storage backend type
     pub backend: VectorBackend,
-    
+
     /// Qdrant-specific configuration
     pub qdrant: QdrantConfig,
-    
+
     /// Embedded storage configuration
     pub embedded: EmbeddedConfig,
 }
@@ -210,10 +211,10 @@ pub struct VectorConfig {
 pub struct EmbeddingConfig {
     /// Embedding provider type
     pub provider: EmbeddingProvider,
-    
+
     /// OpenAI-specific configuration
     pub openai: OpenAIConfig,
-    
+
     /// Local embedding configuration
     pub local: LocalEmbeddingConfig,
 }
@@ -223,10 +224,10 @@ pub struct EmbeddingConfig {
 pub struct LoggingConfig {
     /// Log level (trace, debug, info, warn, error)
     pub level: String,
-    
+
     /// Log format (json, pretty)
     pub format: String,
-    
+
     /// Enable structured logging
     pub structured: bool,
 }
@@ -236,28 +237,28 @@ pub struct LoggingConfig {
 pub struct ServiceConfig {
     /// Service name
     pub name: String,
-    
+
     /// Service version
     pub version: String,
-    
+
     /// Maximum document size in bytes
     pub max_document_size: usize,
-    
+
     /// Default search result limit
     pub default_search_limit: usize,
-    
+
     /// Maximum search result limit
     pub max_search_limit: usize,
-    
+
     /// Document chunking strategy
     pub chunking_strategy: ChunkingStrategy,
-    
+
     /// Chunk size in characters
     pub chunk_size: usize,
-    
+
     /// Chunk overlap in characters
     pub chunk_overlap: usize,
-    
+
     /// Path to documentation directory to index
     pub docs_path: std::path::PathBuf,
 }
@@ -298,8 +299,7 @@ impl Config {
     pub fn from_env() -> Result<Self> {
         let config = Config {
             server: ServerConfig {
-                host: std::env::var("DOC_INDEXER_HOST")
-                    .unwrap_or_else(|_| "0.0.0.0".to_string()),
+                host: std::env::var("DOC_INDEXER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
                 port: std::env::var("DOC_INDEXER_PORT")
                     .unwrap_or_else(|_| "8080".to_string())
                     .parse()
@@ -319,7 +319,7 @@ impl Config {
                     .map(|s| s.trim().to_string())
                     .collect(),
             },
-            
+
             vector: VectorConfig {
                 backend: std::env::var("DOC_INDEXER_VECTOR_BACKEND")
                     .unwrap_or_else(|_| "embedded".to_string())
@@ -385,7 +385,7 @@ impl Config {
                         .unwrap_or(true),
                 },
             },
-            
+
             embedding: EmbeddingConfig {
                 provider: std::env::var("DOC_INDEXER_EMBEDDING_PROVIDER")
                     .unwrap_or_else(|_| "local".to_string())
@@ -414,13 +414,15 @@ impl Config {
                         .unwrap_or_else(|_| "42".to_string())
                         .parse()
                         .unwrap_or(42),
-                    enable_vector_pooling: std::env::var("DOC_INDEXER_LOCAL_EMBEDDING_VECTOR_POOLING")
-                        .unwrap_or_else(|_| "true".to_string())
-                        .parse()
-                        .unwrap_or(true),
+                    enable_vector_pooling: std::env::var(
+                        "DOC_INDEXER_LOCAL_EMBEDDING_VECTOR_POOLING",
+                    )
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
                 },
             },
-            
+
             logging: LoggingConfig {
                 level: std::env::var("DOC_INDEXER_LOG_LEVEL")
                     .unwrap_or_else(|_| "info".to_string()),
@@ -431,7 +433,7 @@ impl Config {
                     .parse()
                     .unwrap_or(false),
             },
-            
+
             service: ServiceConfig {
                 name: "doc-indexer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
@@ -470,60 +472,72 @@ impl Config {
                         }
                     }),
             },
-            
+
             load_testing: LoadTestingConfig::default(),
             production: ProductionConfig::default(),
         };
-        
+
         config.validate()?;
         Ok(config)
     }
-    
+
     /// Load configuration from a TOML file
     pub fn from_file(path: &str) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ZeroLatencyError::configuration(format!("Failed to read config file: {}", e)))?;
-        
-        let config: Config = toml::from_str(&content)
-            .map_err(|e| ZeroLatencyError::configuration(format!("Failed to parse config file: {}", e)))?;
-        
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            ZeroLatencyError::configuration(format!("Failed to read config file: {}", e))
+        })?;
+
+        let config: Config = toml::from_str(&content).map_err(|e| {
+            ZeroLatencyError::configuration(format!("Failed to parse config file: {}", e))
+        })?;
+
         config.validate()?;
         Ok(config)
     }
-    
+
     /// Validate the configuration
     pub fn validate(&self) -> Result<()> {
         // Validate server configuration
         if self.server.port == 0 {
-            return Err(ZeroLatencyError::configuration("Server port must be greater than 0"));
+            return Err(ZeroLatencyError::configuration(
+                "Server port must be greater than 0",
+            ));
         }
-        
+
         // Validate embedding configuration
         match self.embedding.provider {
             EmbeddingProvider::OpenAI => {
                 if self.embedding.openai.api_key.is_empty() {
-                    return Err(ZeroLatencyError::configuration("OpenAI API key is required"));
+                    return Err(ZeroLatencyError::configuration(
+                        "OpenAI API key is required",
+                    ));
                 }
             }
             EmbeddingProvider::Local => {
                 if self.embedding.local.dimension == 0 {
-                    return Err(ZeroLatencyError::configuration("Local embedding dimension must be greater than 0"));
+                    return Err(ZeroLatencyError::configuration(
+                        "Local embedding dimension must be greater than 0",
+                    ));
                 }
             }
         }
-        
+
         // Validate service configuration
         if self.service.max_document_size == 0 {
-            return Err(ZeroLatencyError::configuration("Max document size must be greater than 0"));
+            return Err(ZeroLatencyError::configuration(
+                "Max document size must be greater than 0",
+            ));
         }
-        
+
         if self.service.chunk_size == 0 {
-            return Err(ZeroLatencyError::configuration("Chunk size must be greater than 0"));
+            return Err(ZeroLatencyError::configuration(
+                "Chunk size must be greater than 0",
+            ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Get configuration as environment variable examples
     pub fn env_example() -> String {
         r#"# Doc-Indexer Configuration
@@ -567,46 +581,56 @@ DOC_INDEXER_CHUNKING_STRATEGY=sentence
 DOC_INDEXER_CHUNK_SIZE=1000
 DOC_INDEXER_CHUNK_OVERLAP=200
 DOC_INDEXER_DOCS_PATH=~/Documents
-"#.to_string()
+"#
+        .to_string()
     }
 }
 
 // String parsing implementations for enums
 impl std::str::FromStr for VectorBackend {
     type Err = ZeroLatencyError;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "memory" => Ok(VectorBackend::Memory),
             "qdrant" => Ok(VectorBackend::Qdrant),
             "embedded" => Ok(VectorBackend::Embedded),
-            _ => Err(ZeroLatencyError::configuration(format!("Unknown vector backend: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!(
+                "Unknown vector backend: {}",
+                s
+            ))),
         }
     }
 }
 
 impl std::str::FromStr for EmbeddingProvider {
     type Err = ZeroLatencyError;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "local" => Ok(EmbeddingProvider::Local),
             "openai" => Ok(EmbeddingProvider::OpenAI),
-            _ => Err(ZeroLatencyError::configuration(format!("Unknown embedding provider: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!(
+                "Unknown embedding provider: {}",
+                s
+            ))),
         }
     }
 }
 
 impl std::str::FromStr for ChunkingStrategy {
     type Err = ZeroLatencyError;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "sentence" => Ok(ChunkingStrategy::Sentence),
             "paragraph" => Ok(ChunkingStrategy::Paragraph),
             "fixed_size" => Ok(ChunkingStrategy::FixedSize),
             "semantic" => Ok(ChunkingStrategy::Semantic),
-            _ => Err(ZeroLatencyError::configuration(format!("Unknown chunking strategy: {}", s))),
+            _ => Err(ZeroLatencyError::configuration(format!(
+                "Unknown chunking strategy: {}",
+                s
+            ))),
         }
     }
 }
@@ -645,7 +669,7 @@ impl Default for Config {
                     std::path::PathBuf::from("~/Documents")
                 },
             },
-            
+
             load_testing: LoadTestingConfig::default(),
             production: ProductionConfig::default(),
         }

@@ -1,15 +1,14 @@
 /// JSON-RPC 2.0 handlers that wrap existing REST API functionality
-/// 
+///
 /// This module provides JSON-RPC method handlers that delegate to the existing
-/// application services, maintaining the same business logic while adding 
+/// application services, maintaining the same business logic while adding
 /// JSON-RPC 2.0 protocol compliance.
-
 use serde_json::Value;
 use zero_latency_core::models::Document;
 
 use crate::infrastructure::http::handlers::AppState;
-use crate::infrastructure::jsonrpc::{JsonRpcError, JsonRpcResponse};
 use crate::infrastructure::jsonrpc::types::*;
+use crate::infrastructure::jsonrpc::{JsonRpcError, JsonRpcResponse};
 
 /// JSON-RPC method handler for document indexing
 /// Method: "document.index"
@@ -38,7 +37,7 @@ pub async fn handle_index_document(
                         title: params.title.unwrap_or_else(|| "Untitled".to_string()),
                         content: params.content,
                         path: std::path::PathBuf::from(
-                            params.path.unwrap_or_else(|| "/tmp/unknown".to_string())
+                            params.path.unwrap_or_else(|| "/tmp/unknown".to_string()),
                         ),
                         last_modified: chrono::Utc::now(),
                         size: 0, // Would be calculated in real implementation
@@ -61,10 +60,9 @@ pub async fn handle_index_document(
                         Err(err) => JsonRpcResponse::error(id, err.into()),
                     }
                 }
-                Err(err) => JsonRpcResponse::error(
-                    id,
-                    JsonRpcError::invalid_params(Some(err.to_string())),
-                ),
+                Err(err) => {
+                    JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some(err.to_string())))
+                }
             }
         }
         None => JsonRpcResponse::error(id, JsonRpcError::invalid_params(None)),
@@ -93,10 +91,9 @@ pub async fn handle_get_document(
                     };
                     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
                 }
-                Err(err) => JsonRpcResponse::error(
-                    id,
-                    JsonRpcError::invalid_params(Some(err.to_string())),
-                ),
+                Err(err) => {
+                    JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some(err.to_string())))
+                }
             }
         }
         None => JsonRpcResponse::error(id, JsonRpcError::invalid_params(None)),
@@ -111,52 +108,49 @@ pub async fn handle_update_document(
     state: &AppState,
 ) -> JsonRpcResponse {
     match params {
-        Some(params_value) => {
-            match serde_json::from_value::<UpdateDocumentParams>(params_value) {
-                Ok(params) => {
-                    let document_id = match zero_latency_core::Uuid::parse_str(&params.id) {
-                        Ok(uuid) => uuid,
-                        Err(_) => {
-                            return JsonRpcResponse::error(
-                                id,
-                                JsonRpcError::validation_error("id", "Invalid UUID format"),
-                            );
-                        }
-                    };
-
-                    let document = Document {
-                        id: document_id,
-                        title: params.title.unwrap_or_else(|| "Untitled".to_string()),
-                        content: params.content.unwrap_or_default(),
-                        path: std::path::PathBuf::from(
-                            params.path.unwrap_or_else(|| "/tmp/unknown".to_string())
-                        ),
-                        last_modified: chrono::Utc::now(),
-                        size: 0,
-                        metadata: zero_latency_core::models::DocumentMetadata {
-                            custom: params.metadata.unwrap_or_default(),
-                            ..Default::default()
-                        },
-                    };
-
-                    match state.document_service.update_document(document).await {
-                        Ok(_) => {
-                            let result = UpdateDocumentResult {
-                                success: true,
-                                message: "Document updated successfully".to_string(),
-                                document_id: params.id,
-                            };
-                            JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
-                        }
-                        Err(err) => JsonRpcResponse::error(id, err.into()),
+        Some(params_value) => match serde_json::from_value::<UpdateDocumentParams>(params_value) {
+            Ok(params) => {
+                let document_id = match zero_latency_core::Uuid::parse_str(&params.id) {
+                    Ok(uuid) => uuid,
+                    Err(_) => {
+                        return JsonRpcResponse::error(
+                            id,
+                            JsonRpcError::validation_error("id", "Invalid UUID format"),
+                        );
                     }
+                };
+
+                let document = Document {
+                    id: document_id,
+                    title: params.title.unwrap_or_else(|| "Untitled".to_string()),
+                    content: params.content.unwrap_or_default(),
+                    path: std::path::PathBuf::from(
+                        params.path.unwrap_or_else(|| "/tmp/unknown".to_string()),
+                    ),
+                    last_modified: chrono::Utc::now(),
+                    size: 0,
+                    metadata: zero_latency_core::models::DocumentMetadata {
+                        custom: params.metadata.unwrap_or_default(),
+                        ..Default::default()
+                    },
+                };
+
+                match state.document_service.update_document(document).await {
+                    Ok(_) => {
+                        let result = UpdateDocumentResult {
+                            success: true,
+                            message: "Document updated successfully".to_string(),
+                            document_id: params.id,
+                        };
+                        JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
+                    }
+                    Err(err) => JsonRpcResponse::error(id, err.into()),
                 }
-                Err(err) => JsonRpcResponse::error(
-                    id,
-                    JsonRpcError::invalid_params(Some(err.to_string())),
-                ),
             }
-        }
+            Err(err) => {
+                JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some(err.to_string())))
+            }
+        },
         None => JsonRpcResponse::error(id, JsonRpcError::invalid_params(None)),
     }
 }
@@ -169,27 +163,22 @@ pub async fn handle_delete_document(
     state: &AppState,
 ) -> JsonRpcResponse {
     match params {
-        Some(params_value) => {
-            match serde_json::from_value::<DeleteDocumentParams>(params_value) {
-                Ok(params) => {
-                    match state.document_service.delete_document(&params.id).await {
-                        Ok(_) => {
-                            let result = DeleteDocumentResult {
-                                success: true,
-                                message: "Document deleted successfully".to_string(),
-                                document_id: params.id,
-                            };
-                            JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
-                        }
-                        Err(err) => JsonRpcResponse::error(id, err.into()),
-                    }
+        Some(params_value) => match serde_json::from_value::<DeleteDocumentParams>(params_value) {
+            Ok(params) => match state.document_service.delete_document(&params.id).await {
+                Ok(_) => {
+                    let result = DeleteDocumentResult {
+                        success: true,
+                        message: "Document deleted successfully".to_string(),
+                        document_id: params.id,
+                    };
+                    JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
                 }
-                Err(err) => JsonRpcResponse::error(
-                    id,
-                    JsonRpcError::invalid_params(Some(err.to_string())),
-                ),
+                Err(err) => JsonRpcResponse::error(id, err.into()),
+            },
+            Err(err) => {
+                JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some(err.to_string())))
             }
-        }
+        },
         None => JsonRpcResponse::error(id, JsonRpcError::invalid_params(None)),
     }
 }
@@ -206,15 +195,17 @@ pub async fn handle_search_documents(
             match serde_json::from_value::<SearchDocumentsParams>(params_value) {
                 Ok(params) => {
                     let start_time = std::time::Instant::now();
-                    
-                    match state.document_service
+
+                    match state
+                        .document_service
                         .search_documents(&params.query, params.limit.unwrap_or(10))
                         .await
                     {
                         Ok(search_response) => {
                             let took_ms = start_time.elapsed().as_millis() as u64;
-                            
-                            let results: Vec<SearchResultItem> = search_response.results
+
+                            let results: Vec<SearchResultItem> = search_response
+                                .results
                                 .into_iter()
                                 .map(|result| SearchResultItem {
                                     id: result.document_id.to_string(),
@@ -235,16 +226,15 @@ pub async fn handle_search_documents(
                                 results,
                                 took_ms: Some(took_ms),
                             };
-                            
+
                             JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
                         }
                         Err(err) => JsonRpcResponse::error(id, err.into()),
                     }
                 }
-                Err(err) => JsonRpcResponse::error(
-                    id,
-                    JsonRpcError::invalid_params(Some(err.to_string())),
-                ),
+                Err(err) => {
+                    JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some(err.to_string())))
+                }
             }
         }
         None => JsonRpcResponse::error(id, JsonRpcError::invalid_params(None)),
@@ -259,9 +249,7 @@ pub async fn handle_health_check(
     state: &AppState,
 ) -> JsonRpcResponse {
     match state.health_service.health_check().await {
-        Ok(health) => {
-            JsonRpcResponse::success(id, serde_json::to_value(health).unwrap())
-        }
+        Ok(health) => JsonRpcResponse::success(id, serde_json::to_value(health).unwrap()),
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }
 }
@@ -274,9 +262,7 @@ pub async fn handle_readiness_check(
     state: &AppState,
 ) -> JsonRpcResponse {
     match state.health_service.readiness_check().await {
-        Ok(readiness) => {
-            JsonRpcResponse::success(id, serde_json::to_value(readiness).unwrap())
-        }
+        Ok(readiness) => JsonRpcResponse::success(id, serde_json::to_value(readiness).unwrap()),
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }
 }
@@ -289,9 +275,7 @@ pub async fn handle_liveness_check(
     state: &AppState,
 ) -> JsonRpcResponse {
     match state.health_service.liveness_check().await {
-        Ok(liveness) => {
-            JsonRpcResponse::success(id, serde_json::to_value(liveness).unwrap())
-        }
+        Ok(liveness) => JsonRpcResponse::success(id, serde_json::to_value(liveness).unwrap()),
         Err(err) => JsonRpcResponse::error(id, err.into()),
     }
 }
@@ -321,7 +305,7 @@ pub async fn handle_service_info(
             realtime_updates: false, // Will be enabled with streaming
         },
     };
-    
+
     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap())
 }
 
@@ -340,15 +324,15 @@ pub async fn route_method(
         "document.update" => handle_update_document(params, id, state).await,
         "document.delete" => handle_delete_document(params, id, state).await,
         "document.search" => handle_search_documents(params, id, state).await,
-        
+
         // Health methods
         "health.check" => handle_health_check(params, id, state).await,
         "health.ready" => handle_readiness_check(params, id, state).await,
         "health.live" => handle_liveness_check(params, id, state).await,
-        
+
         // Service methods
         "service.info" => handle_service_info(params, id, state).await,
-        
+
         // Unknown method
         _ => JsonRpcResponse::error(id, JsonRpcError::method_not_found(method)),
     }

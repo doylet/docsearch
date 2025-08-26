@@ -1,11 +1,10 @@
 /// Memory-efficient caching implementation
-/// 
+///
 /// Provides smart caching with memory pressure awareness
 /// and automatic eviction strategies.
-
 use std::collections::HashMap;
-use std::sync::RwLock;
 use std::hash::Hash;
+use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
 /// Configuration for memory-efficient cache
@@ -26,7 +25,7 @@ impl Default for CacheConfig {
         Self {
             max_entries: 1000,
             max_memory_bytes: 64 * 1024 * 1024, // 64MB
-            ttl: Duration::from_secs(3600), // 1 hour
+            ttl: Duration::from_secs(3600),     // 1 hour
             memory_pressure_enabled: true,
         }
     }
@@ -68,15 +67,15 @@ impl<T> CacheEntry<T> {
         let age = self.created_at.elapsed().as_secs_f64();
         let recency = self.last_accessed.elapsed().as_secs_f64();
         let frequency = self.access_count as f64;
-        
+
         // Combine age, recency, and frequency (lower is better)
         (age + recency * 2.0) / (frequency + 1.0)
     }
 }
 
 /// Memory-efficient cache with automatic eviction
-pub struct MemoryEfficientCache<K, V> 
-where 
+pub struct MemoryEfficientCache<K, V>
+where
     K: Clone + Eq + Hash,
     V: Clone,
 {
@@ -85,8 +84,8 @@ where
     stats: RwLock<CacheStats>,
 }
 
-impl<K, V> MemoryEfficientCache<K, V> 
-where 
+impl<K, V> MemoryEfficientCache<K, V>
+where
     K: Clone + Eq + Hash,
     V: Clone,
 {
@@ -103,7 +102,7 @@ where
     pub fn get(&self, key: &K) -> Option<V> {
         let mut entries = self.entries.write().unwrap();
         let mut stats = self.stats.write().unwrap();
-        
+
         if let Some(entry) = entries.get_mut(key) {
             if entry.is_expired(self.config.ttl) {
                 entries.remove(key);
@@ -130,25 +129,27 @@ where
     pub fn insert_with_size(&self, key: K, value: V, size_bytes: usize) {
         let mut entries = self.entries.write().unwrap();
         let mut stats = self.stats.write().unwrap();
-        
+
         // Create new entry
         let entry = CacheEntry::new(value, size_bytes);
-        
+
         // Check if we need to evict
-        if entries.len() >= self.config.max_entries || 
-           self.current_memory_usage(&entries) + size_bytes > self.config.max_memory_bytes {
+        if entries.len() >= self.config.max_entries
+            || self.current_memory_usage(&entries) + size_bytes > self.config.max_memory_bytes
+        {
             self.evict_entries(&mut entries, &mut stats);
         }
-        
+
         // Insert new entry
         if let Some(old_entry) = entries.insert(key, entry) {
-            stats.total_memory_bytes = stats.total_memory_bytes
+            stats.total_memory_bytes = stats
+                .total_memory_bytes
                 .saturating_sub(old_entry.size_bytes)
                 .saturating_add(size_bytes);
         } else {
             stats.total_memory_bytes = stats.total_memory_bytes.saturating_add(size_bytes);
         }
-        
+
         stats.insertions += 1;
     }
 
@@ -156,7 +157,7 @@ where
     pub fn remove(&self, key: &K) -> Option<V> {
         let mut entries = self.entries.write().unwrap();
         let mut stats = self.stats.write().unwrap();
-        
+
         if let Some(entry) = entries.remove(key) {
             stats.total_memory_bytes = stats.total_memory_bytes.saturating_sub(entry.size_bytes);
             Some(entry.value)
@@ -169,7 +170,7 @@ where
     pub fn clear(&self) {
         let mut entries = self.entries.write().unwrap();
         let mut stats = self.stats.write().unwrap();
-        
+
         entries.clear();
         stats.total_memory_bytes = 0;
         stats.evictions += entries.len() as u64;
@@ -194,17 +195,18 @@ where
     pub fn cleanup_expired(&self) {
         let mut entries = self.entries.write().unwrap();
         let mut stats = self.stats.write().unwrap();
-        
+
         let ttl = self.config.ttl;
         let expired_keys: Vec<K> = entries
             .iter()
             .filter(|(_, entry)| entry.is_expired(ttl))
             .map(|(k, _)| k.clone())
             .collect();
-        
+
         for key in expired_keys {
             if let Some(entry) = entries.remove(&key) {
-                stats.total_memory_bytes = stats.total_memory_bytes.saturating_sub(entry.size_bytes);
+                stats.total_memory_bytes =
+                    stats.total_memory_bytes.saturating_sub(entry.size_bytes);
                 stats.expirations += 1;
             }
         }
@@ -214,30 +216,30 @@ where
     fn evict_entries(&self, entries: &mut HashMap<K, CacheEntry<V>>, stats: &mut CacheStats) {
         let target_size = (self.config.max_entries * 3) / 4; // Remove 25%
         let target_memory = (self.config.max_memory_bytes * 3) / 4;
-        
+
         // Score all entries
         let mut scored_entries: Vec<(K, f64)> = entries
             .iter()
             .map(|(k, entry)| (k.clone(), entry.score()))
             .collect();
-        
+
         // Sort by score (highest first - most likely to evict)
         scored_entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
+
         // Evict entries until we're under limits
         let mut evicted = 0;
         for (key, _) in scored_entries {
-            if entries.len() <= target_size && 
-               self.current_memory_usage(entries) <= target_memory {
+            if entries.len() <= target_size && self.current_memory_usage(entries) <= target_memory {
                 break;
             }
-            
+
             if let Some(entry) = entries.remove(&key) {
-                stats.total_memory_bytes = stats.total_memory_bytes.saturating_sub(entry.size_bytes);
+                stats.total_memory_bytes =
+                    stats.total_memory_bytes.saturating_sub(entry.size_bytes);
                 evicted += 1;
             }
         }
-        
+
         stats.evictions += evicted;
     }
 
@@ -313,12 +315,12 @@ mod tests {
             memory_pressure_enabled: false,
         };
         let cache = MemoryEfficientCache::new(config);
-        
+
         // Test insert and get
         cache.insert("key1".to_string(), "value1".to_string());
         assert_eq!(cache.get(&"key1".to_string()), Some("value1".to_string()));
         assert_eq!(cache.get(&"key2".to_string()), None);
-        
+
         // Test statistics
         let stats = cache.stats();
         assert_eq!(stats.hits, 1);
@@ -335,31 +337,31 @@ mod tests {
             memory_pressure_enabled: false,
         };
         let cache = MemoryEfficientCache::new(config);
-        
+
         // Fill cache to capacity
         cache.insert("key1".to_string(), "value1".to_string());
         cache.insert("key2".to_string(), "value2".to_string());
-        
+
         // Access key1 to make it more likely to be kept
         cache.get(&"key1".to_string());
-        
+
         // Insert another item - should trigger eviction
         cache.insert("key3".to_string(), "value3".to_string());
-        
+
         // key1 should still be there (accessed recently)
         // key2 might be evicted
         assert_eq!(cache.get(&"key1".to_string()), Some("value1".to_string()));
         assert_eq!(cache.get(&"key3".to_string()), Some("value3".to_string()));
     }
 
-    #[test] 
+    #[test]
     fn test_vector_cache() {
         let config = CacheConfig::default();
         let cache = VectorCache::for_vectors(config);
-        
+
         let vector = vec![1.0, 2.0, 3.0];
         cache.insert("test".to_string(), vector.clone());
-        
+
         assert_eq!(cache.get(&"test".to_string()), Some(vector));
     }
 }

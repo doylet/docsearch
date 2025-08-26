@@ -14,7 +14,7 @@ impl SearchQuery {
     pub fn new(raw: impl Into<String>) -> Self {
         let raw = raw.into();
         let normalized = normalize_query(&raw);
-        
+
         Self {
             raw,
             normalized,
@@ -120,11 +120,7 @@ impl ServiceVersion {
         }
     }
 
-    pub fn with_build_info(
-        mut self, 
-        hash: impl Into<String>, 
-        date: impl Into<String>
-    ) -> Self {
+    pub fn with_build_info(mut self, hash: impl Into<String>, date: impl Into<String>) -> Self {
         self.build_hash = Some(hash.into());
         self.build_date = Some(date.into());
         self
@@ -135,7 +131,14 @@ impl Display for ServiceVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (&self.build_hash, &self.build_date) {
             (Some(hash), Some(date)) => {
-                write!(f, "{} v{} ({}@{})", self.name, self.version, &hash[..8], date)
+                write!(
+                    f,
+                    "{} v{} ({}@{})",
+                    self.name,
+                    self.version,
+                    &hash[..8],
+                    date
+                )
             }
             _ => write!(f, "{} v{}", self.name, self.version),
         }

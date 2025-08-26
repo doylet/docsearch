@@ -1,19 +1,17 @@
+use async_trait::async_trait;
+use std::path::Path;
 /// Implementation adapters for service interfaces
-/// 
+///
 /// These adapters implement the focused service interfaces using existing
 /// infrastructure components, following the Adapter pattern and DIP principle
-
 use std::sync::Arc;
-use std::path::Path;
-use async_trait::async_trait;
 use zero_latency_core::Result;
-use zero_latency_vector::{VectorRepository, EmbeddingGenerator, VectorDocument};
 use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
+use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
 use super::interfaces::{
-    VectorStorage, EmbeddingService, SearchService, FileSystemService, 
-    ProgressTracker, FilteringService, CollectionManager,
-    FileMetadata, ProgressStats, FilterSummary, CollectionStats
+    CollectionManager, CollectionStats, EmbeddingService, FileMetadata, FileSystemService,
+    FilterSummary, FilteringService, ProgressStats, ProgressTracker, SearchService, VectorStorage,
 };
 use super::services::filter_service::FilterService;
 
@@ -33,15 +31,15 @@ impl VectorStorage for VectorStorageAdapter {
     async fn store_vector(&self, document: VectorDocument) -> Result<()> {
         self.repository.insert(vec![document]).await
     }
-    
+
     async fn store_vectors(&self, documents: Vec<VectorDocument>) -> Result<()> {
         self.repository.insert(documents).await
     }
-    
+
     async fn remove_vectors(&self, document_id: &str) -> Result<()> {
         self.repository.delete(document_id).await.map(|_| ())
     }
-    
+
     async fn has_vectors(&self, _document_id: &str) -> Result<bool> {
         // This would need to be implemented in the VectorRepository trait
         // For now, we'll return false and implement this later
@@ -65,7 +63,7 @@ impl EmbeddingService for EmbeddingServiceAdapter {
     async fn generate_embeddings(&self, text: &str) -> Result<Vec<f32>> {
         self.generator.generate_embedding(text).await
     }
-    
+
     async fn generate_batch_embeddings(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let mut embeddings = Vec::new();
         for text in texts {
@@ -74,7 +72,7 @@ impl EmbeddingService for EmbeddingServiceAdapter {
         }
         Ok(embeddings)
     }
-    
+
     fn embedding_dimension(&self) -> usize {
         self.generator.dimension()
     }
@@ -96,7 +94,7 @@ impl SearchService for SearchServiceAdapter {
     async fn search(&self, request: SearchRequest) -> Result<SearchResponse> {
         self.orchestrator.search(request).await
     }
-    
+
     async fn health_check(&self) -> Result<bool> {
         // This would need to be implemented in the SearchOrchestrator trait
         // For now, we'll return true and implement this later
@@ -117,42 +115,55 @@ impl StandardFileSystemService {
 impl FileSystemService for StandardFileSystemService {
     async fn read_file_content(&self, path: &Path) -> Result<String> {
         use tokio::fs;
-        fs::read_to_string(path)
-            .await
-            .map_err(|e| zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read file: {}", e)))
+        fs::read_to_string(path).await.map_err(|e| {
+            zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read file: {}", e))
+        })
     }
-    
+
     async fn is_file(&self, path: &Path) -> Result<bool> {
         Ok(path.is_file())
     }
-    
+
     async fn is_directory(&self, path: &Path) -> Result<bool> {
         Ok(path.is_dir())
     }
-    
+
     async fn list_directory(&self, path: &Path) -> Result<Vec<std::path::PathBuf>> {
         use tokio::fs;
-        let mut entries = fs::read_dir(path)
-            .await
-                .map_err(|e| zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read directory: {}", e)))?;        let mut paths = Vec::new();
-        while let Some(entry) = entries.next_entry().await.map_err(|e| 
-            zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read directory entry: {}", e)))? 
-        {
+        let mut entries = fs::read_dir(path).await.map_err(|e| {
+            zero_latency_core::ZeroLatencyError::internal(&format!(
+                "Failed to read directory: {}",
+                e
+            ))
+        })?;
+        let mut paths = Vec::new();
+        while let Some(entry) = entries.next_entry().await.map_err(|e| {
+            zero_latency_core::ZeroLatencyError::internal(&format!(
+                "Failed to read directory entry: {}",
+                e
+            ))
+        })? {
             paths.push(entry.path());
         }
         Ok(paths)
     }
-    
+
     async fn get_file_metadata(&self, path: &Path) -> Result<FileMetadata> {
         use tokio::fs;
-        let metadata = fs::metadata(path)
-            .await
-            .map_err(|e| zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read metadata: {}", e)))?;
-        
-        let modified = metadata
-            .modified()
-            .map_err(|e| zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read modified time: {}", e)))?;
-        
+        let metadata = fs::metadata(path).await.map_err(|e| {
+            zero_latency_core::ZeroLatencyError::internal(&format!(
+                "Failed to read metadata: {}",
+                e
+            ))
+        })?;
+
+        let modified = metadata.modified().map_err(|e| {
+            zero_latency_core::ZeroLatencyError::internal(&format!(
+                "Failed to read modified time: {}",
+                e
+            ))
+        })?;
+
         Ok(FileMetadata {
             size: metadata.len(),
             modified: chrono::DateTime::<chrono::Utc>::from(modified),
@@ -192,27 +203,27 @@ impl ProgressTracker for InMemoryProgressTracker {
         } else {
             stats.files_failed += 1;
         }
-        
+
         let elapsed = self.start_time.elapsed();
         stats.elapsed_ms = elapsed.as_millis() as u64;
-        
+
         let total_processed = stats.files_processed + stats.files_failed;
         if total_processed > 0 && elapsed.as_secs_f64() > 0.0 {
             stats.processing_rate = total_processed as f64 / elapsed.as_secs_f64();
         }
     }
-    
+
     async fn progress_update(&self, processed: u64, total: u64, elapsed_ms: u64) {
         let mut stats = self.stats.write().await;
         stats.files_processed = processed;
         stats.total_files = total;
         stats.elapsed_ms = elapsed_ms;
-        
+
         if elapsed_ms > 0 {
             stats.processing_rate = processed as f64 / (elapsed_ms as f64 / 1000.0);
         }
     }
-    
+
     async fn get_progress(&self) -> Result<ProgressStats> {
         let stats = self.stats.read().await;
         Ok(stats.clone())
@@ -234,15 +245,16 @@ impl FilteringService for FilteringServiceAdapter {
     fn should_index_file(&self, path: &Path) -> bool {
         self.filter_service.should_index(path)
     }
-    
+
     fn should_traverse_directory(&self, path: &Path) -> bool {
         // For now, we'll traverse all directories except hidden ones
-        !path.file_name()
+        !path
+            .file_name()
             .and_then(|name| name.to_str())
             .map(|name| name.starts_with('.'))
             .unwrap_or(false)
     }
-    
+
     fn get_filter_summary(&self) -> FilterSummary {
         let filters = self.filter_service.filters();
         FilterSummary {
@@ -270,17 +282,17 @@ impl CollectionManager for SimpleCollectionManager {
         // For now, we'll just return success
         Ok(())
     }
-    
+
     async fn delete_collection(&self, _name: &str) -> Result<()> {
         // This would integrate with the existing collection service
         Ok(())
     }
-    
+
     async fn list_collections(&self) -> Result<Vec<String>> {
         // This would integrate with the existing collection service
         Ok(vec!["default".to_string(), "zero_latency_docs".to_string()])
     }
-    
+
     async fn get_collection_stats(&self, name: &str) -> Result<CollectionStats> {
         // This would integrate with the existing collection service
         Ok(CollectionStats {

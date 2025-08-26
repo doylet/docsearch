@@ -1,6 +1,6 @@
-use std::time::Duration;
 use reqwest::Client;
-use zero_latency_core::{ZeroLatencyError, Result as ZeroLatencyResult};
+use std::time::Duration;
+use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
 
 /// Status response structure
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -24,7 +24,7 @@ pub struct ServerInfo {
 }
 
 /// HTTP client for server lifecycle operations against the Zero Latency API.
-/// 
+///
 /// This client is focused solely on server management functionality, following the Single Responsibility Principle.
 /// It handles HTTP communication, serialization, and error handling for server-related operations.
 pub struct ServerApiClient {
@@ -34,58 +34,57 @@ pub struct ServerApiClient {
 
 impl ServerApiClient {
     /// Creates a new server API client.
-    /// 
+    ///
     /// # Arguments
     /// * `base_url` - The base URL of the Zero Latency API
     /// * `timeout` - Request timeout duration
     pub fn new(base_url: String, timeout: Duration) -> ZeroLatencyResult<Self> {
-        let client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .map_err(|e| ZeroLatencyError::Configuration { 
-                message: format!("Failed to create HTTP client: {}", e)
-            })?;
-            
-        Ok(Self {
-            client,
-            base_url,
-        })
+        let client = Client::builder().timeout(timeout).build().map_err(|e| {
+            ZeroLatencyError::Configuration {
+                message: format!("Failed to create HTTP client: {}", e),
+            }
+        })?;
+
+        Ok(Self { client, base_url })
     }
 
     /// Get server status information
     pub async fn get_status(&self) -> ZeroLatencyResult<StatusResponse> {
         let url = format!("{}/api/status", self.base_url);
-        
-        let response = self.client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ZeroLatencyError::Network { 
-                message: format!("Status request failed: {}", e)
-            })?;
-            
+
+        let response =
+            self.client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| ZeroLatencyError::Network {
+                    message: format!("Status request failed: {}", e),
+                })?;
+
         if !response.status().is_success() {
             return Err(ZeroLatencyError::ExternalService {
                 service: "server_api".to_string(),
-                message: format!("Status request failed: {}", response.status())
+                message: format!("Status request failed: {}", response.status()),
             });
         }
-        
-        let status_response: StatusResponse = response
-            .json()
-            .await
-            .map_err(|e| ZeroLatencyError::Serialization { 
-                message: format!("Failed to parse status response: {}", e)
-            })?;
-            
+
+        let status_response: StatusResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| ZeroLatencyError::Serialization {
+                    message: format!("Failed to parse status response: {}", e),
+                })?;
+
         Ok(status_response)
     }
 
     /// Start the server with specified configuration
     pub async fn start_server(&self, host: String, port: u16) -> ZeroLatencyResult<ServerInfo> {
         let url = format!("{}/api/server/start", self.base_url);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "host": host,
@@ -93,24 +92,25 @@ impl ServerApiClient {
             }))
             .send()
             .await
-            .map_err(|e| ZeroLatencyError::Network { 
-                message: format!("Start server request failed: {}", e)
+            .map_err(|e| ZeroLatencyError::Network {
+                message: format!("Start server request failed: {}", e),
             })?;
-            
+
         if !response.status().is_success() {
             return Err(ZeroLatencyError::ExternalService {
                 service: "server_api".to_string(),
-                message: format!("Start server request failed: {}", response.status())
+                message: format!("Start server request failed: {}", response.status()),
             });
         }
-        
-        let server_info: ServerInfo = response
-            .json()
-            .await
-            .map_err(|e| ZeroLatencyError::Serialization { 
-                message: format!("Failed to parse start server response: {}", e)
-            })?;
-            
+
+        let server_info: ServerInfo =
+            response
+                .json()
+                .await
+                .map_err(|e| ZeroLatencyError::Serialization {
+                    message: format!("Failed to parse start server response: {}", e),
+                })?;
+
         Ok(server_info)
     }
 }

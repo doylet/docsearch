@@ -1,18 +1,15 @@
+use crate::application::interfaces::EmbeddingService;
+use serde::{Deserialize, Serialize};
 /// Health Monitoring System
-/// 
+///
 /// Comprehensive health checking for production deployment including
 /// dependency validation, resource monitoring, and service availability checks.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
-use serde::{Serialize, Deserialize};
 use sysinfo::System;
-use crate::application::interfaces::VectorStorage;
-use crate::application::interfaces::EmbeddingService;
+use tokio::sync::RwLock;
 use zero_latency_vector::VectorRepository;
-use crate::infrastructure::load_testing::scenario::EmbeddingInput;
 
 /// Overall health status of the system
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,37 +57,72 @@ impl MemoryHealthCheck {
 
 #[async_trait::async_trait]
 impl HealthCheck for MemoryHealthCheck {
-    fn name(&self) -> &str { &self.name }
-    
-    fn timeout(&self) -> Duration { Duration::from_secs(1) }
-    
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+
     async fn check(&self) -> HealthCheckResult {
         let start = Instant::now();
         let timestamp = chrono::Utc::now().timestamp() as u64;
-        
-    // Get current memory usage using sysinfo
-    let mut system = System::new_all();
-    system.refresh_memory();
-    let used_memory_bytes = system.used_memory();
-    let total_memory_bytes = system.total_memory();
-    let used_memory_mb = used_memory_bytes as f64 / 1024.0 / 1024.0;
-    let memory_usage_ratio = used_memory_bytes as f64 / total_memory_bytes as f64;
-        
+
+        // Get current memory usage using sysinfo
+        let mut system = System::new_all();
+        system.refresh_memory();
+        let used_memory_bytes = system.used_memory();
+        let total_memory_bytes = system.total_memory();
+        let used_memory_mb = used_memory_bytes as f64 / 1024.0 / 1024.0;
+        let memory_usage_ratio = used_memory_bytes as f64 / total_memory_bytes as f64;
+
         let duration = start.elapsed();
         let mut details = HashMap::new();
-        details.insert("used_memory_mb".to_string(), format!("{:.2}", used_memory_mb));
-        details.insert("total_memory_mb".to_string(), format!("{:.2}", total_memory_bytes as f64 / 1024.0 / 1024.0));
-        details.insert("usage_ratio".to_string(), format!("{:.2}", memory_usage_ratio));
-        details.insert("max_allowed_mb".to_string(), format!("{:.2}", self.max_memory_mb));
-        
+        details.insert(
+            "used_memory_mb".to_string(),
+            format!("{:.2}", used_memory_mb),
+        );
+        details.insert(
+            "total_memory_mb".to_string(),
+            format!("{:.2}", total_memory_bytes as f64 / 1024.0 / 1024.0),
+        );
+        details.insert(
+            "usage_ratio".to_string(),
+            format!("{:.2}", memory_usage_ratio),
+        );
+        details.insert(
+            "max_allowed_mb".to_string(),
+            format!("{:.2}", self.max_memory_mb),
+        );
+
         let (status, message) = if used_memory_mb > self.max_memory_mb {
-            (HealthStatus::Unhealthy, format!("Memory usage {:.2}MB exceeds limit {:.2}MB", used_memory_mb, self.max_memory_mb))
+            (
+                HealthStatus::Unhealthy,
+                format!(
+                    "Memory usage {:.2}MB exceeds limit {:.2}MB",
+                    used_memory_mb, self.max_memory_mb
+                ),
+            )
         } else if memory_usage_ratio > self.warning_threshold {
-            (HealthStatus::Degraded, format!("Memory usage {:.1}% above warning threshold", memory_usage_ratio * 100.0))
+            (
+                HealthStatus::Degraded,
+                format!(
+                    "Memory usage {:.1}% above warning threshold",
+                    memory_usage_ratio * 100.0
+                ),
+            )
         } else {
-            (HealthStatus::Healthy, format!("Memory usage {:.2}MB ({:.1}%) is healthy", used_memory_mb, memory_usage_ratio * 100.0))
+            (
+                HealthStatus::Healthy,
+                format!(
+                    "Memory usage {:.2}MB ({:.1}%) is healthy",
+                    used_memory_mb,
+                    memory_usage_ratio * 100.0
+                ),
+            )
         };
-        
+
         HealthCheckResult {
             name: self.name.clone(),
             status,
@@ -119,28 +151,49 @@ impl EmbeddingServiceHealthCheck {
 
 #[async_trait::async_trait]
 impl HealthCheck for EmbeddingServiceHealthCheck {
-    fn name(&self) -> &str { &self.name }
-    
-    fn timeout(&self) -> Duration { Duration::from_secs(5) }
-    
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(5)
+    }
+
     async fn check(&self) -> HealthCheckResult {
         let start = Instant::now();
         let timestamp = chrono::Utc::now().timestamp() as u64;
-        
-    let test_text = "health check test".to_string();
-    let mut details = HashMap::new();
-    match tokio::time::timeout(self.timeout(), self.embedding_service.generate_embeddings(&test_text)).await {
+
+        let test_text = "health check test".to_string();
+        let mut details = HashMap::new();
+        match tokio::time::timeout(
+            self.timeout(),
+            self.embedding_service.generate_embeddings(&test_text),
+        )
+        .await
+        {
             Ok(Ok(embedding)) => {
                 let duration = start.elapsed();
-                details.insert("embedding_dimension".to_string(), embedding.len().to_string());
-                details.insert("response_time_ms".to_string(), duration.as_millis().to_string());
-                
+                details.insert(
+                    "embedding_dimension".to_string(),
+                    embedding.len().to_string(),
+                );
+                details.insert(
+                    "response_time_ms".to_string(),
+                    duration.as_millis().to_string(),
+                );
+
                 let (status, message) = if duration > Duration::from_millis(2000) {
-                    (HealthStatus::Degraded, format!("Embedding service slow: {}ms", duration.as_millis()))
+                    (
+                        HealthStatus::Degraded,
+                        format!("Embedding service slow: {}ms", duration.as_millis()),
+                    )
                 } else {
-                    (HealthStatus::Healthy, format!("Embedding service healthy: {}ms", duration.as_millis()))
+                    (
+                        HealthStatus::Healthy,
+                        format!("Embedding service healthy: {}ms", duration.as_millis()),
+                    )
                 };
-                
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status,
@@ -149,11 +202,11 @@ impl HealthCheck for EmbeddingServiceHealthCheck {
                     timestamp,
                     details,
                 }
-            },
+            }
             Ok(Err(error)) => {
                 let duration = start.elapsed();
                 details.insert("error".to_string(), error.to_string());
-                
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status: HealthStatus::Unhealthy,
@@ -162,11 +215,14 @@ impl HealthCheck for EmbeddingServiceHealthCheck {
                     timestamp,
                     details,
                 }
-            },
+            }
             Err(_timeout) => {
                 let duration = start.elapsed();
-                details.insert("timeout_ms".to_string(), self.timeout().as_millis().to_string());
-                
+                details.insert(
+                    "timeout_ms".to_string(),
+                    self.timeout().as_millis().to_string(),
+                );
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status: HealthStatus::Unhealthy,
@@ -197,30 +253,43 @@ impl VectorStoreHealthCheck {
 
 #[async_trait::async_trait]
 impl HealthCheck for VectorStoreHealthCheck {
-    fn name(&self) -> &str { &self.name }
-    
-    fn timeout(&self) -> Duration { Duration::from_secs(3) }
-    
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(3)
+    }
+
     async fn check(&self) -> HealthCheckResult {
         let start = Instant::now();
         let timestamp = chrono::Utc::now().timestamp() as u64;
         let mut details = HashMap::new();
-        
-    // Test vector store with a simple query
-    let test_vector = vec![0.1; 384]; // Standard embedding dimension
-    let k = 3;
-    match tokio::time::timeout(self.timeout(), self.vector_repo.search(test_vector, k)).await {
+
+        // Test vector store with a simple query
+        let test_vector = vec![0.1; 384]; // Standard embedding dimension
+        let k = 3;
+        match tokio::time::timeout(self.timeout(), self.vector_repo.search(test_vector, k)).await {
             Ok(Ok(results)) => {
                 let duration = start.elapsed();
                 details.insert("results_count".to_string(), results.len().to_string());
-                details.insert("response_time_ms".to_string(), duration.as_millis().to_string());
-                
+                details.insert(
+                    "response_time_ms".to_string(),
+                    duration.as_millis().to_string(),
+                );
+
                 let (status, message) = if duration > Duration::from_millis(1000) {
-                    (HealthStatus::Degraded, format!("Vector store slow: {}ms", duration.as_millis()))
+                    (
+                        HealthStatus::Degraded,
+                        format!("Vector store slow: {}ms", duration.as_millis()),
+                    )
                 } else {
-                    (HealthStatus::Healthy, format!("Vector store healthy: {}ms", duration.as_millis()))
+                    (
+                        HealthStatus::Healthy,
+                        format!("Vector store healthy: {}ms", duration.as_millis()),
+                    )
                 };
-                
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status,
@@ -229,11 +298,11 @@ impl HealthCheck for VectorStoreHealthCheck {
                     timestamp,
                     details,
                 }
-            },
+            }
             Ok(Err(error)) => {
                 let duration = start.elapsed();
                 details.insert("error".to_string(), error.to_string());
-                
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status: HealthStatus::Unhealthy,
@@ -242,11 +311,14 @@ impl HealthCheck for VectorStoreHealthCheck {
                     timestamp,
                     details,
                 }
-            },
+            }
             Err(_timeout) => {
                 let duration = start.elapsed();
-                details.insert("timeout_ms".to_string(), self.timeout().as_millis().to_string());
-                
+                details.insert(
+                    "timeout_ms".to_string(),
+                    self.timeout().as_millis().to_string(),
+                );
+
                 HealthCheckResult {
                     name: self.name.clone(),
                     status: HealthStatus::Unhealthy,
@@ -291,12 +363,12 @@ impl HealthChecker {
             running: Arc::new(RwLock::new(false)),
         }
     }
-    
+
     /// Add a health check to the checker
     pub fn add_check(&mut self, check: Box<dyn HealthCheck>) {
         self.checks.push(check);
     }
-    
+
     /// Add standard health checks for the service
     pub fn add_standard_checks(
         &mut self,
@@ -304,38 +376,40 @@ impl HealthChecker {
         vector_repo: Arc<dyn VectorRepository>,
     ) {
         self.add_check(Box::new(MemoryHealthCheck::new(1024.0))); // 1GB limit
-        self.add_check(Box::new(EmbeddingServiceHealthCheck::new(embedding_service)));
+        self.add_check(Box::new(EmbeddingServiceHealthCheck::new(
+            embedding_service,
+        )));
         self.add_check(Box::new(VectorStoreHealthCheck::new(vector_repo)));
     }
-    
+
     /// Start periodic health checking
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         *self.running.write().await = true;
-        
+
         let checks = std::mem::take(&mut self.checks);
         let check_interval = self.check_interval;
         let check_timeout = self.check_timeout;
         let latest_status = self.latest_status.clone();
         let running = self.running.clone();
-        
+
         tokio::spawn(async move {
             while *running.read().await {
                 let health_status = Self::run_all_checks(&checks, check_timeout).await;
                 *latest_status.write().await = Some(health_status);
-                
+
                 tokio::time::sleep(check_interval).await;
             }
         });
-        
+
         Ok(())
     }
-    
+
     /// Stop health checking
     pub async fn stop(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         *self.running.write().await = false;
         Ok(())
     }
-    
+
     /// Get the latest health status
     pub async fn get_latest_status(&self) -> HealthStatus {
         if let Some(status) = self.latest_status.read().await.as_ref() {
@@ -344,24 +418,24 @@ impl HealthChecker {
             HealthStatus::Unhealthy // No status available yet
         }
     }
-    
+
     /// Get detailed health report
     pub async fn get_detailed_status(&self) -> Option<AggregatedHealthStatus> {
         self.latest_status.read().await.clone()
     }
-    
+
     /// Run a single health check cycle
     pub async fn run_check_cycle(&self) -> AggregatedHealthStatus {
         Self::run_all_checks(&self.checks, self.check_timeout).await
     }
-    
+
     async fn run_all_checks(
         checks: &[Box<dyn HealthCheck>],
         timeout: Duration,
     ) -> AggregatedHealthStatus {
         let timestamp = chrono::Utc::now().timestamp() as u64;
         let mut check_results = Vec::new();
-        
+
         for check in checks {
             let result = tokio::time::timeout(timeout, check.check())
                 .await
@@ -373,15 +447,24 @@ impl HealthChecker {
                     timestamp,
                     details: HashMap::new(),
                 });
-            
+
             check_results.push(result);
         }
-        
+
         // Aggregate results
-        let healthy_count = check_results.iter().filter(|r| r.status == HealthStatus::Healthy).count();
-        let degraded_count = check_results.iter().filter(|r| r.status == HealthStatus::Degraded).count();
-        let unhealthy_count = check_results.iter().filter(|r| r.status == HealthStatus::Unhealthy).count();
-        
+        let healthy_count = check_results
+            .iter()
+            .filter(|r| r.status == HealthStatus::Healthy)
+            .count();
+        let degraded_count = check_results
+            .iter()
+            .filter(|r| r.status == HealthStatus::Degraded)
+            .count();
+        let unhealthy_count = check_results
+            .iter()
+            .filter(|r| r.status == HealthStatus::Unhealthy)
+            .count();
+
         let overall_status = if unhealthy_count > 0 {
             HealthStatus::Unhealthy
         } else if degraded_count > 0 {
@@ -389,7 +472,7 @@ impl HealthChecker {
         } else {
             HealthStatus::Healthy
         };
-        
+
         let summary = format!(
             "Health: {} checks ({}✅ {}⚠️ {}❌)",
             check_results.len(),
@@ -397,7 +480,7 @@ impl HealthChecker {
             degraded_count,
             unhealthy_count
         );
-        
+
         AggregatedHealthStatus {
             overall_status,
             checks: check_results,
@@ -412,12 +495,6 @@ impl HealthChecker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     // use crate::test_utils::{MockEmbeddingService, MockVectorStore};
-    
-
-    
-
-    
-
 }

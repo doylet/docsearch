@@ -1,6 +1,6 @@
+use crate::models::*;
 use async_trait::async_trait;
 use zero_latency_core::Result;
-use crate::models::*;
 
 /// Query enhancement capabilities
 #[async_trait]
@@ -39,7 +39,8 @@ pub trait SearchOrchestrator: Send + Sync {
 /// Search analytics and insights
 #[async_trait]
 pub trait SearchAnalytics: Send + Sync {
-    async fn record_search(&self, request: &SearchRequest, response: &SearchResponse) -> Result<()>;
+    async fn record_search(&self, request: &SearchRequest, response: &SearchResponse)
+        -> Result<()>;
     async fn get_popular_queries(&self, limit: usize) -> Result<Vec<PopularQuery>>;
     async fn get_search_trends(&self) -> Result<SearchTrends>;
 }
@@ -48,7 +49,11 @@ pub trait SearchAnalytics: Send + Sync {
 #[async_trait]
 pub trait SearchPersonalizer: Send + Sync {
     async fn personalize_query(&self, query: &str, user_context: &UserContext) -> Result<String>;
-    async fn personalize_results(&self, results: Vec<SearchResult>, user_context: &UserContext) -> Result<Vec<SearchResult>>;
+    async fn personalize_results(
+        &self,
+        results: Vec<SearchResult>,
+        user_context: &UserContext,
+    ) -> Result<Vec<SearchResult>>;
 }
 
 /// Popular query information

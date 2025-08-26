@@ -1,8 +1,8 @@
+use crate::application::CliServiceContainer;
+use crate::config::CliConfig;
 use clap::{Args, Subcommand};
 use colored::*;
 use zero_latency_core::Result as ZeroLatencyResult;
-use crate::application::CliServiceContainer;
-use crate::config::CliConfig;
 
 #[derive(Args)]
 pub struct ConfigCommand {
@@ -52,46 +52,71 @@ impl ConfigCommand {
         } else {
             // Fallback to loading from default location
             CliConfig::load().map_err(|e| {
-                zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to load config: {}", e))
+                zero_latency_core::ZeroLatencyError::configuration(&format!(
+                    "Failed to load config: {}",
+                    e
+                ))
             })?
         };
 
         let config_file = CliConfig::config_file().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to get config file path: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to get config file path: {}",
+                e
+            ))
         })?;
 
         // Use the proper formatter instead of hardcoded table
         if let Some(container) = container {
-            container.output_formatter().format_config(&config, &config_file).await?;
+            container
+                .output_formatter()
+                .format_config(&config, &config_file)
+                .await?;
         } else {
             // Create a temporary formatter if no container available
             let formatter = crate::infrastructure::output::formatters::TableFormatter::new();
             formatter.format_config(&config, &config_file).await?;
         }
-        
+
         Ok(())
     }
 
     async fn set_config(&self, path: &std::path::Path) -> ZeroLatencyResult<()> {
-        println!("{} {}", "Loading configuration from".blue().bold(), path.display().to_string().cyan());
+        println!(
+            "{} {}",
+            "Loading configuration from".blue().bold(),
+            path.display().to_string().cyan()
+        );
 
         // Check if file exists
         if !path.exists() {
-            return Err(zero_latency_core::ZeroLatencyError::not_found(&format!("Config file not found: {}", path.display())));
+            return Err(zero_latency_core::ZeroLatencyError::not_found(&format!(
+                "Config file not found: {}",
+                path.display()
+            )));
         }
 
         // Load config from file
         let content = std::fs::read_to_string(path).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to read config file: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to read config file: {}",
+                e
+            ))
         })?;
 
         let new_config: CliConfig = toml::from_str(&content).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Invalid config format: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Invalid config format: {}",
+                e
+            ))
         })?;
 
         // Save the new config
         new_config.save().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to save config: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to save config: {}",
+                e
+            ))
         })?;
 
         println!("Configuration applied successfully!");
@@ -104,18 +129,31 @@ impl ConfigCommand {
     }
 
     async fn export_config(&self, path: &std::path::Path) -> ZeroLatencyResult<()> {
-        println!("{} {}", "Exporting configuration to".blue().bold(), path.display().to_string().cyan());
+        println!(
+            "{} {}",
+            "Exporting configuration to".blue().bold(),
+            path.display().to_string().cyan()
+        );
 
         let config = CliConfig::load().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to load config: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to load config: {}",
+                e
+            ))
         })?;
 
         let content = toml::to_string_pretty(&config).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to serialize config: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to serialize config: {}",
+                e
+            ))
         })?;
 
         std::fs::write(path, content).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to write config file: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to write config file: {}",
+                e
+            ))
         })?;
 
         println!("Configuration exported successfully!");
@@ -129,7 +167,10 @@ impl ConfigCommand {
 
         let default_config = CliConfig::default();
         default_config.save().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!("Failed to save config: {}", e))
+            zero_latency_core::ZeroLatencyError::configuration(&format!(
+                "Failed to save config: {}",
+                e
+            ))
         })?;
 
         println!("Configuration reset to defaults!");

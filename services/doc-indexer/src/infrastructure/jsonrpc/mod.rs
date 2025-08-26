@@ -1,11 +1,10 @@
+pub mod handlers;
 /// JSON-RPC 2.0 implementation for tool service compliance
-/// 
+///
 /// This module provides JSON-RPC 2.0 wrapper around the existing REST API handlers,
 /// enabling standardized tool service interface while maintaining backward
 /// compatibility with the existing REST endpoints.
-
 pub mod server;
-pub mod handlers;
 pub mod types;
 
 pub use server::create_dual_protocol_router;
@@ -68,7 +67,7 @@ pub mod error_codes {
     pub const METHOD_NOT_FOUND: i32 = -32601;
     pub const INVALID_PARAMS: i32 = -32602;
     pub const INTERNAL_ERROR: i32 = -32603;
-    
+
     // Application-specific error codes
     pub const DOCUMENT_NOT_FOUND: i32 = -32000;
     pub const VALIDATION_ERROR: i32 = -32001;
@@ -107,9 +106,11 @@ impl JsonRpcError {
         Self {
             code: error_codes::INVALID_PARAMS,
             message: "Invalid params".to_string(),
-            data: details.map(|d| serde_json::json!({
-                "details": d
-            })),
+            data: details.map(|d| {
+                serde_json::json!({
+                    "details": d
+                })
+            }),
         }
     }
 

@@ -1,12 +1,11 @@
+use crate::application::CliServiceContainer;
 /// Collection management commands
-/// 
+///
 /// This module provides CLI commands for managing vector collections,
 /// including creating, listing, getting info, and deleting collections.
-
 use clap::{Args, Subcommand};
 use serde::{Deserialize, Serialize};
 use zero_latency_core::Result as ZeroLatencyResult;
-use crate::application::CliServiceContainer;
 
 /// Collection management command and subcommands
 #[derive(Debug, Args)]
@@ -101,10 +100,14 @@ impl CollectionCommand {
             CollectionAction::Set(args) => self.set_default_collection(container, args).await,
         }
     }
-    
-    async fn list_collections(&self, container: &CliServiceContainer, args: &ListArgs) -> ZeroLatencyResult<()> {
+
+    async fn list_collections(
+        &self,
+        container: &CliServiceContainer,
+        args: &ListArgs,
+    ) -> ZeroLatencyResult<()> {
         let collections = container.collection_client().list_collections().await?;
-        
+
         match args.format.as_str() {
             "json" => {
                 println!("{}", serde_json::to_string_pretty(&collections)?);
@@ -116,41 +119,50 @@ impl CollectionCommand {
             }
             _ => {
                 // Table format
-                println!("{:<20} {:<10} {:<10} {:<10} {:<20}", "Name", "Vectors", "Size", "Status", "Created");
+                println!(
+                    "{:<20} {:<10} {:<10} {:<10} {:<20}",
+                    "Name", "Vectors", "Size", "Status", "Created"
+                );
                 println!("{:-<75}", "");
-                
+
                 for collection in &collections {
                     let size_str = format_bytes(collection.size_bytes);
-                    let created_str = collection.created_at
+                    let created_str = collection
+                        .created_at
                         .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
                         .unwrap_or_else(|| "Unknown".to_string());
                     let status_str = format!("{:?}", collection.status);
-                    
-                    println!("{:<20} {:<10} {:<10} {:<10} {:<20}",
-                             collection.name,
-                             collection.vector_count,
-                             size_str,
-                             status_str,
-                             created_str);
+
+                    println!(
+                        "{:<20} {:<10} {:<10} {:<10} {:<20}",
+                        collection.name, collection.vector_count, size_str, status_str, created_str
+                    );
                 }
-                
+
                 println!("\nTotal: {} collection(s)", collections.len());
             }
         }
-        
+
         Ok(())
     }
-    
-    async fn get_collection(&self, container: &CliServiceContainer, args: &GetArgs) -> ZeroLatencyResult<()> {
-        let response = container.collection_client().get_collection(&args.name).await?;
-        
+
+    async fn get_collection(
+        &self,
+        container: &CliServiceContainer,
+        args: &GetArgs,
+    ) -> ZeroLatencyResult<()> {
+        let response = container
+            .collection_client()
+            .get_collection(&args.name)
+            .await?;
+
         if !response.found {
             println!("Collection '{}' not found", args.name);
             return Ok(());
         }
-        
+
         let collection = response.collection.unwrap();
-        
+
         match args.format.as_str() {
             "json" => {
                 println!("{}", serde_json::to_string_pretty(&collection)?);
@@ -162,30 +174,42 @@ impl CollectionCommand {
                 // Table format
                 println!("{:<20} {}", "Property", "Value");
                 println!("{:-<40}", "");
-                
+
                 println!("{:<20} {}", "Name", collection.name);
                 println!("{:<20} {}", "Vector Count", collection.vector_count);
                 println!("{:<20} {}", "Size", format_bytes(collection.size_bytes));
                 println!("{:<20} {:?}", "Status", collection.status);
-                
+
                 if let Some(vector_size) = collection.vector_size {
                     println!("{:<20} {}", "Vector Size", vector_size);
                 }
-                
+
                 if let Some(created) = collection.created_at {
-                    println!("{:<20} {}", "Created", created.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "{:<20} {}",
+                        "Created",
+                        created.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 }
-                
+
                 if let Some(modified) = collection.last_modified {
-                    println!("{:<20} {}", "Last Modified", modified.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "{:<20} {}",
+                        "Last Modified",
+                        modified.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 }
             }
         }
-        
+
         Ok(())
     }
-    
-    async fn create_collection(&self, container: &CliServiceContainer, args: &CreateArgs) -> ZeroLatencyResult<()> {
+
+    async fn create_collection(
+        &self,
+        container: &CliServiceContainer,
+        args: &CreateArgs,
+    ) -> ZeroLatencyResult<()> {
         if !args.yes {
             println!("Create new collection:");
             println!("  Name: {}", args.name);
@@ -194,123 +218,168 @@ impl CollectionCommand {
             if let Some(desc) = &args.description {
                 println!("  Description: {}", desc);
             }
-            
+
             print!("Continue? [y/N] ");
             use std::io::{self, Write};
             io::stdout().flush().unwrap();
-            
+
             let mut input = String::new();
             io::stdin().read_line(&mut input).unwrap();
-            
+
             if input.trim().to_lowercase() != "y" && input.trim().to_lowercase() != "yes" {
                 println!("Operation cancelled");
                 return Ok(());
             }
         }
-        
+
         let request = CreateCollectionRequest {
             name: args.name.clone(),
             vector_size: args.vector_size,
             distance_metric: Some(args.distance_metric.clone()),
             description: args.description.clone(),
         };
-        
-        let response = container.collection_client().create_collection(request).await?;
-        
+
+        let response = container
+            .collection_client()
+            .create_collection(request)
+            .await?;
+
         if response.success {
             println!("Collection created successfully: {}", response.message);
-            println!("Collection '{}' created with {} vector dimensions", 
-                     response.collection.name, 
-                     response.collection.vector_size.unwrap_or(0));
+            println!(
+                "Collection '{}' created with {} vector dimensions",
+                response.collection.name,
+                response.collection.vector_size.unwrap_or(0)
+            );
         } else {
             println!("Failed to create collection");
         }
-        
+
         Ok(())
     }
-    
-    async fn delete_collection(&self, container: &CliServiceContainer, args: &DeleteArgs) -> ZeroLatencyResult<()> {
+
+    async fn delete_collection(
+        &self,
+        container: &CliServiceContainer,
+        args: &DeleteArgs,
+    ) -> ZeroLatencyResult<()> {
         if !args.yes {
-            println!("WARNING: This will permanently delete collection '{}' and all its data.", args.name);
+            println!(
+                "WARNING: This will permanently delete collection '{}' and all its data.",
+                args.name
+            );
             print!("Continue? [y/N] ");
             use std::io::{self, Write};
             io::stdout().flush().unwrap();
-            
+
             let mut input = String::new();
             io::stdin().read_line(&mut input).unwrap();
-            
+
             if input.trim().to_lowercase() != "y" && input.trim().to_lowercase() != "yes" {
                 println!("Operation cancelled");
                 return Ok(());
             }
         }
-        
-        let response = container.collection_client().delete_collection(&args.name).await?;
-        
+
+        let response = container
+            .collection_client()
+            .delete_collection(&args.name)
+            .await?;
+
         if response.success {
             println!("Collection deleted successfully: {}", response.message);
         } else {
             println!("Failed to delete collection: {}", response.message);
         }
-        
+
         Ok(())
     }
-    
-    async fn get_collection_stats(&self, container: &CliServiceContainer, args: &StatsArgs) -> ZeroLatencyResult<()> {
-        let response = container.collection_client().get_collection_stats(&args.name).await?;
-        
+
+    async fn get_collection_stats(
+        &self,
+        container: &CliServiceContainer,
+        args: &StatsArgs,
+    ) -> ZeroLatencyResult<()> {
+        let response = container
+            .collection_client()
+            .get_collection_stats(&args.name)
+            .await?;
+
         if !response.found {
             println!("Collection '{}' not found", args.name);
             return Ok(());
         }
-        
+
         let stats = response.stats.unwrap();
-        
+
         match args.format.as_str() {
             "json" => {
                 println!("{}", serde_json::to_string_pretty(&stats)?);
             }
             "simple" => {
-                println!("{}: {} vectors, {}", stats.name, stats.vector_count, format_bytes(stats.size_bytes));
+                println!(
+                    "{}: {} vectors, {}",
+                    stats.name,
+                    stats.vector_count,
+                    format_bytes(stats.size_bytes)
+                );
             }
             _ => {
                 // Table format
                 println!("{:<20} {}", "Metric", "Value");
                 println!("{:-<40}", "");
-                
+
                 println!("{:<20} {}", "Collection", stats.name);
                 println!("{:<20} {}", "Vector Count", stats.vector_count);
                 println!("{:<20} {}", "Size", format_bytes(stats.size_bytes));
                 println!("{:<20} {:.1}", "Avg Vector Size", stats.average_vector_size);
-                println!("{:<20} {:.1}%", "Index Efficiency", stats.index_efficiency * 100.0);
-                
+                println!(
+                    "{:<20} {:.1}%",
+                    "Index Efficiency",
+                    stats.index_efficiency * 100.0
+                );
+
                 if let Some(last_indexed) = stats.last_indexed {
-                    println!("{:<20} {}", "Last Indexed", last_indexed.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "{:<20} {}",
+                        "Last Indexed",
+                        last_indexed.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                 }
             }
         }
-        
+
         Ok(())
     }
-    
-    async fn set_default_collection(&self, _container: &CliServiceContainer, args: &SetArgs) -> ZeroLatencyResult<()> {
+
+    async fn set_default_collection(
+        &self,
+        _container: &CliServiceContainer,
+        args: &SetArgs,
+    ) -> ZeroLatencyResult<()> {
         use crate::config::CliConfig;
         use zero_latency_core::ZeroLatencyError;
-        
-        let mut config = CliConfig::load()
-            .map_err(|e| ZeroLatencyError::Configuration { message: format!("Failed to load config: {}", e) })?;
-            
-        config.set_collection(args.name.clone())
-            .map_err(|e| ZeroLatencyError::Configuration { message: format!("Failed to save config: {}", e) })?;
-        
+
+        let mut config = CliConfig::load().map_err(|e| ZeroLatencyError::Configuration {
+            message: format!("Failed to load config: {}", e),
+        })?;
+
+        config
+            .set_collection(args.name.clone())
+            .map_err(|e| ZeroLatencyError::Configuration {
+                message: format!("Failed to save config: {}", e),
+            })?;
+
         println!("Default collection set to '{}'", args.name);
-        println!("Note: This will be used for subsequent commands unless overridden with --collection");
-        
+        println!(
+            "Note: This will be used for subsequent commands unless overridden with --collection"
+        );
+
         // Show the config file location
         if let Ok(config_file) = CliConfig::config_file() {
             println!("Configuration saved to: {}", config_file.display());
         }
-        
+
         Ok(())
     }
 }
@@ -320,12 +389,12 @@ fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
     let mut unit_index = 0;
-    
+
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
     }
-    
+
     if unit_index == 0 {
         format!("{} {}", bytes, UNITS[unit_index])
     } else {

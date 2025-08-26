@@ -1,18 +1,17 @@
 /// Core domain models and traits for Zero-Latency
-/// 
+///
 /// This crate provides the fundamental building blocks used across all
 /// Zero-Latency services, including:
 /// - Common domain entities
 /// - Result types and error handling
 /// - Service traits and interfaces
 /// - Shared value objects
-
 pub mod error;
 pub mod models;
 pub mod traits;
 pub mod values;
 
-pub use error::{ZeroLatencyError, Result};
+pub use error::{Result, ZeroLatencyError};
 
 /// Re-export commonly used types
 pub use chrono::{DateTime, Utc};

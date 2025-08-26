@@ -1,2 +1,2 @@
-// Placeholder for tracing functionality  
+// Placeholder for tracing functionality
 // TODO: Implement distributed tracing patterns

@@ -33,8 +33,8 @@ pub enum ZeroLatencyError {
 
 impl ZeroLatencyError {
     pub fn configuration(message: impl Into<String>) -> Self {
-        Self::Configuration { 
-            message: message.into() 
+        Self::Configuration {
+            message: message.into(),
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::{traits::*, models::*};
+use crate::{models::*, traits::*};
 
 /// Cosine similarity calculator
 pub struct CosineSimilarityCalculator;

@@ -5,19 +5,19 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// Server URL for API communication
     pub server_url: String,
-    
+
     /// Collection name for vector storage (CLI override)
     pub collection_name: String,
-    
+
     /// Timeout for API requests in seconds
     pub timeout_seconds: u64,
-    
+
     /// Maximum number of retries for failed requests
     pub max_retries: u32,
-    
+
     /// Logging level (error, warn, info, debug, trace)
     pub log_level: String,
-    
+
     /// Default output format (table, json, simple)
     pub output_format: String,
 }

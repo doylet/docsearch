@@ -1,13 +1,18 @@
-use async_trait::async_trait;
-use zero_latency_core::{Result, models::HealthStatus};
 use crate::models::*;
+use async_trait::async_trait;
+use zero_latency_core::{models::HealthStatus, Result};
 
 /// Vector storage operations
 #[async_trait]
 pub trait VectorRepository: Send + Sync {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()>;
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>>;
-    async fn search_in_collection(&self, collection_name: &str, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>>;
+    async fn search_in_collection(
+        &self,
+        collection_name: &str,
+        query_vector: Vec<f32>,
+        k: usize,
+    ) -> Result<Vec<SimilarityResult>>;
     async fn delete(&self, document_id: &str) -> Result<bool>;
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool>;
     async fn health_check(&self) -> Result<HealthStatus>;

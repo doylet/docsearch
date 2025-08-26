@@ -1,10 +1,4 @@
-/// HTTP route handlers for the doc-indexer API
-/// 
-/// This module contains the HTTP handlers that translate between HTTP requests/responses
-/// and the application services, following the clean architecture pattern.
-
-use std::sync::Arc;
-use std::time::Instant;
+use crate::infrastructure::jsonrpc::types::{HealthCheckResult, LivenessResult, ReadinessResult};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -13,16 +7,17 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
-use zero_latency_core::{
-    ZeroLatencyError
-};
+/// HTTP route handlers for the doc-indexer API
+///
+/// This module contains the HTTP handlers that translate between HTTP requests/responses
+/// and the application services, following the clean architecture pattern.
+use std::sync::Arc;
+use std::time::Instant;
 use zero_latency_contracts::api::endpoints;
-use crate::infrastructure::jsonrpc::types::{
-    HealthCheckResult, ReadinessResult, LivenessResult
-};
+use zero_latency_core::ZeroLatencyError;
 
 use crate::application::{
-    ServiceContainer, DocumentIndexingService, HealthService, CollectionService,
+    CollectionService, DocumentIndexingService, HealthService, ServiceContainer,
 };
 
 /// Application state shared across all handlers
@@ -42,10 +37,10 @@ impl AppState {
         let document_service = DocumentIndexingService::new(&container);
         let health_service = HealthService::new();
         let collection_service = CollectionService::new(&container);
-        
+
         // Initialize collection stats from actual vector repository
         collection_service.initialize().await?;
-        
+
         Ok(Self {
             container,
             document_service,
@@ -66,27 +61,22 @@ pub fn create_router(state: AppState) -> Router {
         .route(endpoints::REINDEX, post(reindex_documents))
         .route(endpoints::SERVER_START, post(start_server))
         .route(endpoints::SERVER_STOP, post(stop_server))
-        
         // Collection endpoints
         .route(endpoints::COLLECTIONS, get(list_collections))
         .route(endpoints::COLLECTIONS, post(create_collection))
         .route(endpoints::COLLECTION_BY_NAME, get(get_collection))
         .route(endpoints::COLLECTION_BY_NAME, delete(delete_collection))
         .route(endpoints::COLLECTION_STATS, get(get_collection_stats))
-        
         // Document endpoints (read-only for discovery)
         .route(endpoints::DOCUMENTS, get(list_documents))
         .route(endpoints::DOCUMENT_BY_ID, get(get_document))
         .route(endpoints::DOCUMENTS_SEARCH, post(search_documents))
-        
         // Health endpoints
         .route("/health", get(health_check))
         .route("/health/ready", get(readiness_check))
         .route("/health/live", get(liveness_check))
-        
         // Info endpoints
         .route("/info", get(service_info))
-        
         .with_state(state)
 }
 
@@ -96,15 +86,19 @@ async fn list_documents(
     State(state): State<AppState>,
 ) -> Result<Json<ListDocumentsResponse>, AppError> {
     // Extract parameters with defaults
-    let collection_name = params.collection.unwrap_or_else(|| "zero_latency_docs".to_string());
+    let collection_name = params
+        .collection
+        .unwrap_or_else(|| "zero_latency_docs".to_string());
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.limit.unwrap_or(50).min(100);
-    
+
     // Get collection-specific document count and metadata
-    let (total_count, index_size) = match state.collection_service.get_collection_info(&collection_name).await {
-        Ok(Some(collection)) => {
-            (collection.vector_count, collection.size_bytes)
-        },
+    let (total_count, index_size) = match state
+        .collection_service
+        .get_collection_info(&collection_name)
+        .await
+    {
+        Ok(Some(collection)) => (collection.vector_count, collection.size_bytes),
         Ok(None) | Err(_) => {
             // Collection doesn't exist or error occurred, return empty result
             return Ok(Json(ListDocumentsResponse {
@@ -117,23 +111,27 @@ async fn list_documents(
             }));
         }
     };
-    
+
     // Calculate pagination
-    let total_pages = if total_count == 0 { 0 } else { (total_count as f64 / per_page as f64).ceil() as u64 };
+    let total_pages = if total_count == 0 {
+        0
+    } else {
+        (total_count as f64 / per_page as f64).ceil() as u64
+    };
     let skip = (page - 1) * per_page;
-    
+
     // Get actual documents from the vector repository using a dummy search
     // Since VectorRepository doesn't have a list method, we'll use search with a zero vector
     // to get real document metadata instead of fake placeholders
     let documents = if total_count > 0 {
         // Get the vector repository to search for real documents
         let vector_repo = state.document_service.vector_repository();
-        
+
         // Use a zero vector or small query to get real documents
         // This is a workaround since we don't have a direct list method
         let search_limit = std::cmp::min(per_page as usize + skip as usize, 100); // Get a bit more to handle pagination
         let dummy_vector = vec![0.0f32; 384]; // Assuming 384-dimensional embeddings
-        
+
         match vector_repo.search(dummy_vector, search_limit).await {
             Ok(search_results) => {
                 // Extract real document metadata from search results
@@ -146,13 +144,13 @@ async fn list_documents(
                         let metadata = &result.metadata;
                         DocumentSummary {
                             id: metadata.document_id.to_string(),
-                            title: if metadata.title.is_empty() { 
-                                "Untitled Document".to_string() 
-                            } else { 
+                            title: if metadata.title.is_empty() {
+                                "Untitled Document".to_string()
+                            } else {
                                 // Extract just the filename from the title, removing .md extension if present
                                 let title = metadata.title.clone();
                                 if title.ends_with(".md") {
-                                    title[..title.len()-3].to_string()
+                                    title[..title.len() - 3].to_string()
                                 } else {
                                     title
                                 }
@@ -162,14 +160,16 @@ async fn list_documents(
                                 metadata.title.clone()
                             }),
                             size: metadata.content.len() as u64,
-                            last_modified: metadata.custom.get("modified_date")
+                            last_modified: metadata
+                                .custom
+                                .get("modified_date")
                                 .or_else(|| metadata.custom.get("last_modified"))
                                 .cloned()
                                 .unwrap_or_else(|| "Unknown".to_string()),
                         }
                     })
                     .collect()
-            },
+            }
             Err(e) => {
                 eprintln!("Failed to get documents from vector store: {}", e);
                 vec![] // Return empty on error
@@ -178,7 +178,7 @@ async fn list_documents(
     } else {
         vec![]
     };
-    
+
     Ok(Json(ListDocumentsResponse {
         documents,
         total_count,
@@ -211,31 +211,32 @@ async fn search_documents(
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
     let collection_name = request.collection.as_deref().unwrap_or("default");
     let limit = request.limit.unwrap_or(10);
-    
-    let search_response = state.document_service
+
+    let search_response = state
+        .document_service
         .search_documents_in_collection(&request.query, collection_name, limit)
         .await?;
-    
+
     Ok(Json(search_response))
 }
 
 /// Health check endpoint
-async fn health_check(
-    State(state): State<AppState>,
-) -> Result<Json<HealthCheckResult>, AppError> {
+async fn health_check(State(state): State<AppState>) -> Result<Json<HealthCheckResult>, AppError> {
     let health = state.health_service.health_check().await?;
     Ok(Json(health))
 }
 
 /// API status endpoint (CLI-compatible format)
-async fn api_status(
-    State(state): State<AppState>,
-) -> Json<ApiStatusResponse> {
+async fn api_status(State(state): State<AppState>) -> Json<ApiStatusResponse> {
     // Get actual metrics from the services
-    let document_count = state.document_service.get_document_count().await.unwrap_or(0);
+    let document_count = state
+        .document_service
+        .get_document_count()
+        .await
+        .unwrap_or(0);
     let index_size = state.document_service.get_index_size().await.unwrap_or(0);
     let uptime_seconds = state.start_time.elapsed().as_secs();
-    
+
     Json(ApiStatusResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -243,30 +244,32 @@ async fn api_status(
         total_documents: document_count,
         index_size_bytes: index_size,
         last_index_update: None, // Would get from last indexing operation
-        docs_path: Some(state.container.config().service.docs_path.display().to_string()),
+        docs_path: Some(
+            state
+                .container
+                .config()
+                .service
+                .docs_path
+                .display()
+                .to_string(),
+        ),
     })
 }
 
 /// Readiness check endpoint
-async fn readiness_check(
-    State(state): State<AppState>,
-) -> Result<Json<ReadinessResult>, AppError> {
+async fn readiness_check(State(state): State<AppState>) -> Result<Json<ReadinessResult>, AppError> {
     let readiness = state.health_service.readiness_check().await?;
     Ok(Json(readiness))
 }
 
 /// Liveness check endpoint
-async fn liveness_check(
-    State(state): State<AppState>,
-) -> Result<Json<LivenessResult>, AppError> {
+async fn liveness_check(State(state): State<AppState>) -> Result<Json<LivenessResult>, AppError> {
     let liveness = state.health_service.liveness_check().await?;
     Ok(Json(liveness))
 }
 
 /// Service information endpoint
-async fn service_info(
-    State(_state): State<AppState>,
-) -> Json<ServiceInfoResponse> {
+async fn service_info(State(_state): State<AppState>) -> Json<ServiceInfoResponse> {
     Json(ServiceInfoResponse {
         name: "doc-indexer".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -286,26 +289,32 @@ async fn index_documents_from_path(
     Json(request): Json<IndexPathRequest>,
 ) -> Result<Json<IndexPathResponse>, AppError> {
     let collection_name = request.collection.as_deref().unwrap_or("zero_latency_docs");
-    tracing::info!("Starting document indexing from path: {} into collection: {}", request.path, collection_name);
-    
+    tracing::info!(
+        "Starting document indexing from path: {} into collection: {}",
+        request.path,
+        collection_name
+    );
+
     // Create filtering configuration from request
-    let filters = if request.safe_patterns.is_some() || request.ignore_patterns.is_some() ||
-        request.clear_default_ignores.is_some() || request.follow_symlinks.is_some() ||
-        request.case_sensitive.is_some() {
-        
+    let filters = if request.safe_patterns.is_some()
+        || request.ignore_patterns.is_some()
+        || request.clear_default_ignores.is_some()
+        || request.follow_symlinks.is_some()
+        || request.case_sensitive.is_some()
+    {
         use crate::application::services::filter_service::IndexingFilters;
-        
+
         let mut ignore_list = if request.clear_default_ignores.unwrap_or(false) {
             Vec::new() // Start with empty ignore list
         } else {
             IndexingFilters::new().ignore_list // Use default ignores
         };
-        
+
         // Add any additional ignore patterns
         if let Some(additional_ignores) = request.ignore_patterns {
             ignore_list.extend(additional_ignores);
         }
-        
+
         Some(IndexingFilters {
             safe_list: request.safe_patterns.unwrap_or_default(),
             ignore_list,
@@ -322,21 +331,29 @@ async fn index_documents_from_path(
         if !collections.iter().any(|c| c.name == collection_name) {
             use crate::application::services::collection_service::CreateCollectionRequest;
             tracing::info!("Creating new collection: {}", collection_name);
-            state.collection_service.create_collection(CreateCollectionRequest {
-                name: collection_name.to_string(),
-                description: Some(format!("Collection created for indexing {}", request.path)),
-                vector_size: 384, // Default embedding size
-                distance_metric: Some("cosine".to_string()),
-            }).await?;
+            state
+                .collection_service
+                .create_collection(CreateCollectionRequest {
+                    name: collection_name.to_string(),
+                    description: Some(format!("Collection created for indexing {}", request.path)),
+                    vector_size: 384, // Default embedding size
+                    distance_metric: Some("cosine".to_string()),
+                })
+                .await?;
         }
     }
 
     // Use the document service to actually index documents with collection context
     let result = state
         .document_service
-        .index_documents_from_path_with_filters_and_collection(&request.path, request.recursive.unwrap_or(true), filters, collection_name)
+        .index_documents_from_path_with_filters_and_collection(
+            &request.path,
+            request.recursive.unwrap_or(true),
+            filters,
+            collection_name,
+        )
         .await;
-    
+
     match result {
         Ok((documents_processed, processing_time_ms)) => {
             tracing::info!(
@@ -344,17 +361,20 @@ async fn index_documents_from_path(
                 processing_time_ms = processing_time_ms,
                 "Indexing completed successfully"
             );
-            
+
             // Update collection statistics after successful indexing
             if let Err(e) = update_collection_statistics(&state, collection_name).await {
                 tracing::warn!("Failed to update collection statistics: {}", e);
             }
-            
+
             Ok(Json(IndexPathResponse {
                 documents_processed,
                 processing_time_ms,
                 status: "success".to_string(),
-                message: Some(format!("Successfully indexed {} documents from path: {}", documents_processed, request.path)),
+                message: Some(format!(
+                    "Successfully indexed {} documents from path: {}",
+                    documents_processed, request.path
+                )),
             }))
         }
         Err(e) => {
@@ -371,15 +391,17 @@ async fn reindex_documents(
     Json(request): Json<ReindexRequest>,
 ) -> Result<Json<ReindexResponse>, AppError> {
     tracing::info!("Starting full reindex operation");
-    
+
     // Get the current collection name (either from request or default)
-    let collection_name = request.collection.as_deref()
-        .unwrap_or("zero_latency_docs"); // Default collection
-    
+    let collection_name = request.collection.as_deref().unwrap_or("zero_latency_docs"); // Default collection
+
     // Step 1: Delete the existing collection to clear all vectors
     tracing::info!("Clearing existing collection: {}", collection_name);
-    let _deleted = state.collection_service.delete_collection(collection_name).await?;
-    
+    let _deleted = state
+        .collection_service
+        .delete_collection(collection_name)
+        .await?;
+
     // Step 2: Recreate the collection with default settings
     tracing::info!("Recreating collection: {}", collection_name);
     use crate::application::services::collection_service::CreateCollectionRequest;
@@ -389,33 +411,40 @@ async fn reindex_documents(
         distance_metric: Some("cosine".to_string()),
         description: Some(format!("Reindexed collection: {}", collection_name)),
     };
-    let _collection = state.collection_service.create_collection(create_request).await?;
-    
+    let _collection = state
+        .collection_service
+        .create_collection(create_request)
+        .await?;
+
     // Step 3: Use the same path as configured in the CLI
     // In a full implementation, we'd store the original indexing paths
     let default_path = std::env::current_dir()
-        .map_err(|e| zero_latency_core::ZeroLatencyError::external_service("filesystem", e.to_string()))?
+        .map_err(|e| {
+            zero_latency_core::ZeroLatencyError::external_service("filesystem", e.to_string())
+        })?
         .to_string_lossy()
         .to_string();
-    
+
     // Create filtering configuration from request
-    let filters = if request.safe_patterns.is_some() || request.ignore_patterns.is_some() ||
-        request.clear_default_ignores.is_some() || request.follow_symlinks.is_some() ||
-        request.case_sensitive.is_some() {
-        
+    let filters = if request.safe_patterns.is_some()
+        || request.ignore_patterns.is_some()
+        || request.clear_default_ignores.is_some()
+        || request.follow_symlinks.is_some()
+        || request.case_sensitive.is_some()
+    {
         use crate::application::services::filter_service::IndexingFilters;
-        
+
         let mut ignore_list = if request.clear_default_ignores.unwrap_or(false) {
             Vec::new() // Start with empty ignore list
         } else {
             IndexingFilters::new().ignore_list // Use default ignores
         };
-        
+
         // Add any additional ignore patterns
         if let Some(additional_ignores) = request.ignore_patterns {
             ignore_list.extend(additional_ignores);
         }
-        
+
         Some(IndexingFilters {
             safe_list: request.safe_patterns.unwrap_or_default(),
             ignore_list,
@@ -425,14 +454,19 @@ async fn reindex_documents(
     } else {
         None
     };
-    
+
     // For reindexing, we first clear the existing index and then rebuild it
     // TODO: In production, implement atomic reindexing with backup/restore
     let result = state
         .document_service
-        .index_documents_from_path_with_filters_and_collection(&default_path, true, filters, collection_name)
+        .index_documents_from_path_with_filters_and_collection(
+            &default_path,
+            true,
+            filters,
+            collection_name,
+        )
         .await;
-    
+
     match result {
         Ok((documents_processed, processing_time_ms)) => {
             tracing::info!(
@@ -440,19 +474,22 @@ async fn reindex_documents(
                 processing_time_ms = processing_time_ms,
                 "Reindexing completed successfully"
             );
-            
+
             // Update collection statistics after successful reindexing
             if let Err(e) = update_collection_statistics(&state, collection_name).await {
                 tracing::warn!("Failed to update collection statistics: {}", e);
             }
-            
+
             Ok(Json(ReindexResponse {
                 documents_processed,
                 processing_time_ms,
                 status: "completed".to_string(),
-                message: Some(format!("Successfully reindexed {} documents", documents_processed)),
+                message: Some(format!(
+                    "Successfully reindexed {} documents",
+                    documents_processed
+                )),
             }))
-        },
+        }
         Err(e) => {
             tracing::error!(error = %e, "Failed to reindex documents");
             Err(AppError(e))
@@ -462,25 +499,29 @@ async fn reindex_documents(
 
 /// Update collection statistics after indexing
 #[tracing::instrument(skip(state))]
-async fn update_collection_statistics(state: &AppState, collection_name: &str) -> Result<(), zero_latency_core::ZeroLatencyError> {
+async fn update_collection_statistics(
+    state: &AppState,
+    collection_name: &str,
+) -> Result<(), zero_latency_core::ZeroLatencyError> {
     // Get current vector count from the vector repository
     let vector_count = state.container.vector_repository().count().await? as u64;
-    
+
     // Estimate size (384 dimensions * 4 bytes per float + metadata overhead)
     let estimated_size_bytes = vector_count * (384 * 4 + 100); // ~1640 bytes per vector with metadata
-    
+
     // Update statistics for the specified collection
-    state.collection_service
+    state
+        .collection_service
         .update_collection_stats(collection_name, vector_count, estimated_size_bytes)
         .await?;
-    
+
     tracing::info!(
         collection = collection_name,
         vector_count = vector_count,
         size_bytes = estimated_size_bytes,
         "Updated collection statistics"
     );
-    
+
     Ok(())
 }
 
@@ -680,24 +721,23 @@ impl axum::response::IntoResponse for AppError {
             ZeroLatencyError::Database { message } => {
                 (StatusCode::INTERNAL_SERVER_ERROR, message.clone())
             }
-            ZeroLatencyError::Network { message } => {
-                (StatusCode::BAD_GATEWAY, message.clone())
-            }
+            ZeroLatencyError::Network { message } => (StatusCode::BAD_GATEWAY, message.clone()),
             ZeroLatencyError::Serialization { message } => {
                 (StatusCode::INTERNAL_SERVER_ERROR, message.clone())
             }
-            ZeroLatencyError::PermissionDenied { operation } => {
-                (StatusCode::FORBIDDEN, format!("Permission denied: {}", operation))
-            }
+            ZeroLatencyError::PermissionDenied { operation } => (
+                StatusCode::FORBIDDEN,
+                format!("Permission denied: {}", operation),
+            ),
         };
-        
+
         let error_response = serde_json::json!({
             "error": {
                 "message": message,
                 "type": format!("{:?}", self.0)
             }
         });
-        
+
         (status, Json(error_response)).into_response()
     }
 }
@@ -738,15 +778,18 @@ async fn create_collection(
     Json(request): Json<CreateCollectionApiRequest>,
 ) -> Result<Json<CreateCollectionResponse>, AppError> {
     use crate::application::services::collection_service::CreateCollectionRequest;
-    
+
     let create_request = CreateCollectionRequest {
         name: request.name,
         vector_size: request.vector_size,
         distance_metric: request.distance_metric,
         description: request.description,
     };
-    
-    let collection = state.collection_service.create_collection(create_request).await?;
+
+    let collection = state
+        .collection_service
+        .create_collection(create_request)
+        .await?;
     Ok(Json(CreateCollectionResponse {
         success: true,
         collection,

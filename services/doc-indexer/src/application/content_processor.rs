@@ -1,8 +1,7 @@
 /// Content processing and type detection for different file formats
-/// 
+///
 /// This module provides content type detection and appropriate processing
 /// for different file formats to extract meaningful semantic content.
-
 use std::path::Path;
 use zero_latency_core::Result;
 
@@ -75,7 +74,7 @@ impl ContentProcessor {
     /// Detect content type by analyzing the content
     fn detect_by_content(content: &str) -> ContentType {
         let content_lower = content.to_lowercase();
-        
+
         // Check for common patterns
         if content_lower.contains("<!doctype html") || content_lower.contains("<html") {
             ContentType::Html
@@ -185,7 +184,7 @@ impl ContentProcessor {
             .unwrap()
             .replace_all(&processed, "")
             .to_string();
-        
+
         processed = regex::Regex::new(r"`[^`]+`")
             .unwrap()
             .replace_all(&processed, "")
@@ -238,7 +237,8 @@ impl ContentProcessor {
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim();
-                if !trimmed.starts_with('#') && (trimmed.contains('=') || trimmed.starts_with('[')) {
+                if !trimmed.starts_with('#') && (trimmed.contains('=') || trimmed.starts_with('['))
+                {
                     Some(trimmed.replace(['=', '[', ']'], " "))
                 } else {
                     None
@@ -255,11 +255,14 @@ impl ContentProcessor {
 
         for line in content.lines() {
             let trimmed = line.trim();
-            
+
             // Extract comments based on language
             match language {
                 "rust" | "javascript" => {
-                    if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+                    if trimmed.starts_with("//")
+                        || trimmed.starts_with("/*")
+                        || trimmed.starts_with("*")
+                    {
                         extracted.push(trimmed.trim_start_matches(['/', '*']).trim());
                     }
                 }
@@ -292,12 +295,12 @@ mod tests {
             ContentProcessor::detect_content_type(&PathBuf::from("test.md"), ""),
             ContentType::Markdown
         );
-        
+
         assert_eq!(
             ContentProcessor::detect_content_type(&PathBuf::from("test.html"), ""),
             ContentType::Html
         );
-        
+
         assert_eq!(
             ContentProcessor::detect_content_type(&PathBuf::from("test.rs"), ""),
             ContentType::Rust

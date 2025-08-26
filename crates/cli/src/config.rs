@@ -36,28 +36,28 @@ impl CliConfig {
             Ok(Self::default())
         }
     }
-    
+
     pub fn save(&self) -> Result<()> {
         let config_file = Self::config_file()?;
         let content = toml::to_string_pretty(self)?;
         std::fs::write(&config_file, content)?;
         Ok(())
     }
-    
+
     pub fn set_collection(&mut self, collection_name: String) -> Result<()> {
         self.collection_name = collection_name;
         self.save()
     }
-    
+
     pub fn config_dir() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?
             .join("mdx");
-        
+
         std::fs::create_dir_all(&config_dir)?;
         Ok(config_dir)
     }
-    
+
     pub fn config_file() -> Result<PathBuf> {
         Ok(Self::config_dir()?.join("config.toml"))
     }

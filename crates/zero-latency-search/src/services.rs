@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-use zero_latency_core::Result;
 use crate::{models::*, traits::*};
+use async_trait::async_trait;
 use std::sync::Arc;
+use zero_latency_core::Result;
 
 /// Search pipeline that executes steps in sequence
 pub struct SearchPipeline {
@@ -15,11 +15,11 @@ impl SearchPipeline {
 
     pub async fn execute(&self, request: SearchRequest) -> Result<SearchResponse> {
         let mut context = SearchContext::new(request);
-        
+
         for step in &self.steps {
             step.execute(&mut context).await?;
         }
-        
+
         Ok(context.into_response())
     }
 }
@@ -31,9 +31,7 @@ pub struct SearchPipelineBuilder {
 
 impl SearchPipelineBuilder {
     pub fn new() -> Self {
-        Self {
-            steps: Vec::new(),
-        }
+        Self { steps: Vec::new() }
     }
 
     pub fn add_step(mut self, step: Box<dyn SearchStep>) -> Self {
@@ -42,9 +40,7 @@ impl SearchPipelineBuilder {
     }
 
     pub fn build(self) -> SearchPipeline {
-        SearchPipeline {
-            steps: self.steps,
-        }
+        SearchPipeline { steps: self.steps }
     }
 }
 

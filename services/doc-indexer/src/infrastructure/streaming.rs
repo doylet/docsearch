@@ -1,14 +1,8 @@
 /// HTTP streaming support for real-time updates
-/// 
+///
 /// This module provides Server-Sent Events (SSE) streaming capabilities
 /// for long-running operations like document indexing and batch searches.
-
-use axum::{
-    extract::State,
-    response::Sse,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, response::Sse, routing::get, Router};
 use futures_util::Stream;
 use serde_json::json;
 use std::{convert::Infallible, time::Duration};
@@ -64,7 +58,7 @@ fn create_progress_stream() -> impl Stream<Item = Result<axum::response::sse::Ev
     async_stream::stream! {
         while progress <= 100 {
             interval.tick().await;
-            
+
             let event_data = json!({
                 "type": "progress",
                 "operation": "document_indexing",
@@ -77,7 +71,7 @@ fn create_progress_stream() -> impl Stream<Item = Result<axum::response::sse::Ev
                 .data(serde_json::to_string(&event_data).unwrap());
 
             yield Ok(event);
-            
+
             progress += 10;
         }
 
@@ -105,7 +99,7 @@ fn create_search_stream() -> impl Stream<Item = Result<axum::response::sse::Even
     async_stream::stream! {
         while count < 5 {
             interval.tick().await;
-            
+
             let result_data = json!({
                 "type": "search_result",
                 "document_id": format!("doc_{}", count),
@@ -144,7 +138,7 @@ fn create_health_stream() -> impl Stream<Item = Result<axum::response::sse::Even
     async_stream::stream! {
         loop {
             interval.tick().await;
-            
+
             let health_data = json!({
                 "timestamp": chrono::Utc::now().to_rfc3339(),
                 "status": "healthy",

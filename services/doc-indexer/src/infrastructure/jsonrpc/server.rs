@@ -1,19 +1,14 @@
 /// JSON-RPC 2.0 server implementation
-/// 
+///
 /// This module provides an HTTP server that handles JSON-RPC 2.0 requests,
 /// enabling standardized tool service interface while maintaining compatibility with
 /// the existing REST API through dual endpoints.
-use axum::{
-    extract::State,
-    response::Json,
-    routing::post,
-    Router,
-};
+use axum::{extract::State, response::Json, routing::post, Router};
 use serde_json::Value;
 
 use crate::infrastructure::http::handlers::AppState;
-use crate::infrastructure::jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};
 use crate::infrastructure::jsonrpc::handlers::route_method;
+use crate::infrastructure::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 
 /// JSON-RPC server state (wraps the existing AppState)
 #[derive(Clone)]
@@ -32,10 +27,8 @@ impl JsonRpcServer {
         Router::new()
             // Main JSON-RPC endpoint
             .route("/jsonrpc", post(handle_jsonrpc_request))
-            
             // Batch endpoint for multiple requests
             .route("/jsonrpc/batch", post(handle_batch_jsonrpc_request))
-            
             .with_state(self)
     }
 }
@@ -49,10 +42,7 @@ async fn handle_jsonrpc_request(
     let request = match serde_json::from_value::<JsonRpcRequest>(payload) {
         Ok(req) => req,
         Err(_) => {
-            return Json(JsonRpcResponse::error(
-                None,
-                JsonRpcError::parse_error(),
-            ));
+            return Json(JsonRpcResponse::error(None, JsonRpcError::parse_error()));
         }
     };
 
@@ -70,7 +60,8 @@ async fn handle_jsonrpc_request(
         request.params,
         request.id,
         &server.app_state,
-    ).await;
+    )
+    .await;
 
     Json(response)
 }
@@ -104,10 +95,7 @@ async fn handle_batch_jsonrpc_request(
         let request = match serde_json::from_value::<JsonRpcRequest>(request_value) {
             Ok(req) => req,
             Err(_) => {
-                responses.push(JsonRpcResponse::error(
-                    None,
-                    JsonRpcError::parse_error(),
-                ));
+                responses.push(JsonRpcResponse::error(None, JsonRpcError::parse_error()));
                 continue;
             }
         };
@@ -127,7 +115,8 @@ async fn handle_batch_jsonrpc_request(
             request.params,
             request.id,
             &server.app_state,
-        ).await;
+        )
+        .await;
 
         responses.push(response);
     }
@@ -140,20 +129,18 @@ pub fn create_dual_protocol_router(app_state: AppState) -> Router {
     let rest_router = crate::infrastructure::http::handlers::create_router(app_state.clone());
     let jsonrpc_server = JsonRpcServer::new(app_state.clone());
     let jsonrpc_router = jsonrpc_server.create_router();
-    let streaming_router = crate::infrastructure::streaming::create_streaming_router()
-        .with_state(app_state);
+    let streaming_router =
+        crate::infrastructure::streaming::create_streaming_router().with_state(app_state);
 
     // Combine all routers
-    rest_router
-        .merge(jsonrpc_router)
-        .merge(streaming_router)
+    rest_router.merge(jsonrpc_router).merge(streaming_router)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-    
+
     // Helper function to create test app state
     fn create_test_app_state() -> AppState {
         // This would be replaced with proper test setup

@@ -1,13 +1,12 @@
+use crate::application::ServiceContainer;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 /// Collection management service
-/// 
+///
 /// This service handles collection-level operations including creating, listing,
 /// and managing vector collections in the storage backend.
-
 use std::sync::Arc;
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use zero_latency_core::{Result, ZeroLatencyError};
-use crate::application::ServiceContainer;
 
 /// Collection metadata and statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +50,7 @@ impl CollectionService {
     /// Create a new collection service
     pub fn new(container: &Arc<ServiceContainer>) -> Self {
         let collections = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
-        
+
         Self {
             container: container.clone(),
             collections,
@@ -61,11 +60,16 @@ impl CollectionService {
     /// Initialize collection with actual data from vector repository
     pub async fn initialize(&self) -> Result<()> {
         let mut collections_guard = self.collections.write().await;
-        
+
         // Get actual vector count from the vector repository
-        let vector_count = self.container.vector_repository().count().await.unwrap_or(0) as u64;
+        let vector_count = self
+            .container
+            .vector_repository()
+            .count()
+            .await
+            .unwrap_or(0) as u64;
         let estimated_size = vector_count * (384 * 4 + 100); // ~1640 bytes per vector with metadata
-        
+
         // Add the default collection with actual vector store data
         let default_collection = CollectionInfo {
             name: "zero_latency_docs".to_string(),
@@ -76,20 +80,25 @@ impl CollectionService {
             vector_size: Some(384),
             status: CollectionStatus::Active,
         };
-        
+
         collections_guard.insert("zero_latency_docs".to_string(), default_collection);
-        
+
         tracing::info!(
             "Initialized collection 'zero_latency_docs' with {} vectors ({} bytes)",
             vector_count,
             estimated_size
         );
-        
+
         Ok(())
     }
 
     /// Update collection statistics when documents are indexed
-    pub async fn update_collection_stats(&self, collection_name: &str, vector_count: u64, size_bytes: u64) -> Result<()> {
+    pub async fn update_collection_stats(
+        &self,
+        collection_name: &str,
+        vector_count: u64,
+        size_bytes: u64,
+    ) -> Result<()> {
         let mut collections_guard = self.collections.write().await;
         if let Some(collection) = collections_guard.get_mut(collection_name) {
             collection.vector_count = vector_count;
@@ -103,7 +112,7 @@ impl CollectionService {
     pub async fn list_collections(&self) -> Result<Vec<CollectionInfo>> {
         let collections_guard = self.collections.read().await;
         let collections: Vec<_> = collections_guard.values().cloned().collect();
-        
+
         // Return collections as-is, without overwriting with shared vector store data
         // In a full implementation, each collection would have its own vector store instance
         // For now, we track collection statistics independently
@@ -123,20 +132,32 @@ impl CollectionService {
     }
 
     /// Create a new collection
-    pub async fn create_collection(&self, request: CreateCollectionRequest) -> Result<CollectionInfo> {
+    pub async fn create_collection(
+        &self,
+        request: CreateCollectionRequest,
+    ) -> Result<CollectionInfo> {
         if request.name.is_empty() {
-            return Err(ZeroLatencyError::validation("name", "Collection name cannot be empty"));
+            return Err(ZeroLatencyError::validation(
+                "name",
+                "Collection name cannot be empty",
+            ));
         }
 
         if request.vector_size == 0 {
-            return Err(ZeroLatencyError::validation("vector_size", "Vector size must be greater than 0"));
+            return Err(ZeroLatencyError::validation(
+                "vector_size",
+                "Vector size must be greater than 0",
+            ));
         }
 
         // Check if collection already exists
         {
             let collections_guard = self.collections.read().await;
             if collections_guard.contains_key(&request.name) {
-                return Err(ZeroLatencyError::validation("name", "Collection already exists"));
+                return Err(ZeroLatencyError::validation(
+                    "name",
+                    "Collection already exists",
+                ));
             }
         }
 

@@ -1,5 +1,5 @@
 /// Content type enumeration
-/// 
+///
 /// Represents different types of content that can be processed by the system.
 /// This is separate from processing logic to follow SRP.
 
@@ -39,7 +39,7 @@ pub enum ContentType {
 
 impl ContentType {
     /// Check if this content type should be indexed
-    /// 
+    ///
     /// This follows SRP by separating indexing policy from content processing
     pub fn should_index(&self) -> bool {
         matches!(

@@ -1,5 +1,5 @@
+use crate::{models::*, Result};
 use async_trait::async_trait;
-use crate::{Result, models::*};
 use std::time::Duration;
 
 /// Health checking capability
@@ -20,7 +20,7 @@ pub trait ServiceLifecycle: Send + Sync {
 /// Configuration provider
 pub trait ConfigProvider: Send + Sync {
     type Config;
-    
+
     fn get_config(&self) -> &Self::Config;
     fn reload_config(&mut self) -> Result<()>;
 }
@@ -29,7 +29,7 @@ pub trait ConfigProvider: Send + Sync {
 #[async_trait]
 pub trait EventPublisher: Send + Sync {
     type Event: Send + Sync;
-    
+
     async fn publish(&self, event: Self::Event) -> Result<()>;
     async fn publish_batch(&self, events: Vec<Self::Event>) -> Result<()>;
 }
@@ -77,7 +77,13 @@ pub trait Cache<K, V>: Send + Sync {
 pub trait Serializer: Send + Sync {
     type Output;
     type Error;
-    
-    fn serialize<T: serde::Serialize>(&self, value: &T) -> std::result::Result<Self::Output, Self::Error>;
-    fn deserialize<T: serde::de::DeserializeOwned>(&self, data: &Self::Output) -> std::result::Result<T, Self::Error>;
+
+    fn serialize<T: serde::Serialize>(
+        &self,
+        value: &T,
+    ) -> std::result::Result<Self::Output, Self::Error>;
+    fn deserialize<T: serde::de::DeserializeOwned>(
+        &self,
+        data: &Self::Output,
+    ) -> std::result::Result<T, Self::Error>;
 }

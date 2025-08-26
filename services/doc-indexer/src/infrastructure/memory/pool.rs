@@ -1,8 +1,7 @@
 /// Vector memory pool implementation
-/// 
+///
 /// Provides reusable vector buffers to reduce allocation overhead
 /// during embedding generation and vector operations.
-
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -28,7 +27,7 @@ impl Default for VectorPoolConfig {
 }
 
 /// Memory pool for vector allocations
-/// 
+///
 /// Maintains a pool of reusable Vec<f32> buffers to reduce
 /// allocation overhead during embedding operations.
 pub struct VectorPool {
@@ -50,29 +49,30 @@ impl VectorPool {
     }
 
     /// Get a vector from the pool or allocate a new one
-    /// 
+    ///
     /// Returns a vector with at least the requested capacity.
     /// The vector may be larger than requested but will be cleared.
     pub fn get_vector(&self, dimension: usize) -> Vec<f32> {
         let mut pool = self.pool.lock().unwrap();
-        
+
         // Look for a suitable vector in the pool
         for i in 0..pool.len() {
             if let Some(vec) = pool.get(i).cloned() {
-                if vec.capacity() >= dimension && 
-                   vec.capacity() <= dimension + self.config.dimension_tolerance {
+                if vec.capacity() >= dimension
+                    && vec.capacity() <= dimension + self.config.dimension_tolerance
+                {
                     pool.remove(i);
                     let mut vec = vec;
                     vec.clear();
                     vec.resize(dimension, 0.0);
-                    
+
                     // Update hit counter
                     *self.hits.lock().unwrap() += 1;
                     return vec;
                 }
             }
         }
-        
+
         // No suitable vector found, allocate new one
         *self.misses.lock().unwrap() += 1;
         let mut vec = Vec::with_capacity(dimension.max(self.config.dimension));
@@ -81,16 +81,16 @@ impl VectorPool {
     }
 
     /// Return a vector to the pool for reuse
-    /// 
+    ///
     /// Only vectors with suitable capacity will be kept.
     /// Pool size is limited to prevent unbounded growth.
     pub fn return_vector(&self, mut vec: Vec<f32>) {
         // Only keep vectors with reasonable capacity
-        if vec.capacity() >= self.config.dimension &&
-           vec.capacity() <= self.config.dimension + self.config.dimension_tolerance * 2 {
-            
+        if vec.capacity() >= self.config.dimension
+            && vec.capacity() <= self.config.dimension + self.config.dimension_tolerance * 2
+        {
             vec.clear();
-            
+
             let mut pool = self.pool.lock().unwrap();
             if pool.len() < self.config.max_pool_size {
                 pool.push_back(vec);
@@ -103,7 +103,7 @@ impl VectorPool {
         let hits = *self.hits.lock().unwrap();
         let misses = *self.misses.lock().unwrap();
         let pool_size = self.pool.lock().unwrap().len();
-        
+
         VectorPoolStats {
             hits,
             misses,
@@ -150,7 +150,7 @@ impl std::fmt::Display for VectorPoolStats {
 }
 
 /// RAII wrapper for pooled vectors
-/// 
+///
 /// Automatically returns the vector to the pool when dropped.
 pub struct PooledVector {
     vector: Option<Vec<f32>>,
@@ -218,13 +218,13 @@ mod tests {
         };
         let pool = VectorPool::new(config);
 
-    // test_vector_pool_basic temporarily disabled due to assertion mismatch
+        // test_vector_pool_basic temporarily disabled due to assertion mismatch
     }
 
     #[test]
     fn test_pooled_vector_raii() {
         let pool = Arc::new(VectorPool::new(VectorPoolConfig::default()));
-        
+
         {
             let mut pooled = PooledVector::new(pool.clone(), 384);
             pooled[0] = 1.0;

@@ -1,13 +1,12 @@
+use super::ContentType;
 /// Content type detection service
-/// 
+///
 /// Follows SRP by having a single responsibility: determining content type
 /// from file path and content analysis
-
 use std::path::Path;
-use super::ContentType;
 
 /// Service responsible for detecting content types
-/// 
+///
 /// This follows SRP by focusing solely on content type detection
 pub struct ContentTypeDetector;
 
@@ -32,7 +31,9 @@ impl ContentTypeDetector {
                 "sh" | "bash" | "zsh" | "fish" => return ContentType::Shell,
                 "conf" | "config" | "cfg" | "ini" => return ContentType::Config,
                 // Binary and unknown extensions
-                "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => return ContentType::Unknown,
+                "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => {
+                    return ContentType::Unknown
+                }
                 _ => {}
             }
         }
@@ -44,22 +45,22 @@ impl ContentTypeDetector {
     /// Detect content type by analyzing content
     fn detect_by_content(content: &str) -> ContentType {
         let content_lower = content.to_lowercase();
-        
+
         // Check for binary content (non-UTF8 or binary indicators)
         if content.contains('\0') || content_lower.contains("binary content") {
             return ContentType::Unknown;
         }
-        
+
         // Check for HTML
         if content_lower.contains("<html") || content_lower.contains("<!doctype html") {
             return ContentType::Html;
         }
-        
+
         // Check for JSON
         if content.trim().starts_with('{') && content.trim().ends_with('}') {
             return ContentType::Json;
         }
-        
+
         // Check for Markdown (headers)
         if content.lines().any(|line| line.trim().starts_with('#')) {
             return ContentType::Markdown;

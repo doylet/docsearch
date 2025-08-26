@@ -1,8 +1,7 @@
 /// Type definitions for JSON-RPC 2.0 tool service compliance
-/// 
+///
 /// This module defines the request/response types for JSON-RPC wrapped methods
 /// that correspond to the existing REST API endpoints.
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -144,9 +143,9 @@ pub struct ServiceCapabilities {
 
 impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::jsonrpc::JsonRpcError {
     fn from(err: zero_latency_core::ZeroLatencyError) -> Self {
-        use zero_latency_core::ZeroLatencyError;
         use crate::infrastructure::jsonrpc::error_codes;
-        
+        use zero_latency_core::ZeroLatencyError;
+
         match err {
             ZeroLatencyError::Validation { field, message } => {
                 crate::infrastructure::jsonrpc::JsonRpcError::validation_error(&field, &message)
@@ -162,11 +161,11 @@ impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::jsonrp
                     }
                 }
             }
-            ZeroLatencyError::Configuration { message } |
-            ZeroLatencyError::Internal { message } |
-            ZeroLatencyError::Database { message } |
-            ZeroLatencyError::Network { message } |
-            ZeroLatencyError::Serialization { message } => {
+            ZeroLatencyError::Configuration { message }
+            | ZeroLatencyError::Internal { message }
+            | ZeroLatencyError::Database { message }
+            | ZeroLatencyError::Network { message }
+            | ZeroLatencyError::Serialization { message } => {
                 crate::infrastructure::jsonrpc::JsonRpcError::internal_error(Some(message))
             }
             ZeroLatencyError::ExternalService { service, message } => {

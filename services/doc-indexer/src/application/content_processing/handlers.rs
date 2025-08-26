@@ -1,25 +1,24 @@
+use super::ContentType;
 /// Content handler trait and implementations
-/// 
+///
 /// This follows SOLID principles:
 /// - SRP: Each handler has a single responsibility for one content type
 /// - OCP: System is open for extension (new handlers) but closed for modification
 /// - ISP: Focused interface with only necessary methods
 /// - DIP: Depends on abstractions (trait) not concretions
-
 use zero_latency_core::Result;
-use super::ContentType;
 
 /// Trait for handling specific content types
-/// 
+///
 /// Each implementation handles processing for exactly one content type,
 /// following the Single Responsibility Principle
 pub trait ContentHandler: Send + Sync {
     /// Get the content type this handler processes
     fn content_type(&self) -> ContentType;
-    
+
     /// Process content and extract meaningful text for indexing
     fn process(&self, content: &str) -> Result<String>;
-    
+
     /// Check if this handler can process the given content type
     fn can_handle(&self, content_type: &ContentType) -> bool {
         &self.content_type() == content_type
@@ -33,7 +32,7 @@ impl ContentHandler for HtmlHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Html
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         // Process HTML content to extract text while preserving semantic structure
         let mut processed = content
@@ -72,7 +71,7 @@ impl ContentHandler for MarkdownHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Markdown
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         // Remove markdown syntax but preserve the semantic content
         let mut processed = content
@@ -99,7 +98,7 @@ impl ContentHandler for MarkdownHandler {
             .unwrap()
             .replace_all(&processed, "")
             .to_string();
-        
+
         processed = regex::Regex::new(r"`[^`]+`")
             .unwrap()
             .replace_all(&processed, "")
@@ -116,7 +115,7 @@ impl ContentHandler for JsonHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Json
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         // Extract string values and keys for semantic search
         let lines: Vec<String> = content
@@ -143,7 +142,7 @@ impl ContentHandler for YamlHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Yaml
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         // Extract keys and string values
         let lines: Vec<String> = content
@@ -169,14 +168,15 @@ impl ContentHandler for TomlHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Toml
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         // Similar to YAML but with TOML syntax
         let lines: Vec<String> = content
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim();
-                if !trimmed.starts_with('#') && (trimmed.contains('=') || trimmed.starts_with('[')) {
+                if !trimmed.starts_with('#') && (trimmed.contains('=') || trimmed.starts_with('['))
+                {
                     Some(trimmed.replace(['=', '[', ']'], " "))
                 } else {
                     None
@@ -207,17 +207,20 @@ impl ContentHandler for SourceCodeHandler {
     fn content_type(&self) -> ContentType {
         self.content_type.clone()
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         let mut extracted = Vec::new();
 
         for line in content.lines() {
             let trimmed = line.trim();
-            
+
             // Extract comments based on language
             match self.language.as_str() {
                 "rust" | "javascript" => {
-                    if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+                    if trimmed.starts_with("//")
+                        || trimmed.starts_with("/*")
+                        || trimmed.starts_with("*")
+                    {
                         extracted.push(trimmed.trim_start_matches(['/', '*']).trim());
                     }
                 }
@@ -246,7 +249,7 @@ impl ContentHandler for PlainTextHandler {
     fn content_type(&self) -> ContentType {
         ContentType::PlainText
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         Ok(content.to_string())
     }
@@ -259,7 +262,7 @@ impl ContentHandler for DefaultHandler {
     fn content_type(&self) -> ContentType {
         ContentType::Unknown
     }
-    
+
     fn process(&self, content: &str) -> Result<String> {
         Ok(content.to_string())
     }

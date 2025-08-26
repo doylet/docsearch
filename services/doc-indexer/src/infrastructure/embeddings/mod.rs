@@ -1,5 +1,5 @@
 /// Embedding generation infrastructure adapters
-/// 
+///
 /// This module contains concrete implementations of the EmbeddingGenerator trait
 /// for different embedding services and local implementations.
 

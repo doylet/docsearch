@@ -1,11 +1,3 @@
-/// HTTP server implementation using Axum
-/// 
-/// This module contains the HTTP server setup and configuration,
-/// including middleware, CORS, and graceful shutdown handling.
-
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
 use axum::{
     extract::Request,
     http::{HeaderValue, Method},
@@ -13,18 +5,21 @@ use axum::{
     response::Response,
     Router,
 };
-use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-    timeout::TimeoutLayer,
-};
-use tokio::signal;
-use tracing::{info, warn};
 use serde::{Deserialize, Serialize};
+/// HTTP server implementation using Axum
+///
+/// This module contains the HTTP server setup and configuration,
+/// including middleware, CORS, and graceful shutdown handling.
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::signal;
+use tower::ServiceBuilder;
+use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
+use tracing::{info, warn};
 
-use crate::application::ServiceContainer;
 use super::handlers::AppState;
+use crate::application::ServiceContainer;
 
 /// HTTP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,61 +39,65 @@ pub struct HttpServer {
 
 impl HttpServer {
     /// Create a new HTTP server
-    pub async fn new(config: ServerConfig, container: Arc<ServiceContainer>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let app_state = AppState::new_async(container).await
+    pub async fn new(
+        config: ServerConfig,
+        container: Arc<ServiceContainer>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let app_state = AppState::new_async(container)
+            .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-        
-        Ok(Self {
-            config,
-            app_state,
-        })
+
+        Ok(Self { config, app_state })
     }
-    
+
     /// Build the complete router with middleware
     pub fn build_router(&self) -> Router {
         // Use the dual protocol router that includes both REST and JSON-RPC endpoints
-        let router = crate::infrastructure::jsonrpc::create_dual_protocol_router(self.app_state.clone());
-        
+        let router =
+            crate::infrastructure::jsonrpc::create_dual_protocol_router(self.app_state.clone());
+
         // Build middleware stack
         let middleware_stack = ServiceBuilder::new()
             .layer(TraceLayer::new_for_http())
-            .layer(TimeoutLayer::new(Duration::from_secs(self.config.timeout_seconds)))
+            .layer(TimeoutLayer::new(Duration::from_secs(
+                self.config.timeout_seconds,
+            )))
             .layer(middleware::from_fn(request_logging_middleware));
-        
+
         let mut app = router.layer(middleware_stack);
-        
+
         // Add CORS if enabled
         if self.config.enable_cors {
             let cors = self.build_cors_layer();
             app = app.layer(cors);
         }
-        
+
         app
     }
-    
+
     /// Start the HTTP server
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let addr = SocketAddr::from((
             self.config.host.parse::<std::net::IpAddr>()?,
             self.config.port,
         ));
-        
+
         let app = self.build_router();
-        
+
         info!("Starting HTTP server on {}", addr);
-        
+
         // Create the server
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        
+
         // Start server with graceful shutdown
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
-        
+
         info!("HTTP server stopped");
         Ok(())
     }
-    
+
     /// Build CORS layer
     fn build_cors_layer(&self) -> CorsLayer {
         let mut cors = CorsLayer::new()
@@ -113,16 +112,18 @@ impl HttpServer {
                 axum::http::header::CONTENT_TYPE,
                 axum::http::header::AUTHORIZATION,
             ]);
-        
+
         // Configure origins
         if self.config.cors_origins.is_empty() {
             cors = cors.allow_origin(axum::http::header::HeaderValue::from_static("*"));
         } else {
-            let origins: Result<Vec<HeaderValue>, _> = self.config.cors_origins
+            let origins: Result<Vec<HeaderValue>, _> = self
+                .config
+                .cors_origins
                 .iter()
                 .map(|origin| origin.parse())
                 .collect();
-            
+
             if let Ok(origins) = origins {
                 cors = cors.allow_origin(origins);
             } else {
@@ -130,26 +131,23 @@ impl HttpServer {
                 cors = cors.allow_origin(axum::http::header::HeaderValue::from_static("*"));
             }
         }
-        
+
         cors
     }
 }
 
 /// Request logging middleware
-async fn request_logging_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+async fn request_logging_middleware(request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let start = std::time::Instant::now();
-    
+
     // Process the request
     let response = next.run(request).await;
-    
+
     let duration = start.elapsed();
     let status = response.status();
-    
+
     info!(
         method = %method,
         path = %path,
@@ -157,7 +155,7 @@ async fn request_logging_middleware(
         duration_ms = %duration.as_millis(),
         "HTTP request processed"
     );
-    
+
     response
 }
 
@@ -206,40 +204,38 @@ impl Default for ServerConfig {
 mod tests {
     use super::*;
     use crate::config::Config;
-    
-    
-    
+
     #[tokio::test]
     async fn test_router_creation() {
         let config = Config::default();
         let container = Arc::new(
-            ServiceContainer::new(config).await.unwrap_or_else(|_| {
-                panic!("Failed to create container for test")
-            })
+            ServiceContainer::new(config)
+                .await
+                .unwrap_or_else(|_| panic!("Failed to create container for test")),
         );
-        
+
         let server_config = ServerConfig::default();
         let server = HttpServer::new(server_config, container).await.unwrap();
-        
+
         // Should be able to build router without panicking
         let _router = server.build_router();
     }
-    
+
     #[tokio::test]
     async fn test_cors_layer_creation() {
         let config = Config::default();
         let container = Arc::new(
-            ServiceContainer::new(config).await.unwrap_or_else(|_| {
-                panic!("Failed to create container for test")
-            })
+            ServiceContainer::new(config)
+                .await
+                .unwrap_or_else(|_| panic!("Failed to create container for test")),
         );
-        
+
         let server_config = ServerConfig {
             enable_cors: true,
             cors_origins: vec!["http://localhost:3000".to_string()],
             ..Default::default()
         };
-        
+
         let server = HttpServer::new(server_config, container).await.unwrap();
         let _cors_layer = server.build_cors_layer();
     }

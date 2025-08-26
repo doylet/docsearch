@@ -1,8 +1,7 @@
 /// Request and Response Contracts
-/// 
+///
 /// Shared data structures for API requests and responses to ensure
 /// type safety and compatibility between CLI and server.
-
 use serde::{Deserialize, Serialize};
 
 /// Standard API response wrapper
@@ -23,7 +22,7 @@ impl<T> ApiResponse<T> {
             timestamp: Some(chrono::Utc::now().to_rfc3339()),
         }
     }
-    
+
     pub fn error(error: ApiError) -> Self {
         Self {
             success: false,
@@ -50,7 +49,7 @@ impl ApiError {
             details: None,
         }
     }
-    
+
     pub fn with_details(code: &str, message: &str, details: serde_json::Value) -> Self {
         Self {
             code: code.to_string(),
@@ -161,51 +160,51 @@ pub mod error_codes {
 /// Request validation utilities
 pub mod validation {
     use super::*;
-    
+
     pub fn validate_search_request(req: &SearchRequest) -> Result<(), ApiError> {
         if req.query.trim().is_empty() {
             return Err(ApiError::new(
                 error_codes::VALIDATION_ERROR,
-                "Search query cannot be empty"
+                "Search query cannot be empty",
             ));
         }
-        
+
         if let Some(limit) = req.limit {
             if limit == 0 || limit > 1000 {
                 return Err(ApiError::new(
                     error_codes::VALIDATION_ERROR,
-                    "Search limit must be between 1 and 1000"
+                    "Search limit must be between 1 and 1000",
                 ));
             }
         }
-        
+
         if let Some(min_score) = req.min_score {
             if min_score < 0.0 || min_score > 1.0 {
                 return Err(ApiError::new(
                     error_codes::VALIDATION_ERROR,
-                    "Minimum score must be between 0.0 and 1.0"
+                    "Minimum score must be between 0.0 and 1.0",
                 ));
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub fn validate_create_document_request(req: &CreateDocumentRequest) -> Result<(), ApiError> {
         if req.collection.trim().is_empty() {
             return Err(ApiError::new(
                 error_codes::VALIDATION_ERROR,
-                "Collection name cannot be empty"
+                "Collection name cannot be empty",
             ));
         }
-        
+
         if req.content.trim().is_empty() {
             return Err(ApiError::new(
                 error_codes::VALIDATION_ERROR,
-                "Document content cannot be empty"
+                "Document content cannot be empty",
             ));
         }
-        
+
         Ok(())
     }
 }
@@ -213,7 +212,7 @@ pub mod validation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_api_response_success() {
         let response = ApiResponse::success("test data");
@@ -222,7 +221,7 @@ mod tests {
         assert!(response.error.is_none());
         assert!(response.timestamp.is_some());
     }
-    
+
     #[test]
     fn test_api_response_error() {
         let error = ApiError::new("TEST_ERROR", "Test error message");
@@ -232,7 +231,7 @@ mod tests {
         assert!(response.error.is_some());
         assert!(response.timestamp.is_some());
     }
-    
+
     #[test]
     fn test_search_request_validation() {
         let valid_request = SearchRequest {
@@ -242,7 +241,7 @@ mod tests {
             min_score: Some(0.5),
         };
         assert!(validation::validate_search_request(&valid_request).is_ok());
-        
+
         let invalid_request = SearchRequest {
             query: "".to_string(),
             collection: None,
@@ -251,7 +250,7 @@ mod tests {
         };
         assert!(validation::validate_search_request(&invalid_request).is_err());
     }
-    
+
     #[test]
     fn test_create_document_validation() {
         let valid_request = CreateDocumentRequest {
@@ -261,7 +260,7 @@ mod tests {
             metadata: None,
         };
         assert!(validation::validate_create_document_request(&valid_request).is_ok());
-        
+
         let invalid_request = CreateDocumentRequest {
             collection: "".to_string(),
             title: None,

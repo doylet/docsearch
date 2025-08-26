@@ -1,12 +1,12 @@
-use std::time::Instant;
-use zero_latency_core::{
-    Result,
-    models::{ComponentHealth, HealthStatus}
-};
 use crate::infrastructure::jsonrpc::types::{
-    HealthCheckResult, ReadinessResult, LivenessResult, HealthCheckItem
+    HealthCheckItem, HealthCheckResult, LivenessResult, ReadinessResult,
 };
 use std::collections::HashMap;
+use std::time::Instant;
+use zero_latency_core::{
+    models::{ComponentHealth, HealthStatus},
+    Result,
+};
 
 #[derive(Clone)]
 pub struct HealthService {
@@ -22,17 +22,26 @@ impl HealthService {
 
     pub async fn health_check(&self) -> Result<HealthCheckResult> {
         let mut checks = HashMap::new();
-        
+
         // Perform individual component checks
         let vector_check = self.check_vector_store().await;
         let embedding_check = self.check_embedding_generator().await;
         let memory_check = self.check_memory_usage().await;
-        
+
         // Convert to JSON-RPC format
-        checks.insert("vector_store".to_string(), self.convert_to_check_item(&vector_check));
-        checks.insert("embedding_generator".to_string(), self.convert_to_check_item(&embedding_check));
-        checks.insert("memory".to_string(), self.convert_to_check_item(&memory_check));
-        
+        checks.insert(
+            "vector_store".to_string(),
+            self.convert_to_check_item(&vector_check),
+        );
+        checks.insert(
+            "embedding_generator".to_string(),
+            self.convert_to_check_item(&embedding_check),
+        );
+        checks.insert(
+            "memory".to_string(),
+            self.convert_to_check_item(&memory_check),
+        );
+
         let all_checks = [&vector_check, &embedding_check, &memory_check];
         let overall_status = if all_checks.iter().all(|c| c.status.is_healthy()) {
             "healthy".to_string()
@@ -41,7 +50,7 @@ impl HealthService {
         } else {
             "degraded".to_string()
         };
-        
+
         Ok(HealthCheckResult {
             status: overall_status,
             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -52,7 +61,7 @@ impl HealthService {
     pub async fn readiness_check(&self) -> Result<ReadinessResult> {
         let health = self.health_check().await?;
         let is_ready = health.status == "healthy" || health.status == "degraded";
-        
+
         Ok(ReadinessResult {
             ready: is_ready,
             checks: health.checks,
@@ -72,13 +81,13 @@ impl HealthService {
             HealthStatus::Degraded { message: _ } => "degraded".to_string(),
             HealthStatus::Unhealthy { message: _ } => "unhealthy".to_string(),
         };
-        
+
         let message = match &component.status {
             HealthStatus::Healthy => None,
             HealthStatus::Degraded { message } => Some(message.clone()),
             HealthStatus::Unhealthy { message } => Some(message.clone()),
         };
-        
+
         HealthCheckItem { status, message }
     }
 

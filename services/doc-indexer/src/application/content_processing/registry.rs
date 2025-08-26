@@ -1,17 +1,16 @@
 /// Content processor registry
-/// 
+///
 /// Implements OCP by being open for extension (new handlers) but closed for modification
 /// Follows DIP by depending on abstractions (ContentHandler trait) not concretions
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use zero_latency_core::Result;
 
-use super::{ContentType, ContentHandler};
 use super::handlers::*;
+use super::{ContentHandler, ContentType};
 
 /// Registry for content handlers
-/// 
+///
 /// This follows OCP - open for extension via new handlers,
 /// closed for modification of existing registry logic
 #[derive(Clone)]
@@ -27,14 +26,14 @@ impl ContentProcessorRegistry {
             handlers: HashMap::new(),
             default_handler: Arc::new(DefaultHandler),
         };
-        
+
         // Register all default handlers
         registry.register_default_handlers();
         registry
     }
 
     /// Register a handler for a specific content type
-    /// 
+    ///
     /// This enables extension without modification (OCP)
     pub fn register_handler(&mut self, handler: Arc<dyn ContentHandler>) {
         let content_type = handler.content_type();
@@ -63,7 +62,7 @@ impl ContentProcessorRegistry {
         self.register_handler(Arc::new(YamlHandler));
         self.register_handler(Arc::new(TomlHandler));
         self.register_handler(Arc::new(PlainTextHandler));
-        
+
         // Register source code handlers
         self.register_handler(Arc::new(SourceCodeHandler::new(
             ContentType::Rust,
@@ -97,22 +96,24 @@ mod tests {
     #[test]
     fn test_registry_extension() {
         let mut registry = ContentProcessorRegistry::new();
-        
+
         // Should be extensible with new handlers
         struct CustomHandler;
         impl ContentHandler for CustomHandler {
             fn content_type(&self) -> ContentType {
                 ContentType::Config
             }
-            
+
             fn process(&self, content: &str) -> Result<String> {
                 Ok(format!("Custom: {}", content))
             }
         }
-        
+
         registry.register_handler(Arc::new(CustomHandler));
-        
-        let result = registry.process_content("test", &ContentType::Config).unwrap();
+
+        let result = registry
+            .process_content("test", &ContentType::Config)
+            .unwrap();
         assert!(result.starts_with("Custom:"));
     }
 }

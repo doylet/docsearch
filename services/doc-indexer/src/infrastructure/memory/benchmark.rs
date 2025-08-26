@@ -1,10 +1,8 @@
 /// Performance benchmarking utilities
-/// 
+///
 /// This module provides simple benchmarking tools to measure
 /// the impact of memory optimizations.
-
-use std::time::{Instant, Duration};
-use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 /// Simple benchmark result
 #[derive(Debug)]
@@ -44,11 +42,11 @@ impl std::fmt::Display for BenchmarkResult {
             self.operations,
             self.ops_per_sec
         )?;
-        
+
         if let Some(memory) = self.memory_usage {
             write!(f, ", {}KB memory", memory / 1024)?;
         }
-        
+
         Ok(())
     }
 }
@@ -66,30 +64,30 @@ impl Benchmark {
     }
 
     /// Run a benchmark test
-    pub fn run<F>(&mut self, name: &str, operations: usize, test_fn: F) 
-    where 
+    pub fn run<F>(&mut self, name: &str, operations: usize, test_fn: F)
+    where
         F: FnOnce(),
     {
         let start = Instant::now();
         test_fn();
         let duration = start.elapsed();
-        
+
         let result = BenchmarkResult::new(name.to_string(), duration, operations);
         println!("{}", result);
         self.results.push(result);
     }
 
     /// Run a benchmark test with memory measurement
-    pub fn run_with_memory<F>(&mut self, name: &str, operations: usize, test_fn: F) 
-    where 
+    pub fn run_with_memory<F>(&mut self, name: &str, operations: usize, test_fn: F)
+    where
         F: FnOnce() -> usize,
     {
         let start = Instant::now();
         let memory_usage = test_fn();
         let duration = start.elapsed();
-        
-        let result = BenchmarkResult::new(name.to_string(), duration, operations)
-            .with_memory(memory_usage);
+
+        let result =
+            BenchmarkResult::new(name.to_string(), duration, operations).with_memory(memory_usage);
         println!("{}", result);
         self.results.push(result);
     }
@@ -111,24 +109,30 @@ impl Benchmark {
         }
 
         // Find fastest and slowest
-        let fastest = self.results.iter()
+        let fastest = self
+            .results
+            .iter()
             .max_by(|a, b| a.ops_per_sec.partial_cmp(&b.ops_per_sec).unwrap())
             .unwrap();
-        let slowest = self.results.iter()
+        let slowest = self
+            .results
+            .iter()
             .min_by(|a, b| a.ops_per_sec.partial_cmp(&b.ops_per_sec).unwrap())
             .unwrap();
 
         if fastest.test_name != slowest.test_name {
             let speedup = fastest.ops_per_sec / slowest.ops_per_sec;
-            println!("\nSpeedup: {:.2}x ({} vs {})", 
-                     speedup, fastest.test_name, slowest.test_name);
+            println!(
+                "\nSpeedup: {:.2}x ({} vs {})",
+                speedup, fastest.test_name, slowest.test_name
+            );
         }
     }
 }
 
 /// Memory usage estimation utilities
 pub mod memory {
-    use std::alloc::{GlobalAlloc, System, Layout};
+    use std::alloc::{GlobalAlloc, Layout, System};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
@@ -171,7 +175,7 @@ mod tests {
     #[test]
     fn test_vector_allocation_benchmark() {
         let mut bench = Benchmark::new();
-        
+
         // Test traditional allocation
         bench.run("Traditional Vector Allocation", 10000, || {
             for _ in 0..10000 {
@@ -194,7 +198,7 @@ mod tests {
     #[test]
     fn test_string_operations_benchmark() {
         let mut bench = Benchmark::new();
-        
+
         // Test string creation
         bench.run("String Creation", 10000, || {
             for i in 0..10000 {

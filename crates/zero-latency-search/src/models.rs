@@ -1,7 +1,7 @@
-use zero_latency_core::{DateTime, Utc, Uuid, values::*};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use zero_latency_core::{values::*, DateTime, Utc, Uuid};
 
 /// Search request with all parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,9 +156,9 @@ pub enum QueryIntent {
 /// Query complexity assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryComplexity {
-    Simple,      // Single term or phrase
-    Moderate,    // Multiple terms with basic operators
-    Complex,     // Advanced queries with filters
+    Simple,   // Single term or phrase
+    Moderate, // Multiple terms with basic operators
+    Complex,  // Advanced queries with filters
 }
 
 /// Named entity in query

@@ -1,6 +1,6 @@
-use zero_latency_core::{Uuid, values::Score};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use zero_latency_core::{values::Score, Uuid};
 
 /// Vector document for storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
