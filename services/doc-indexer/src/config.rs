@@ -52,6 +52,121 @@ use crate::infrastructure::{QdrantConfig, OpenAIConfig};
 #[cfg(feature = "embedded")]
 use crate::infrastructure::{LocalEmbeddingConfig, EmbeddedConfig};
 
+/// Load testing configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadTestingConfig {
+    pub enabled: bool,
+    pub concurrency: usize,
+    pub duration_seconds: u64,
+    pub rate_limit: Option<u64>,
+    pub validate_optimizations: bool,
+    pub detailed_metrics: bool,
+}
+
+impl Default for LoadTestingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: std::env::var("LOAD_TESTING_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(false),
+            concurrency: std::env::var("LOAD_TEST_CONCURRENCY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
+            duration_seconds: std::env::var("LOAD_TEST_DURATION_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(60),
+            rate_limit: std::env::var("LOAD_TEST_RATE_LIMIT")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            validate_optimizations: std::env::var("LOAD_TEST_VALIDATE_OPTIMIZATIONS")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+            detailed_metrics: std::env::var("LOAD_TEST_DETAILED_METRICS")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(false),
+        }
+    }
+}
+
+/// Production deployment configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductionConfig {
+    /// Health check configuration
+    pub health_check_enabled: bool,
+    pub health_check_interval_seconds: u64,
+    pub health_check_timeout_seconds: u64,
+    
+    /// Monitoring configuration
+    pub monitoring_enabled: bool,
+    pub metrics_collection_interval_seconds: u64,
+    pub performance_alerts_enabled: bool,
+    
+    /// Shutdown configuration
+    pub graceful_shutdown_timeout_seconds: u64,
+    pub shutdown_signal_handlers: bool,
+    
+    /// Startup validation configuration
+    pub startup_validation_enabled: bool,
+    pub startup_timeout_seconds: u64,
+    pub dependency_check_enabled: bool,
+}
+
+impl Default for ProductionConfig {
+    fn default() -> Self {
+        Self {
+            health_check_enabled: std::env::var("HEALTH_CHECK_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+            health_check_interval_seconds: std::env::var("HEALTH_CHECK_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
+            health_check_timeout_seconds: std::env::var("HEALTH_CHECK_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5),
+            monitoring_enabled: std::env::var("MONITORING_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+            metrics_collection_interval_seconds: std::env::var("METRICS_COLLECTION_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
+            performance_alerts_enabled: std::env::var("PERFORMANCE_ALERTS_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(false),
+            graceful_shutdown_timeout_seconds: std::env::var("GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
+            shutdown_signal_handlers: std::env::var("SHUTDOWN_SIGNAL_HANDLERS")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+            startup_validation_enabled: std::env::var("STARTUP_VALIDATION_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+            startup_timeout_seconds: std::env::var("STARTUP_TIMEOUT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(60),
+            dependency_check_enabled: std::env::var("DEPENDENCY_CHECK_ENABLED")
+                .ok()
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(true),
+        }
+    }
+}
+
 /// Main configuration structure for the doc-indexer service
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -69,6 +184,12 @@ pub struct Config {
     
     /// Service-specific settings
     pub service: ServiceConfig,
+    
+    /// Load testing configuration
+    pub load_testing: LoadTestingConfig,
+    
+    /// Production deployment configuration
+    pub production: ProductionConfig,
 }
 
 /// Vector storage configuration
@@ -349,6 +470,9 @@ impl Config {
                         }
                     }),
             },
+            
+            load_testing: LoadTestingConfig::default(),
+            production: ProductionConfig::default(),
         };
         
         config.validate()?;
@@ -521,6 +645,9 @@ impl Default for Config {
                     std::path::PathBuf::from("~/Documents")
                 },
             },
+            
+            load_testing: LoadTestingConfig::default(),
+            production: ProductionConfig::default(),
         }
     }
 }

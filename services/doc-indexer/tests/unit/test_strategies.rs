@@ -56,7 +56,7 @@ async fn test_standard_indexing_strategy_creation() {
 async fn test_standard_indexing_strategy_index_document() {
     // Test that StandardIndexingStrategy properly indexes a document
     let mut mock_vector_storage = MockVectorStorage::new();
-    let mut mock_embedding_service = MockEmbeddingService::new();
+    // let mut mock_embedding_service = MockEmbeddingService::new();
     
     // Set up expectations
     mock_embedding_service
