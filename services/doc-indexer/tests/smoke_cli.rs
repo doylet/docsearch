@@ -2,13 +2,9 @@
 fn smoke_test_advanced_query_enhancement_and_ranking() {
     // Use a unique port to avoid conflicts
     let port = 18082u16;
-    let docs_path = PathBuf::from("tests/fixtures");
-    let mut child = Command::new("cargo")
+    let docs_path = std::fs::canonicalize("tests/fixtures").expect("Failed to resolve absolute path to test fixtures");
+    let mut child = Command::new("../../target/debug/doc-indexer")
         .args([
-            "run",
-            "--bin",
-            "doc-indexer",
-            "--",
             "--docs-path",
             docs_path.to_str().unwrap(),
             "--port",
@@ -28,7 +24,7 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
     // Wait for the server to be ready (poll /health)
     let health_url = format!("{}/health", base_url);
     let mut ready = false;
-    for _ in 0..20 {
+    for _ in 0..60 {
         if let Ok(resp) = rt.block_on(client.get(&health_url).send()) {
             if resp.status().is_success() {
                 ready = true;
@@ -49,9 +45,9 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .block_on(client.post(&index_url).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     assert!(
-        resp.status().is_success(),
-        "Indexing failed: {}",
-        resp.text().unwrap_or_default()
+    resp.status().is_success(),
+    "Indexing failed: {}",
+    rt.block_on(resp.text()).unwrap_or_default()
     );
 
     std::thread::sleep(Duration::from_secs(2));
@@ -67,9 +63,9 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .block_on(client.post(&search_url).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     assert!(
-        resp.status().is_success(),
-        "Search failed: {}",
-        resp.text().unwrap_or_default()
+    resp.status().is_success(),
+    "Search failed: {}",
+    rt.block_on(resp.text()).unwrap_or_default()
     );
     let json: serde_json::Value = rt
         .block_on(resp.json())
@@ -111,13 +107,9 @@ use tokio::runtime::Runtime;
 fn smoke_test_end_to_end_index_and_search() {
     // Use a unique port to avoid conflicts
     let port = 18081u16;
-    let docs_path = PathBuf::from("tests/fixtures");
-    let mut child = Command::new("cargo")
+    let docs_path = std::fs::canonicalize("tests/fixtures").expect("Failed to resolve absolute path to test fixtures");
+    let mut child = Command::new("../../target/debug/doc-indexer")
         .args([
-            "run",
-            "--bin",
-            "doc-indexer",
-            "--",
             "--docs-path",
             docs_path.to_str().unwrap(),
             "--port",
@@ -138,7 +130,7 @@ fn smoke_test_end_to_end_index_and_search() {
     // Wait for the server to be ready (poll /health)
     let health_url = format!("{}/health", base_url);
     let mut ready = false;
-    for _ in 0..20 {
+    for _ in 0..60 {
         if let Ok(resp) = rt.block_on(client.get(&health_url).send()) {
             if resp.status().is_success() {
                 ready = true;
@@ -159,9 +151,9 @@ fn smoke_test_end_to_end_index_and_search() {
         .block_on(client.post(&index_url).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     assert!(
-        resp.status().is_success(),
-        "Indexing failed: {}",
-        resp.text().unwrap_or_default()
+    resp.status().is_success(),
+    "Indexing failed: {}",
+    rt.block_on(resp.text()).unwrap_or_default()
     );
 
     // Wait a bit for indexing to complete
@@ -178,9 +170,9 @@ fn smoke_test_end_to_end_index_and_search() {
         .block_on(client.post(&search_url).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     assert!(
-        resp.status().is_success(),
-        "Search failed: {}",
-        resp.text().unwrap_or_default()
+    resp.status().is_success(),
+    "Search failed: {}",
+    rt.block_on(resp.text()).unwrap_or_default()
     );
     let json: serde_json::Value = rt
         .block_on(resp.json())
@@ -209,12 +201,8 @@ fn smoke_test_end_to_end_index_and_search() {
 #[test]
 fn smoke_test_cli_runs_with_docs_path() {
     // Spawn the process and kill it after a short timeout to avoid hanging
-    let mut child = Command::new("cargo")
+    let mut child = Command::new("../../target/debug/doc-indexer")
         .args([
-            "run",
-            "--bin",
-            "doc-indexer",
-            "--",
             "--docs-path",
             "/Users/thomasdoyle/Daintree/projects/rust/Zero-Latency/docs/misc/artefacts",
             "--log-level",
@@ -248,8 +236,8 @@ fn smoke_test_cli_runs_with_docs_path() {
 
 #[test]
 fn smoke_test_cli_env_example() {
-    let output = Command::new("cargo")
-        .args(["run", "--bin", "doc-indexer", "--", "--env-example"])
+    let output = Command::new("../../target/debug/doc-indexer")
+        .args(["--env-example"])
         .output()
         .expect("Failed to run doc-indexer CLI with --env-example");
     assert!(

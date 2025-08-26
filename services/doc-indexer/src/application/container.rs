@@ -176,12 +176,15 @@ impl ServiceContainer {
 
         let result_ranking_step = Box::new(ResultRankingStep::new(result_ranker));
 
-        // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking
-        tracing::info!("Activating advanced search pipeline: QueryEnhancementStep, VectorSearchStep, ResultRankingStep");
+        // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking → Analytics
+        tracing::info!("Activating advanced search pipeline: QueryEnhancementStep, VectorSearchStep, ResultRankingStep, AnalyticsStep");
+        let analytics = std::sync::Arc::new(zero_latency_search::services::StubSearchAnalytics);
+        let analytics_step = Box::new(zero_latency_search::services::AnalyticsStep::new(analytics));
         let pipeline = SearchPipeline::builder()
             .add_step(query_enhancement_step)
             .add_step(vector_search_step)
             .add_step(result_ranking_step)
+            .add_step(analytics_step)
             .build();
         tracing::info!("Advanced search pipeline is now active.");
         Ok(pipeline)

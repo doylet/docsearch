@@ -1,7 +1,31 @@
+/// Stub implementation of SearchAnalytics for testing
+pub struct StubSearchAnalytics;
+
+#[async_trait]
+impl SearchAnalytics for StubSearchAnalytics {
+    async fn record_search(&self, request: &SearchRequest, response: &SearchResponse) -> Result<()> {
+        println!("[StubAnalytics] record_search: query='{}', results={}", request.query.raw, response.results.len());
+        Ok(())
+    }
+
+    async fn get_popular_queries(&self, _limit: usize) -> Result<Vec<PopularQuery>> {
+        Ok(vec![])
+    }
+
+    async fn get_search_trends(&self) -> Result<SearchTrends> {
+        Ok(SearchTrends {
+            total_searches: 0,
+            unique_queries: 0,
+            avg_response_time: 0.0,
+            top_categories: vec![],
+        })
+    }
+}
 use crate::{models::*, traits::*};
 use async_trait::async_trait;
 use std::sync::Arc;
 use zero_latency_core::Result;
+
 
 /// Search pipeline that executes steps in sequence
 pub struct SearchPipeline {
@@ -41,6 +65,37 @@ impl SearchPipelineBuilder {
 
     pub fn build(self) -> SearchPipeline {
         SearchPipeline { steps: self.steps }
+    }
+}
+
+/// Analytics step for recording search analytics
+pub struct AnalyticsStep {
+    analytics: Arc<dyn SearchAnalytics>,
+}
+
+impl AnalyticsStep {
+    pub fn new(analytics: Arc<dyn SearchAnalytics>) -> Self {
+        Self { analytics }
+    }
+}
+
+#[async_trait]
+impl SearchStep for AnalyticsStep {
+    fn name(&self) -> &str {
+        "analytics"
+    }
+
+    async fn execute(&self, context: &mut SearchContext) -> Result<()> {
+        // Build a SearchResponse for analytics without consuming context
+        let response = SearchResponse {
+            results: context.ranked_results.clone(),
+            total_count: None,
+            search_metadata: context.metadata.clone(),
+            pagination: None,
+        };
+        // Ignore errors from analytics for now
+        let _ = self.analytics.record_search(&context.request, &response).await;
+        Ok(())
     }
 }
 
