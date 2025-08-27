@@ -4,6 +4,7 @@ use std::process::{Command, Stdio};
 
 use crate::application::{CliServiceContainer, ServerCommand as AppServerCommand};
 use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
+use zero_latency_config::{load_config, AppConfig};
 
 /// CLI arguments for the server command
 #[derive(Args)]
@@ -24,13 +25,17 @@ pub struct ServerCommand {
     #[arg(long)]
     pub status: bool,
 
-    /// Port to run the server on
-    #[arg(short, long, default_value = "8081")]
-    pub port: u16,
+    /// Port to run the server on (overrides config)
+    #[arg(short, long)]
+    pub port: Option<u16>,
 
-    /// Documentation directory to index
+    /// Documentation directory to index (overrides config)
     #[arg(short, long)]
     pub docs: Option<String>,
+
+    /// Configuration file path
+    #[arg(long)]
+    pub config_file: Option<String>,
 }
 
 impl ServerCommand {
@@ -38,9 +43,12 @@ impl ServerCommand {
     ///
     /// This method provides both direct server startup and API-based management.
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
+        // Load configuration with CLI argument overrides
+        let config = self.load_effective_config()?;
+        
         // Handle direct server startup first
         if self.start || self.start_local {
-            return self.start_server_directly().await;
+            return self.start_server_directly(&config).await;
         }
 
         // For other operations, use the API-based approach
@@ -77,8 +85,8 @@ impl ServerCommand {
 
             if self.stop {
                 let app_command = AppServerCommand {
-                    port: self.port,
-                    host: "localhost".to_string(),
+                    port: config.server.port,
+                    host: config.server.host.clone(),
                 };
 
                 container.cli_service().start_server(app_command).await?;
@@ -104,8 +112,35 @@ impl ServerCommand {
         Ok(())
     }
 
+    /// Load effective configuration with CLI argument overrides
+    fn load_effective_config(&self) -> ZeroLatencyResult<AppConfig> {
+        use zero_latency_config::{ConfigResolver, load_config_from_file};
+        
+        // Load base configuration
+        let mut config = if let Some(config_file) = &self.config_file {
+            load_config_from_file(config_file).map_err(|e| ZeroLatencyError::Configuration {
+                message: format!("Failed to load config file: {}", e),
+            })?
+        } else {
+            load_config().map_err(|e| ZeroLatencyError::Configuration {
+                message: format!("Failed to load configuration: {}", e),
+            })?
+        };
+        
+        // Apply CLI argument overrides
+        if let Some(port) = self.port {
+            config.server.port = port;
+        }
+        
+        if let Some(docs_path) = &self.docs {
+            config.server.docs_path = Some(docs_path.clone());
+        }
+        
+        Ok(config)
+    }
+
     /// Start the doc-indexer server directly by spawning the process
-    async fn start_server_directly(&self) -> ZeroLatencyResult<()> {
+    async fn start_server_directly(&self, config: &AppConfig) -> ZeroLatencyResult<()> {
         println!("{}", "Starting doc-indexer server...".bright_blue().bold());
 
         // Find the doc-indexer binary
@@ -113,16 +148,12 @@ impl ServerCommand {
 
         println!("Using binary: {}", binary_path.bright_cyan());
 
-        // Build command arguments
-        let args = vec!["--port".to_string(), self.port.to_string()];
+        // Build command arguments using configuration
+        let mut args = vec!["--port".to_string(), config.server.port.to_string()];
 
-        // Note: doc-indexer doesn't take docs path as an argument
-        // It uses the default docs location or configuration
-        if self.docs.is_some() {
-            println!(
-                "{} doc-indexer will use its default docs configuration",
-                "INFO:".blue()
-            );
+        if let Some(docs_path) = &config.server.docs_path {
+            args.push("--docs".to_string());
+            args.push(docs_path.clone());
         }
 
         // Start the server
@@ -146,7 +177,7 @@ impl ServerCommand {
             );
             println!(
                 "Server running on: {}",
-                format!("http://localhost:{}", self.port).cyan()
+                format!("http://{}:{}", config.server.host, config.server.port).cyan()
             );
         } else {
             // Foreground mode
@@ -156,7 +187,7 @@ impl ServerCommand {
             );
             println!(
                 "Server will run on: {}",
-                format!("http://localhost:{}", self.port).cyan()
+                format!("http://{}:{}", config.server.host, config.server.port).cyan()
             );
 
             let status = Command::new(&binary_path)

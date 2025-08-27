@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use zero_latency_contracts::config::helpers;
+use zero_latency_config::{AppConfig, load_config, Config as LegacyConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CliConfig {
@@ -14,26 +14,43 @@ pub struct CliConfig {
 
 impl Default for CliConfig {
     fn default() -> Self {
-        let standard_config = helpers::default_cli_config();
+        let app_config = AppConfig::default();
+        let legacy_config: LegacyConfig = app_config.into();
+        
         Self {
-            server_url: standard_config.server_url(),
-            collection_name: standard_config.collection_name,
+            server_url: legacy_config.server_url,
+            collection_name: legacy_config.collection_name,
             default_limit: 10,
-            output_format: "table".to_string(),
+            output_format: legacy_config.output_format,
             verbose: false,
         }
     }
 }
 
 impl CliConfig {
+    /// Load CLI configuration with fallback to zero-latency-config system
     pub fn load() -> Result<Self> {
+        // Try to load legacy CLI config first
         let config_file = Self::config_file()?;
         if config_file.exists() {
             let content = std::fs::read_to_string(&config_file)?;
             let config: Self = toml::from_str(&content)?;
-            Ok(config)
-        } else {
-            Ok(Self::default())
+            return Ok(config);
+        }
+        
+        // Fallback to new zero-latency-config system
+        match load_config() {
+            Ok(app_config) => {
+                let legacy_config: LegacyConfig = app_config.into();
+                Ok(Self {
+                    server_url: legacy_config.server_url,
+                    collection_name: legacy_config.collection_name,
+                    default_limit: 10,
+                    output_format: legacy_config.output_format,
+                    verbose: false,
+                })
+            }
+            Err(_) => Ok(Self::default())
         }
     }
 
