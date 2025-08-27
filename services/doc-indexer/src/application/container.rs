@@ -18,6 +18,7 @@ use crate::infrastructure::search_enhancement::{MultiFactorResultRanker, SimpleQ
 pub struct ServiceContainer {
     // Core services
     search_orchestrator: Arc<dyn SearchOrchestrator>,
+    analytics: Arc<crate::infrastructure::analytics::ProductionSearchAnalytics>,
 
     // Infrastructure services
     vector_repository: Arc<dyn VectorRepository>,
@@ -37,15 +38,22 @@ impl ServiceContainer {
         let vector_repository = Self::create_vector_repository(&config).await?;
         let embedding_generator = Self::create_embedding_generator(&config).await?;
 
-        // Create search pipeline and orchestrator
+        // Create analytics service first so it can be shared
+        let analytics = Arc::new(crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config());
+
+        // Create search pipeline and orchestrator with shared analytics
         let search_pipeline =
-            Self::create_search_pipeline(vector_repository.clone(), embedding_generator.clone())
-                .await?;
+            Self::create_search_pipeline(
+                vector_repository.clone(), 
+                embedding_generator.clone(),
+                analytics.clone()
+            ).await?;
 
         let search_orchestrator = Arc::new(SimpleSearchOrchestrator::new(search_pipeline));
 
         Ok(Self {
             search_orchestrator,
+            analytics,
             vector_repository,
             embedding_generator,
             config,
@@ -55,6 +63,11 @@ impl ServiceContainer {
     /// Get the search orchestrator
     pub fn search_orchestrator(&self) -> Arc<dyn SearchOrchestrator> {
         self.search_orchestrator.clone()
+    }
+
+    /// Get the analytics service
+    pub fn analytics(&self) -> Arc<crate::infrastructure::analytics::ProductionSearchAnalytics> {
+        self.analytics.clone()
     }
 
     /// Get the vector repository
@@ -145,6 +158,7 @@ impl ServiceContainer {
     async fn create_search_pipeline(
         vector_repository: Arc<dyn VectorRepository>,
         embedding_generator: Arc<dyn EmbeddingGenerator>,
+        analytics: Arc<crate::infrastructure::analytics::ProductionSearchAnalytics>,
     ) -> Result<SearchPipeline> {
         // Create a simple embedding service adapter
         struct EmbeddingServiceAdapter {
@@ -178,7 +192,6 @@ impl ServiceContainer {
 
         // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking → Analytics
         tracing::info!("Activating advanced search pipeline: QueryEnhancementStep, VectorSearchStep, ResultRankingStep, AnalyticsStep");
-        let analytics = std::sync::Arc::new(crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config());
         let analytics_step = Box::new(zero_latency_search::services::AnalyticsStep::new(analytics));
         let pipeline = SearchPipeline::builder()
             .add_step(query_enhancement_step)

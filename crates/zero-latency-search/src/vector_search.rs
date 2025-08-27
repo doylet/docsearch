@@ -62,10 +62,22 @@ impl SearchStep for VectorSearchStep {
             "🔍 VectorSearchStep: Searching vector database with limit {}",
             context.request.limit
         );
-        let vector_results = self
-            .vector_repo
-            .search(query_embedding, context.request.limit)
-            .await?;
+        
+        // Check if collection filter is specified
+        let vector_results = if let Some(collection_name) = context.request.filters.custom.get("collection") {
+            println!(
+                "🔍 VectorSearchStep: Searching in collection: '{}'",
+                collection_name
+            );
+            self.vector_repo
+                .search_in_collection(collection_name, query_embedding, context.request.limit)
+                .await?
+        } else {
+            println!("🔍 VectorSearchStep: Searching across all collections");
+            self.vector_repo
+                .search(query_embedding, context.request.limit)
+                .await?
+        };
         println!(
             "📊 VectorSearchStep: Found {} vector results",
             vector_results.len()
