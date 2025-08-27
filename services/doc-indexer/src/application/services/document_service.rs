@@ -11,7 +11,7 @@ use zero_latency_core::{
     values::SearchQuery,
     Result, Uuid,
 };
-use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
+use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse, QueryEnhancer, ResultRanker};
 use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
 use crate::application::container::ServiceContainer;
@@ -26,6 +26,8 @@ pub struct DocumentIndexingService {
     search_orchestrator: Arc<dyn SearchOrchestrator>,
     filter_service: Arc<FilterService>,
     content_processor: ContentProcessor,
+    query_enhancer: Option<Arc<dyn QueryEnhancer>>,
+    result_ranker: Option<Arc<dyn ResultRanker>>,
 }
 
 impl DocumentIndexingService {
@@ -43,6 +45,26 @@ impl DocumentIndexingService {
             search_orchestrator: container.search_orchestrator(),
             filter_service: Arc::new(FilterService::new(filters)),
             content_processor: ContentProcessor::new(),
+            query_enhancer: None,
+            result_ranker: None,
+        }
+    }
+
+    /// Create a new document indexing service with enhanced search capabilities
+    pub fn with_enhanced_search(
+        container: &ServiceContainer,
+        filters: IndexingFilters,
+        query_enhancer: Option<Arc<dyn QueryEnhancer>>,
+        result_ranker: Option<Arc<dyn ResultRanker>>,
+    ) -> Self {
+        Self {
+            vector_repository: container.vector_repository(),
+            embedding_generator: container.embedding_generator(),
+            search_orchestrator: container.search_orchestrator(),
+            filter_service: Arc::new(FilterService::new(filters)),
+            content_processor: ContentProcessor::new(),
+            query_enhancer,
+            result_ranker,
         }
     }
 
@@ -121,16 +143,41 @@ impl DocumentIndexingService {
         collection_name: &str,
         limit: usize,
     ) -> Result<SearchResponse> {
-        // Generate embedding for the query
-        let query_embedding = self.embedding_generator.generate_embedding(query).await?;
+        tracing::info!(
+            "[AdvancedSearch] Starting search with query: '{}', collection: '{}', limit: {}",
+            query, collection_name, limit
+        );
+        tracing::info!(
+            "[AdvancedSearch] Components available - Query Enhancer: {}, Result Ranker: {}",
+            self.query_enhancer.is_some(),
+            self.result_ranker.is_some()
+        );
 
-        // Search in the specified collection
+        // Step 1: Query Enhancement (if enabled)
+        let enhanced_query = if let Some(enhancer) = &self.query_enhancer {
+            tracing::info!("[AdvancedSearch] Applying query enhancement...");
+            let enhanced = enhancer.enhance(query).await?;
+            tracing::info!(
+                "[AdvancedSearch] Query enhanced from '{}' to '{}'",
+                enhanced.original,
+                enhanced.enhanced
+            );
+            enhanced.enhanced
+        } else {
+            tracing::info!("[AdvancedSearch] No query enhancer available, using original query");
+            query.to_string()
+        };
+
+        // Step 2: Generate embedding for the (possibly enhanced) query
+        let query_embedding = self.embedding_generator.generate_embedding(&enhanced_query).await?;
+
+        // Step 3: Vector search in the specified collection
         let similarity_results = self
             .vector_repository
             .search_in_collection(collection_name, query_embedding, limit)
             .await?;
 
-        // Convert to SearchResponse format
+        // Step 4: Convert to SearchResponse format
         let mut documents = Vec::new();
         for result in similarity_results {
             documents.push(zero_latency_search::SearchResult {
@@ -147,19 +194,43 @@ impl DocumentIndexingService {
             });
         }
 
+        // Step 5: Result Ranking (if enabled)
+        let ranked_documents = if let Some(ranker) = &self.result_ranker {
+            tracing::info!("[AdvancedSearch] Applying result ranking...");
+            let ranked = ranker.rank(documents).await?;
+            tracing::info!("[AdvancedSearch] Ranked {} documents", ranked.len());
+            ranked
+        } else {
+            tracing::info!("[AdvancedSearch] No result ranker available, using vector similarity order");
+            documents
+        };
+
+        let query_enhancement_applied = self.query_enhancer.is_some();
+        let ranking_method = if self.result_ranker.is_some() {
+            "multi_factor_ranking"
+        } else {
+            "vector_similarity"
+        };
+
         let search_metadata = zero_latency_search::SearchMetadata {
-            query: SearchQuery::new(query),
+            query: if self.query_enhancer.is_some() {
+                // Use the enhanced query since enhancement was applied
+                SearchQuery::new(query).with_enhancement(&enhanced_query).with_limit(limit as u32)
+            } else {
+                // Use the original query 
+                SearchQuery::new(query).with_limit(limit as u32)
+            },
             execution_time: Duration::from_millis(0), // Would be measured in real implementation
-            query_enhancement_applied: false,
-            ranking_method: "vector_similarity".to_string(),
+            query_enhancement_applied,
+            ranking_method: ranking_method.to_string(),
             result_sources: vec![collection_name.to_string()],
             debug_info: None,
         };
 
-        let total_count = documents.len();
+        let total_count = ranked_documents.len();
 
         Ok(SearchResponse {
-            results: documents,
+            results: ranked_documents,
             total_count: Some(total_count),
             search_metadata,
             pagination: None,
@@ -225,6 +296,8 @@ impl DocumentIndexingService {
             search_orchestrator: Arc::clone(&self.search_orchestrator),
             filter_service: Arc::new(FilterService::new(filters)),
             content_processor: self.content_processor.clone(),
+            query_enhancer: self.query_enhancer.clone(),
+            result_ranker: self.result_ranker.clone(),
         }
     }
 
@@ -276,6 +349,8 @@ impl DocumentIndexingService {
                 search_orchestrator: Arc::clone(&self.search_orchestrator),
                 filter_service: Arc::new(FilterService::new(filters)),
                 content_processor: self.content_processor.clone(),
+                query_enhancer: self.query_enhancer.clone(),
+                result_ranker: self.result_ranker.clone(),
             }
         } else {
             // Clone current service (uses existing filters)
@@ -285,6 +360,8 @@ impl DocumentIndexingService {
                 search_orchestrator: Arc::clone(&self.search_orchestrator),
                 filter_service: Arc::clone(&self.filter_service),
                 content_processor: self.content_processor.clone(),
+                query_enhancer: self.query_enhancer.clone(),
+                result_ranker: self.result_ranker.clone(),
             }
         };
 

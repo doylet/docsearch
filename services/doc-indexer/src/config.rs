@@ -250,6 +250,15 @@ pub struct ServiceConfig {
     /// Maximum search result limit
     pub max_search_limit: usize,
 
+    /// Default collection name for searches when not specified
+    pub default_collection: String,
+
+    /// Enable query enhancement for advanced search
+    pub enable_query_enhancement: bool,
+
+    /// Enable result ranking for improved relevance
+    pub enable_result_ranking: bool,
+
     /// Document chunking strategy
     pub chunking_strategy: ChunkingStrategy,
 
@@ -449,6 +458,16 @@ impl Config {
                     .unwrap_or_else(|_| "100".to_string())
                     .parse()
                     .unwrap_or(100),
+                default_collection: std::env::var("DOC_INDEXER_DEFAULT_COLLECTION")
+                    .unwrap_or_else(|_| "zero_latency_docs".to_string()),
+                enable_query_enhancement: std::env::var("DOC_INDEXER_ENABLE_QUERY_ENHANCEMENT")
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
+                enable_result_ranking: std::env::var("DOC_INDEXER_ENABLE_RESULT_RANKING")
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
                 chunking_strategy: std::env::var("DOC_INDEXER_CHUNKING_STRATEGY")
                     .unwrap_or_else(|_| "sentence".to_string())
                     .parse()
@@ -660,6 +679,9 @@ impl Default for Config {
                 max_document_size: 10 * 1024 * 1024, // 10MB
                 default_search_limit: 10,
                 max_search_limit: 100,
+                default_collection: "zero_latency_docs".to_string(),
+                enable_query_enhancement: true,
+                enable_result_ranking: true,
                 chunking_strategy: ChunkingStrategy::Sentence,
                 chunk_size: 1000,
                 chunk_overlap: 200,

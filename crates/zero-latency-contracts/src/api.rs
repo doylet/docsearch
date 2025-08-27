@@ -44,6 +44,11 @@ pub mod endpoints {
     pub const DOCUMENT_BY_ID: &str = "/api/documents/:id";
     pub const DOCUMENTS_SEARCH: &str = "/api/documents/search";
 
+    // Analytics endpoints
+    pub const ANALYTICS_SUMMARY: &str = "/api/analytics/summary";
+    pub const ANALYTICS_POPULAR_QUERIES: &str = "/api/analytics/popular-queries";
+    pub const ANALYTICS_SEARCH_TRENDS: &str = "/api/analytics/search-trends";
+
     // Helper functions for dynamic endpoints
     pub fn collection_by_name(name: &str) -> String {
         COLLECTION_BY_NAME.replace(":name", name)

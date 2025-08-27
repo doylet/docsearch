@@ -1,0 +1,1 @@
+/Users/thomasdoyle/Wilcannia/dev/awesome-copilot/chatmodes/plan.chatmode.md
