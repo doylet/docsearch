@@ -178,7 +178,7 @@ impl ServiceContainer {
 
         // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking → Analytics
         tracing::info!("Activating advanced search pipeline: QueryEnhancementStep, VectorSearchStep, ResultRankingStep, AnalyticsStep");
-        let analytics = std::sync::Arc::new(zero_latency_search::services::StubSearchAnalytics);
+        let analytics = std::sync::Arc::new(crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config());
         let analytics_step = Box::new(zero_latency_search::services::AnalyticsStep::new(analytics));
         let pipeline = SearchPipeline::builder()
             .add_step(query_enhancement_step)

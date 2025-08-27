@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use zero_latency_core::{values::*, DateTime, Utc, Uuid};
+use tracing;
 
 /// Search request with all parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,7 +246,15 @@ impl SearchContext {
             .to_std()
             .unwrap_or_default();
 
-        self.metadata.query = self.request.query.clone();
+        // Use enhanced query if available, otherwise use the original request query
+        if let Some(enhanced) = &self.enhanced_query {
+            tracing::info!("[SearchPipeline] Setting enhanced query: '{}' -> '{}'", enhanced.original, enhanced.enhanced);
+            // Create an enhanced SearchQuery with the enhanced query text
+            self.metadata.query = self.request.query.clone().with_enhancement(&enhanced.enhanced);
+        } else {
+            tracing::info!("[SearchPipeline] No enhanced query available, using original");
+            self.metadata.query = self.request.query.clone();
+        }
 
         SearchResponse {
             results: self.ranked_results,

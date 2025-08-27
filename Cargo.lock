@@ -5133,6 +5133,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-test",
+ "tracing",
  "uuid",
  "zero-latency-core",
  "zero-latency-vector",
