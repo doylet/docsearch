@@ -6,6 +6,7 @@ use clap::Parser;
 /// a clean architecture with shared domain crates.
 use std::sync::Arc;
 use tracing::{error, info};
+use zero_latency_config::{load_config_from_file, load_config, AppConfig, validate_config};
 
 mod application;
 mod config;
@@ -23,9 +24,9 @@ struct Cli {
     #[arg(long)]
     config: Option<String>,
 
-    /// HTTP server port
-    #[arg(long, default_value = "8080")]
-    port: u16,
+    /// HTTP server port (overrides config)
+    #[arg(long)]
+    port: Option<u16>,
 
     /// Log level (trace, debug, info, warn, error)
     #[arg(long, default_value = "info")]
@@ -51,9 +52,9 @@ struct Cli {
     #[arg(long)]
     stdio_help: bool,
 
-    /// Path to documentation directory to index
-    #[arg(long, default_value = "~/Documents")]
-    docs_path: std::path::PathBuf,
+    /// Path to documentation directory to index (overrides config)
+    #[arg(long)]
+    docs_path: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
@@ -77,9 +78,18 @@ async fn main() -> Result<()> {
 
     info!("Starting doc-indexer service");
 
-    // Load configuration
-    let config = load_config(cli.config.as_deref(), cli.port, &cli.docs_path).await?;
+    // Load configuration using zero-latency-config system
+    let app_config = load_effective_config(&cli).await?;
     info!("Configuration loaded successfully");
+
+    // Validate configuration
+    if let Err(e) = validate_config(&app_config) {
+        error!("Configuration validation failed: {}", e);
+        return Err(e.into());
+    }
+
+    // Convert to service-specific config (compatibility layer)
+    let config = Config::from_app_config(app_config);
 
     // Create service container with all dependencies
     let container = match ServiceContainer::new(config.clone()).await {
@@ -173,92 +183,40 @@ fn init_logging(log_level: &str, structured: bool) {
     );
 }
 
-/// Load configuration from file or environment
-async fn load_config(
-    config_file: Option<&str>,
-    port_override: u16,
-    docs_path: &std::path::Path,
-) -> Result<Config> {
-    let mut config = if let Some(path) = config_file {
-        info!("Loading configuration from file: {}", path);
-        Config::from_file(path)?
+/// Load effective configuration with CLI argument overrides
+async fn load_effective_config(cli: &Cli) -> Result<AppConfig> {
+    // Load base configuration
+    let mut app_config = if let Some(config_file) = &cli.config {
+        info!("Loading configuration from file: {}", config_file);
+        load_config_from_file(config_file).map_err(|e| {
+            anyhow::Error::msg(format!("Failed to load config file: {}", e))
+        })?
     } else {
-        info!("Loading configuration from environment variables");
-        Config::from_env().unwrap_or_else(|e| {
-            info!(
-                "Failed to load config from environment ({}), using defaults",
-                e
-            );
-            Config::default()
-        })
+        info!("Loading configuration from environment and defaults");
+        load_config().map_err(|e| {
+            anyhow::Error::msg(format!("Failed to load configuration: {}", e))
+        })?
     };
 
-    // Override port if provided via CLI
-    if port_override != 8080 {
-        config.server.port = port_override;
+    // Apply CLI argument overrides
+    if let Some(port) = cli.port {
+        app_config.server.port = port;
+        info!("Port overridden to: {}", port);
     }
 
-    // Override docs_path if provided via CLI (and not using default)
-    let default_docs_path = if let Ok(home) = std::env::var("HOME") {
-        std::path::PathBuf::from(home).join("Documents")
-    } else {
-        std::path::PathBuf::from("~/Documents")
-    };
-
-    if docs_path != default_docs_path {
-        // Convert to absolute path using the current working directory
-        if docs_path.is_absolute() {
-            config.service.docs_path = docs_path.to_path_buf();
-        } else {
-            let absolute_path = std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join(docs_path);
-            // Try to canonicalize to resolve .. and . components
-            config.service.docs_path = match absolute_path.canonicalize() {
-                Ok(canonical) => canonical,
-                Err(_) => {
-                    // If canonicalize fails (e.g., path doesn't exist), clean manually
-                    let mut components = Vec::new();
-                    for component in absolute_path.components() {
-                        match component {
-                            std::path::Component::ParentDir => {
-                                components.pop();
-                            }
-                            std::path::Component::CurDir => {
-                                // Skip current directory
-                            }
-                            _ => {
-                                components.push(component);
-                            }
-                        }
-                    }
-                    components.iter().collect()
-                }
-            };
-        }
-    } else {
-        // Canonicalize the default path as well
-        if config.service.docs_path.is_absolute() {
-            // Already absolute, try to canonicalize
-            config.service.docs_path = config
-                .service
-                .docs_path
-                .canonicalize()
-                .unwrap_or_else(|_| config.service.docs_path.clone());
-        } else {
-            let absolute_path = std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join(&config.service.docs_path);
-            config.service.docs_path = absolute_path
-                .canonicalize()
-                .unwrap_or_else(|_| absolute_path);
-        }
+    if let Some(docs_path) = &cli.docs_path {
+        app_config.server.docs_path = Some(docs_path.to_string_lossy().to_string());
+        info!("Docs path overridden to: {:?}", docs_path);
     }
 
-    // Validate configuration
-    config.validate()?;
+    // Override log level from CLI
+    app_config.app.log_level = cli.log_level.clone();
 
-    info!("Configuration validation successful");
-    info!("Documentation path: {}", config.service.docs_path.display());
-    Ok(config)
+    info!("Configuration: server={}:{}, docs_path={:?}", 
+        app_config.server.host, 
+        app_config.server.port,
+        app_config.server.docs_path
+    );
+
+    Ok(app_config)
 }
