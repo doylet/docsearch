@@ -10,4 +10,8 @@ zero-latency-core = { path = "../zero-latency-core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1.0"
-figment = { version = "0.10", features = ["yaml", "json", "env"] }
+figment = { version = "0.10", features = ["yaml", "json", "env", "toml"] }
+toml = "0.8"
+dirs = "5.0"
+uuid = { version = "1.0", features = ["v4"] }
+thiserror = "1.0"

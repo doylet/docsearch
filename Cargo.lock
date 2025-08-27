@@ -964,6 +964,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "toml",
  "uncased",
  "version_check",
 ]
@@ -5085,10 +5086,14 @@ dependencies = [
 name = "zero-latency-config"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "figment",
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror 1.0.69",
+ "toml",
+ "uuid",
  "zero-latency-core",
 ]
 
