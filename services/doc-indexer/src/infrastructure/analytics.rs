@@ -6,8 +6,8 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 use zero_latency_core::Result;
 use zero_latency_search::{
-    traits::{PopularQuery, SearchAnalytics, SearchTrends, CategoryTrend},
-    models::{SearchRequest, SearchResponse}
+    models::{SearchRequest, SearchResponse},
+    traits::{CategoryTrend, PopularQuery, SearchAnalytics, SearchTrends},
 };
 
 /// Production-ready SearchAnalytics implementation with in-memory storage
@@ -89,8 +89,11 @@ pub struct PerformanceRecord {
 
 impl ProductionSearchAnalytics {
     pub fn new(config: AnalyticsConfig) -> Self {
-        info!("[SearchAnalytics] Initializing production analytics with config: {:?}", config);
-        
+        info!(
+            "[SearchAnalytics] Initializing production analytics with config: {:?}",
+            config
+        );
+
         Self {
             query_stats: Arc::new(RwLock::new(HashMap::new())),
             search_metrics: Arc::new(RwLock::new(SearchMetrics {
@@ -177,7 +180,10 @@ impl ProductionSearchAnalytics {
         if performance_data.len() > self.config.max_performance_records {
             let excess = performance_data.len() - self.config.max_performance_records;
             performance_data.drain(0..excess);
-            debug!("[SearchAnalytics] Cleaned up {} old performance records", excess);
+            debug!(
+                "[SearchAnalytics] Cleaned up {} old performance records",
+                excess
+            );
         }
     }
 
@@ -190,14 +196,14 @@ impl ProductionSearchAnalytics {
                 .iter()
                 .map(|(query, stats)| (query.clone(), stats.last_executed))
                 .collect();
-            
+
             queries_with_time.sort_by(|a, b| a.1.cmp(&b.1));
-            
+
             let to_remove = queries_with_time.len() - self.config.max_tracked_queries;
             for (query, _) in queries_with_time.into_iter().take(to_remove) {
                 query_stats.remove(&query);
             }
-            
+
             debug!("[SearchAnalytics] Cleaned up {} old query stats", to_remove);
         }
     }
@@ -205,23 +211,27 @@ impl ProductionSearchAnalytics {
 
 #[async_trait]
 impl SearchAnalytics for ProductionSearchAnalytics {
-    async fn record_search(&self, request: &SearchRequest, response: &SearchResponse) -> Result<()> {
+    async fn record_search(
+        &self,
+        request: &SearchRequest,
+        response: &SearchResponse,
+    ) -> Result<()> {
         let start_time = std::time::Instant::now();
         let timestamp = chrono::Utc::now();
-        
+
         // Determine if search was successful
         let success = response.results.len() > 0;
         let response_time_ms = 0.0; // Would be calculated from request timing in real scenario
-        
+
         // Extract analytics data
         let query = request.query.raw.clone();
         let collection: Option<String> = request.filters.custom.get("collection").cloned();
         let result_count = response.results.len();
         let top_score = response.results.first().map(|r| r.final_score);
-        
+
         // Check for query enhancement and ranking
         let query_enhancement_applied = response.search_metadata.query_enhancement_applied;
-            
+
         let ranking_method = Some(response.search_metadata.ranking_method.clone());
 
         if self.config.enable_detailed_logging {
@@ -234,18 +244,20 @@ impl SearchAnalytics for ProductionSearchAnalytics {
         // Update query stats
         {
             let mut query_stats = self.query_stats.write().await;
-            let stats = query_stats.entry(query.clone()).or_insert_with(|| QueryStats {
-                query: query.clone(),
-                count: 0,
-                total_results: 0,
-                success_count: 0,
-                failure_count: 0,
-                total_response_time_ms: 0.0,
-                avg_score: 0.0,
-                last_executed: timestamp,
-                query_length: query.len(),
-                result_sources: HashMap::new(),
-            });
+            let stats = query_stats
+                .entry(query.clone())
+                .or_insert_with(|| QueryStats {
+                    query: query.clone(),
+                    count: 0,
+                    total_results: 0,
+                    success_count: 0,
+                    failure_count: 0,
+                    total_response_time_ms: 0.0,
+                    avg_score: 0.0,
+                    last_executed: timestamp,
+                    query_length: query.len(),
+                    result_sources: HashMap::new(),
+                });
 
             stats.count += 1;
             stats.total_results += result_count;
@@ -261,7 +273,8 @@ impl SearchAnalytics for ProductionSearchAnalytics {
             if let Some(score) = top_score {
                 // Update running average of top scores
                 let score_value = score.value(); // Convert Score to f32
-                stats.avg_score = (stats.avg_score * (stats.count - 1) as f32 + score_value) / stats.count as f32;
+                stats.avg_score =
+                    (stats.avg_score * (stats.count - 1) as f32 + score_value) / stats.count as f32;
             }
 
             // Track result sources
@@ -291,7 +304,10 @@ impl SearchAnalytics for ProductionSearchAnalytics {
             }
 
             if let Some(ref coll) = collection {
-                *search_metrics.collections_searched.entry(coll.clone()).or_insert(0usize) += 1;
+                *search_metrics
+                    .collections_searched
+                    .entry(coll.clone())
+                    .or_insert(0usize) += 1;
             }
 
             // Recalculate unique queries count
@@ -327,13 +343,16 @@ impl SearchAnalytics for ProductionSearchAnalytics {
             });
         }
 
-        debug!("[SearchAnalytics] Search recorded in {:?}", start_time.elapsed());
+        debug!(
+            "[SearchAnalytics] Search recorded in {:?}",
+            start_time.elapsed()
+        );
         Ok(())
     }
 
     async fn get_popular_queries(&self, limit: usize) -> Result<Vec<PopularQuery>> {
         let query_stats = self.query_stats.read().await;
-        
+
         let mut popular_queries: Vec<_> = query_stats
             .values()
             .map(|stats| PopularQuery {
@@ -361,7 +380,7 @@ impl SearchAnalytics for ProductionSearchAnalytics {
 
     async fn get_search_trends(&self) -> Result<SearchTrends> {
         let search_metrics = self.search_metrics.read().await;
-        
+
         let top_categories: Vec<CategoryTrend> = search_metrics
             .collections_searched
             .iter()
@@ -376,7 +395,8 @@ impl SearchAnalytics for ProductionSearchAnalytics {
             total_searches: search_metrics.total_searches,
             unique_queries: search_metrics.unique_queries,
             avg_response_time: if search_metrics.total_searches > 0 {
-                (search_metrics.total_response_time_ms / search_metrics.total_searches as f64) as f32
+                (search_metrics.total_response_time_ms / search_metrics.total_searches as f64)
+                    as f32
             } else {
                 0.0
             },

@@ -39,15 +39,17 @@ impl ServiceContainer {
         let embedding_generator = Self::create_embedding_generator(&config).await?;
 
         // Create analytics service first so it can be shared
-        let analytics = Arc::new(crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config());
+        let analytics = Arc::new(
+            crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config(),
+        );
 
         // Create search pipeline and orchestrator with shared analytics
-        let search_pipeline =
-            Self::create_search_pipeline(
-                vector_repository.clone(), 
-                embedding_generator.clone(),
-                analytics.clone()
-            ).await?;
+        let search_pipeline = Self::create_search_pipeline(
+            vector_repository.clone(),
+            embedding_generator.clone(),
+            analytics.clone(),
+        )
+        .await?;
 
         let search_orchestrator = Arc::new(SimpleSearchOrchestrator::new(search_pipeline));
 

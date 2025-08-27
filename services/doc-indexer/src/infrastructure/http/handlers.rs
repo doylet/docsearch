@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use zero_latency_contracts::api::endpoints;
 use zero_latency_core::ZeroLatencyError;
-use zero_latency_search::traits::{SearchAnalytics, SearchTrends, PopularQuery};
+use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 
 use crate::application::{
     CollectionService, DocumentIndexingService, HealthService, ServiceContainer,
@@ -42,9 +42,11 @@ impl AppState {
         let enable_result_ranking = config.service.enable_result_ranking;
 
         // Create enhanced search components if enabled
-        use crate::infrastructure::search_enhancement::{SimpleQueryEnhancer, MultiFactorResultRanker};
+        use crate::infrastructure::search_enhancement::{
+            MultiFactorResultRanker, SimpleQueryEnhancer,
+        };
         use std::sync::Arc;
-        
+
         let query_enhancer = if enable_query_enhancement {
             tracing::info!("[AdvancedSearch] Creating SimpleQueryEnhancer");
             Some(Arc::new(SimpleQueryEnhancer::new()) as Arc<dyn zero_latency_search::QueryEnhancer>)
@@ -55,7 +57,8 @@ impl AppState {
 
         let result_ranker = if enable_result_ranking {
             tracing::info!("[AdvancedSearch] Creating MultiFactorResultRanker");
-            Some(Arc::new(MultiFactorResultRanker::new()) as Arc<dyn zero_latency_search::ResultRanker>)
+            Some(Arc::new(MultiFactorResultRanker::new())
+                as Arc<dyn zero_latency_search::ResultRanker>)
         } else {
             tracing::info!("[AdvancedSearch] Result ranking disabled");
             None
@@ -73,10 +76,15 @@ impl AppState {
                 query_enhancer.is_some(),
                 result_ranker.is_some()
             );
-            
+
             use crate::application::services::filter_service::IndexingFilters;
             let default_filters = IndexingFilters::new();
-            DocumentIndexingService::with_enhanced_search(&container, default_filters, query_enhancer, result_ranker)
+            DocumentIndexingService::with_enhanced_search(
+                &container,
+                default_filters,
+                query_enhancer,
+                result_ranker,
+            )
         } else {
             tracing::info!("[AdvancedSearch] Using basic document service (no enhancements)");
             DocumentIndexingService::new(&container)
@@ -124,7 +132,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(endpoints::DOCUMENTS_SEARCH, post(search_documents))
         // Analytics endpoints - partially enabled for testing
         .route(endpoints::ANALYTICS_SUMMARY, get(get_analytics_summary))
-        .route(endpoints::ANALYTICS_POPULAR_QUERIES, get(get_popular_queries))
+        .route(
+            endpoints::ANALYTICS_POPULAR_QUERIES,
+            get(get_popular_queries),
+        )
         .route(endpoints::ANALYTICS_SEARCH_TRENDS, get(get_search_trends))
         // Health endpoints
         .route("/health", get(health_check))
@@ -265,10 +276,7 @@ async fn search_documents(
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
     let default_collection = &state.container.config().service.default_collection;
-    let collection_name = request
-        .collection
-        .as_deref()
-        .unwrap_or(default_collection);
+    let collection_name = request.collection.as_deref().unwrap_or(default_collection);
     let limit = request.limit.unwrap_or(10);
 
     let search_response = state
@@ -945,9 +953,12 @@ async fn get_analytics_summary(
     State(state): State<AppState>,
 ) -> Result<Json<crate::infrastructure::analytics::AnalyticsSummary>, AppError> {
     tracing::info!("[Analytics] Getting analytics summary");
-    
+
     let summary = state.analytics_service.get_analytics_summary().await;
-    tracing::info!("[Analytics] Retrieved analytics summary with {} total searches", summary.total_searches);
+    tracing::info!(
+        "[Analytics] Retrieved analytics summary with {} total searches",
+        summary.total_searches
+    );
     Ok(Json(summary))
 }
 
@@ -956,34 +967,48 @@ async fn get_popular_queries(
     State(state): State<AppState>,
     Query(params): Query<AnalyticsQuery>,
 ) -> Result<Json<Vec<PopularQuery>>, AppError> {
-    tracing::info!("[Analytics] Getting popular queries with limit: {}", params.limit.unwrap_or(10));
-    
-    match state.analytics_service.get_popular_queries(params.limit.unwrap_or(10)).await {
+    tracing::info!(
+        "[Analytics] Getting popular queries with limit: {}",
+        params.limit.unwrap_or(10)
+    );
+
+    match state
+        .analytics_service
+        .get_popular_queries(params.limit.unwrap_or(10))
+        .await
+    {
         Ok(queries) => {
             tracing::info!("[Analytics] Retrieved {} popular queries", queries.len());
             Ok(Json(queries))
         }
         Err(e) => {
             tracing::error!("[Analytics] Error getting popular queries: {}", e);
-            Err(AppError(ZeroLatencyError::internal(format!("Analytics error: {}", e))))
+            Err(AppError(ZeroLatencyError::internal(format!(
+                "Analytics error: {}",
+                e
+            ))))
         }
     }
 }
 
 /// Get search trends data
-async fn get_search_trends(
-    State(state): State<AppState>,
-) -> Result<Json<SearchTrends>, AppError> {
+async fn get_search_trends(State(state): State<AppState>) -> Result<Json<SearchTrends>, AppError> {
     tracing::info!("[Analytics] Getting search trends");
-    
+
     match state.analytics_service.get_search_trends().await {
         Ok(trends) => {
-            tracing::info!("[Analytics] Retrieved search trends with {} total searches", trends.total_searches);
+            tracing::info!(
+                "[Analytics] Retrieved search trends with {} total searches",
+                trends.total_searches
+            );
             Ok(Json(trends))
         }
         Err(e) => {
             tracing::error!("[Analytics] Error getting search trends: {}", e);
-            Err(AppError(ZeroLatencyError::internal(format!("Analytics error: {}", e))))
+            Err(AppError(ZeroLatencyError::internal(format!(
+                "Analytics error: {}",
+                e
+            ))))
         }
     }
 }

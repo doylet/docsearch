@@ -2,7 +2,8 @@
 fn smoke_test_advanced_query_enhancement_and_ranking() {
     // Use a unique port to avoid conflicts
     let port = 18082u16;
-    let docs_path = std::fs::canonicalize("tests/fixtures").expect("Failed to resolve absolute path to test fixtures");
+    let docs_path = std::fs::canonicalize("tests/fixtures")
+        .expect("Failed to resolve absolute path to test fixtures");
     let mut child = Command::new("../../target/debug/doc-indexer")
         .args([
             "--docs-path",
@@ -45,9 +46,9 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .block_on(client.post(&index_url).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     assert!(
-    resp.status().is_success(),
-    "Indexing failed: {}",
-    rt.block_on(resp.text()).unwrap_or_default()
+        resp.status().is_success(),
+        "Indexing failed: {}",
+        rt.block_on(resp.text()).unwrap_or_default()
     );
 
     std::thread::sleep(Duration::from_secs(2));
@@ -63,9 +64,9 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .block_on(client.post(&search_url).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     assert!(
-    resp.status().is_success(),
-    "Search failed: {}",
-    rt.block_on(resp.text()).unwrap_or_default()
+        resp.status().is_success(),
+        "Search failed: {}",
+        rt.block_on(resp.text()).unwrap_or_default()
     );
     let json: serde_json::Value = rt
         .block_on(resp.json())
@@ -107,7 +108,8 @@ use tokio::runtime::Runtime;
 fn smoke_test_end_to_end_index_and_search() {
     // Use a unique port to avoid conflicts
     let port = 18081u16;
-    let docs_path = std::fs::canonicalize("tests/fixtures").expect("Failed to resolve absolute path to test fixtures");
+    let docs_path = std::fs::canonicalize("tests/fixtures")
+        .expect("Failed to resolve absolute path to test fixtures");
     let mut child = Command::new("../../target/debug/doc-indexer")
         .args([
             "--docs-path",
@@ -151,9 +153,9 @@ fn smoke_test_end_to_end_index_and_search() {
         .block_on(client.post(&index_url).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     assert!(
-    resp.status().is_success(),
-    "Indexing failed: {}",
-    rt.block_on(resp.text()).unwrap_or_default()
+        resp.status().is_success(),
+        "Indexing failed: {}",
+        rt.block_on(resp.text()).unwrap_or_default()
     );
 
     // Wait a bit for indexing to complete
@@ -170,9 +172,9 @@ fn smoke_test_end_to_end_index_and_search() {
         .block_on(client.post(&search_url).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     assert!(
-    resp.status().is_success(),
-    "Search failed: {}",
-    rt.block_on(resp.text()).unwrap_or_default()
+        resp.status().is_success(),
+        "Search failed: {}",
+        rt.block_on(resp.text()).unwrap_or_default()
     );
     let json: serde_json::Value = rt
         .block_on(resp.json())

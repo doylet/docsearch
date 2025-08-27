@@ -3,8 +3,16 @@ pub struct StubSearchAnalytics;
 
 #[async_trait]
 impl SearchAnalytics for StubSearchAnalytics {
-    async fn record_search(&self, request: &SearchRequest, response: &SearchResponse) -> Result<()> {
-        println!("[StubAnalytics] record_search: query='{}', results={}", request.query.raw, response.results.len());
+    async fn record_search(
+        &self,
+        request: &SearchRequest,
+        response: &SearchResponse,
+    ) -> Result<()> {
+        println!(
+            "[StubAnalytics] record_search: query='{}', results={}",
+            request.query.raw,
+            response.results.len()
+        );
         Ok(())
     }
 
@@ -25,7 +33,6 @@ use crate::{models::*, traits::*};
 use async_trait::async_trait;
 use std::sync::Arc;
 use zero_latency_core::Result;
-
 
 /// Search pipeline that executes steps in sequence
 pub struct SearchPipeline {
@@ -94,7 +101,10 @@ impl SearchStep for AnalyticsStep {
             pagination: None,
         };
         // Ignore errors from analytics for now
-        let _ = self.analytics.record_search(&context.request, &response).await;
+        let _ = self
+            .analytics
+            .record_search(&context.request, &response)
+            .await;
         Ok(())
     }
 }

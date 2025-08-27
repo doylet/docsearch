@@ -11,7 +11,9 @@ use zero_latency_core::{
     values::SearchQuery,
     Result, Uuid,
 };
-use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse, QueryEnhancer, ResultRanker};
+use zero_latency_search::{
+    QueryEnhancer, ResultRanker, SearchOrchestrator, SearchRequest, SearchResponse,
+};
 use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
 use crate::application::container::ServiceContainer;
@@ -145,7 +147,9 @@ impl DocumentIndexingService {
     ) -> Result<SearchResponse> {
         tracing::info!(
             "[AdvancedSearch] Starting search with query: '{}', collection: '{}', limit: {}",
-            query, collection_name, limit
+            query,
+            collection_name,
+            limit
         );
         tracing::info!(
             "[AdvancedSearch] Components available - Query Enhancer: {}, Result Ranker: {}",
@@ -155,7 +159,9 @@ impl DocumentIndexingService {
 
         // Use the SearchOrchestrator (which includes analytics) instead of direct vector search
         let mut filters = zero_latency_search::SearchFilters::default();
-        filters.custom.insert("collection".to_string(), collection_name.to_string());
+        filters
+            .custom
+            .insert("collection".to_string(), collection_name.to_string());
 
         let search_request = zero_latency_search::SearchRequest::new(query)
             .with_limit(limit)

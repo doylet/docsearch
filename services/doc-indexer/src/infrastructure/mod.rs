@@ -1,9 +1,9 @@
-pub mod embeddings;
 /// Infrastructure Layer
 ///
 /// This module contains all infrastructure-level concerns including
 /// external service adapters, configuration management, and system utilities.
 pub mod analytics;
+pub mod embeddings;
 pub mod http;
 pub mod jsonrpc;
 pub mod load_testing;

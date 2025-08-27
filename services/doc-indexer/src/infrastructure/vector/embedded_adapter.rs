@@ -348,20 +348,34 @@ impl VectorRepository for EmbeddedVectorStore {
 
             // Filter by collection - handle legacy data without collection field
             if let Some(doc_collection) = &metadata.collection {
-                tracing::debug!("Document has collection field: '{}', searching for: '{}'", doc_collection, collection_name);
+                tracing::debug!(
+                    "Document has collection field: '{}', searching for: '{}'",
+                    doc_collection,
+                    collection_name
+                );
                 if doc_collection != collection_name {
                     collection_mismatches += 1;
-                    tracing::debug!("Collection mismatch: document='{}', search='{}'", doc_collection, collection_name);
+                    tracing::debug!(
+                        "Collection mismatch: document='{}', search='{}'",
+                        doc_collection,
+                        collection_name
+                    );
                     continue; // Skip documents not in this collection
                 }
                 collection_matches += 1;
             } else {
                 // Legacy documents without collection field - assume they belong to zero_latency_docs
                 // This provides backward compatibility for existing data
-                tracing::debug!("Legacy document (no collection field) found for search '{}'", collection_name);
+                tracing::debug!(
+                    "Legacy document (no collection field) found for search '{}'",
+                    collection_name
+                );
                 if collection_name != "zero_latency_docs" && collection_name != "default" {
                     collection_mismatches += 1;
-                    tracing::debug!("Legacy document rejected for non-default collection '{}'", collection_name);
+                    tracing::debug!(
+                        "Legacy document rejected for non-default collection '{}'",
+                        collection_name
+                    );
                     continue; // Skip legacy documents if searching for specific non-default collection
                 }
                 collection_matches += 1;
