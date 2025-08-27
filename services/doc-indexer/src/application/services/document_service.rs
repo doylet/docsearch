@@ -153,88 +153,16 @@ impl DocumentIndexingService {
             self.result_ranker.is_some()
         );
 
-        // Step 1: Query Enhancement (if enabled)
-        let enhanced_query = if let Some(enhancer) = &self.query_enhancer {
-            tracing::info!("[AdvancedSearch] Applying query enhancement...");
-            let enhanced = enhancer.enhance(query).await?;
-            tracing::info!(
-                "[AdvancedSearch] Query enhanced from '{}' to '{}'",
-                enhanced.original,
-                enhanced.enhanced
-            );
-            enhanced.enhanced
-        } else {
-            tracing::info!("[AdvancedSearch] No query enhancer available, using original query");
-            query.to_string()
-        };
+        // Use the SearchOrchestrator (which includes analytics) instead of direct vector search
+        let mut filters = zero_latency_search::SearchFilters::default();
+        filters.custom.insert("collection".to_string(), collection_name.to_string());
 
-        // Step 2: Generate embedding for the (possibly enhanced) query
-        let query_embedding = self.embedding_generator.generate_embedding(&enhanced_query).await?;
+        let search_request = zero_latency_search::SearchRequest::new(query)
+            .with_limit(limit)
+            .with_filters(filters);
 
-        // Step 3: Vector search in the specified collection
-        let similarity_results = self
-            .vector_repository
-            .search_in_collection(collection_name, query_embedding, limit)
-            .await?;
-
-        // Step 4: Convert to SearchResponse format
-        let mut documents = Vec::new();
-        for result in similarity_results {
-            documents.push(zero_latency_search::SearchResult {
-                chunk_id: Uuid::new_v4(),
-                document_id: result.document_id,
-                document_title: result.metadata.title.clone(),
-                document_path: format!("collection:{}", collection_name), // Use collection as path info
-                content: result.metadata.content.clone(),
-                snippet: None,
-                heading_path: result.metadata.heading_path.clone(),
-                final_score: result.similarity,
-                ranking_signals: None,
-                url: result.metadata.url.clone(),
-            });
-        }
-
-        // Step 5: Result Ranking (if enabled)
-        let ranked_documents = if let Some(ranker) = &self.result_ranker {
-            tracing::info!("[AdvancedSearch] Applying result ranking...");
-            let ranked = ranker.rank(documents).await?;
-            tracing::info!("[AdvancedSearch] Ranked {} documents", ranked.len());
-            ranked
-        } else {
-            tracing::info!("[AdvancedSearch] No result ranker available, using vector similarity order");
-            documents
-        };
-
-        let query_enhancement_applied = self.query_enhancer.is_some();
-        let ranking_method = if self.result_ranker.is_some() {
-            "multi_factor_ranking"
-        } else {
-            "vector_similarity"
-        };
-
-        let search_metadata = zero_latency_search::SearchMetadata {
-            query: if self.query_enhancer.is_some() {
-                // Use the enhanced query since enhancement was applied
-                SearchQuery::new(query).with_enhancement(&enhanced_query).with_limit(limit as u32)
-            } else {
-                // Use the original query 
-                SearchQuery::new(query).with_limit(limit as u32)
-            },
-            execution_time: Duration::from_millis(0), // Would be measured in real implementation
-            query_enhancement_applied,
-            ranking_method: ranking_method.to_string(),
-            result_sources: vec![collection_name.to_string()],
-            debug_info: None,
-        };
-
-        let total_count = ranked_documents.len();
-
-        Ok(SearchResponse {
-            results: ranked_documents,
-            total_count: Some(total_count),
-            search_metadata,
-            pagination: None,
-        })
+        // This will go through the full pipeline including analytics
+        self.search_orchestrator.search(search_request).await
     }
 
     /// Update an existing document in the index

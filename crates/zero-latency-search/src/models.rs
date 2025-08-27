@@ -27,6 +27,7 @@ impl SearchRequest {
 
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = limit;
+        self.query = self.query.with_limit(limit as u32);
         self
     }
 

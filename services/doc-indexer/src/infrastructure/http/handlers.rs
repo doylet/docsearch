@@ -88,8 +88,8 @@ impl AppState {
         // Initialize collection stats from actual vector repository
         collection_service.initialize().await?;
 
-        // Create analytics service
-        let analytics_service = Arc::new(crate::infrastructure::analytics::ProductionSearchAnalytics::with_default_config());
+        // Use the analytics service from the container (shared with search pipeline)
+        let analytics_service = container.analytics();
 
         Ok(Self {
             container,
@@ -122,10 +122,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(endpoints::DOCUMENTS, get(list_documents))
         .route(endpoints::DOCUMENT_BY_ID, get(get_document))
         .route(endpoints::DOCUMENTS_SEARCH, post(search_documents))
-        // Analytics endpoints - temporarily disabled until types are fixed
-        // .route(endpoints::ANALYTICS_SUMMARY, get(get_analytics_summary))
-        // .route(endpoints::ANALYTICS_POPULAR_QUERIES, get(get_popular_queries))
-        // .route(endpoints::ANALYTICS_SEARCH_TRENDS, get(get_search_trends))
+        // Analytics endpoints - partially enabled for testing
+        .route(endpoints::ANALYTICS_SUMMARY, get(get_analytics_summary))
+        .route(endpoints::ANALYTICS_POPULAR_QUERIES, get(get_popular_queries))
+        .route(endpoints::ANALYTICS_SEARCH_TRENDS, get(get_search_trends))
         // Health endpoints
         .route("/health", get(health_check))
         .route("/health/ready", get(readiness_check))
@@ -943,22 +943,19 @@ pub struct GetCollectionStatsResponse {
 /// Get comprehensive analytics summary
 async fn get_analytics_summary(
     State(state): State<AppState>,
-) -> Result<Json<crate::infrastructure::analytics::AnalyticsSummary>, StatusCode> {
+) -> Result<Json<crate::infrastructure::analytics::AnalyticsSummary>, AppError> {
     tracing::info!("[Analytics] Getting analytics summary");
     
-    match state.analytics_service.get_analytics_summary().await {
-        summary => {
-            tracing::info!("[Analytics] Retrieved analytics summary with {} total searches", summary.total_searches);
-            Ok(Json(summary))
-        }
-    }
+    let summary = state.analytics_service.get_analytics_summary().await;
+    tracing::info!("[Analytics] Retrieved analytics summary with {} total searches", summary.total_searches);
+    Ok(Json(summary))
 }
 
 /// Get popular queries with limit parameter
 async fn get_popular_queries(
-    Query(params): Query<AnalyticsQuery>,
     State(state): State<AppState>,
-) -> Result<Json<Vec<PopularQuery>>, StatusCode> {
+    Query(params): Query<AnalyticsQuery>,
+) -> Result<Json<Vec<PopularQuery>>, AppError> {
     tracing::info!("[Analytics] Getting popular queries with limit: {}", params.limit.unwrap_or(10));
     
     match state.analytics_service.get_popular_queries(params.limit.unwrap_or(10)).await {
@@ -968,7 +965,7 @@ async fn get_popular_queries(
         }
         Err(e) => {
             tracing::error!("[Analytics] Error getting popular queries: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError(ZeroLatencyError::internal(format!("Analytics error: {}", e))))
         }
     }
 }
@@ -976,7 +973,7 @@ async fn get_popular_queries(
 /// Get search trends data
 async fn get_search_trends(
     State(state): State<AppState>,
-) -> Result<Json<SearchTrends>, StatusCode> {
+) -> Result<Json<SearchTrends>, AppError> {
     tracing::info!("[Analytics] Getting search trends");
     
     match state.analytics_service.get_search_trends().await {
@@ -986,13 +983,13 @@ async fn get_search_trends(
         }
         Err(e) => {
             tracing::error!("[Analytics] Error getting search trends: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError(ZeroLatencyError::internal(format!("Analytics error: {}", e))))
         }
     }
 }
 
 /// Query parameters for analytics endpoints
 #[derive(Debug, Deserialize)]
-struct AnalyticsQuery {
-    limit: Option<usize>,
+pub struct AnalyticsQuery {
+    pub limit: Option<usize>,
 }

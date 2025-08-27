@@ -215,7 +215,7 @@ impl SearchAnalytics for ProductionSearchAnalytics {
         
         // Extract analytics data
         let query = request.query.raw.clone();
-        let collection: Option<String> = None; // Collection is not part of SearchRequest, would be tracked at higher level
+        let collection: Option<String> = request.filters.custom.get("collection").cloned();
         let result_count = response.results.len();
         let top_score = response.results.first().map(|r| r.final_score);
         

@@ -57,7 +57,7 @@ pub trait SearchPersonalizer: Send + Sync {
 }
 
 /// Popular query information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PopularQuery {
     pub query: String,
     pub count: usize,
@@ -66,7 +66,7 @@ pub struct PopularQuery {
 }
 
 /// Search trends data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchTrends {
     pub total_searches: usize,
     pub unique_queries: usize,
@@ -75,7 +75,7 @@ pub struct SearchTrends {
 }
 
 /// Category trend information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CategoryTrend {
     pub category: String,
     pub search_count: usize,
