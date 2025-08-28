@@ -9,6 +9,7 @@ pub mod jsonrpc;
 pub mod load_testing;
 pub mod memory;
 pub mod production;
+pub mod protocol_adapters;
 pub mod search_enhancement;
 pub mod stdio;
 pub mod streaming;

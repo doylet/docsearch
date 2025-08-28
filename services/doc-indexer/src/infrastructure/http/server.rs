@@ -20,6 +20,7 @@ use tracing::{info, warn};
 
 use super::handlers::AppState;
 use crate::application::ServiceContainer;
+use crate::infrastructure::protocol_adapters::ProtocolAdapterFactory;
 
 /// HTTP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +36,7 @@ pub struct ServerConfig {
 pub struct HttpServer {
     config: ServerConfig,
     app_state: AppState,
+    adapter_factory: Option<ProtocolAdapterFactory>,
 }
 
 impl HttpServer {
@@ -47,14 +49,38 @@ impl HttpServer {
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        Ok(Self { config, app_state })
+        Ok(Self { 
+            config, 
+            app_state,
+            adapter_factory: None,
+        })
+    }
+
+    /// Create a new HTTP server with protocol adapters
+    pub async fn new_with_adapters(
+        config: ServerConfig,
+        adapter_factory: ProtocolAdapterFactory,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let app_state = AppState::new_async(adapter_factory.container())
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
+        Ok(Self { 
+            config, 
+            app_state,
+            adapter_factory: Some(adapter_factory),
+        })
     }
 
     /// Build the complete router with middleware
     pub fn build_router(&self) -> Router {
-        // Use the dual protocol router that includes both REST and JSON-RPC endpoints
-        let router =
-            crate::infrastructure::jsonrpc::create_dual_protocol_router(self.app_state.clone());
+        let router = if let Some(adapter_factory) = &self.adapter_factory {
+            // Use new protocol adapters
+            adapter_factory.create_combined_router()
+        } else {
+            // Fallback to legacy dual protocol router
+            crate::infrastructure::jsonrpc::create_dual_protocol_router(self.app_state.clone())
+        };
 
         // Build middleware stack
         let middleware_stack = ServiceBuilder::new()
