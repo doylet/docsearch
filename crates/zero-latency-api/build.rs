@@ -100,8 +100,8 @@ fn main() {
 fn generate_placeholder_types(output_dir: &Path) {
     let types_file = output_dir.join("types.rs");
     let placeholder_content = r#"
-//! Placeholder API types generated when openapi-generator is not available
-//! Install openapi-generator-cli for full code generation
+// Placeholder API types generated when openapi-generator is not available
+// Install openapi-generator-cli for full code generation
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -217,7 +217,59 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
     if src_dir.exists() {
         let target_file = target_dir.join("types.rs");
         
-        // Find the models file and copy it
+        // Check for models directory (newer openapi-generator versions)
+        let models_dir = src_dir.join("models");
+        if models_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&models_dir) {
+                let mut combined_content = String::from("// Generated API types from OpenAPI specification\n\nuse serde::{Deserialize, Serialize};\nuse uuid::Uuid;\nuse chrono::{DateTime, Utc};\n\n");
+                
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|ext| ext.to_str()) == Some("rs") && path.file_name().and_then(|n| n.to_str()) != Some("mod.rs") {
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            // Remove use statements, comments and module declarations from individual files
+                            let mut in_comment_block = false;
+                            let filtered_content = content
+                                .lines()
+                                .filter_map(|line| {
+                                    let trimmed = line.trim();
+                                    
+                                    // Handle multi-line comments
+                                    if trimmed.starts_with("/*") {
+                                        in_comment_block = true;
+                                        return None;
+                                    }
+                                    if in_comment_block {
+                                        if trimmed.ends_with("*/") {
+                                            in_comment_block = false;
+                                        }
+                                        return None;
+                                    }
+                                    
+                                    // Filter out unwanted lines
+                                    if trimmed.starts_with("use ") || 
+                                       trimmed.starts_with("//") ||
+                                       trimmed.starts_with("*") ||
+                                       trimmed.is_empty() {
+                                        None
+                                    } else {
+                                        Some(line.to_string())
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            combined_content.push_str(&filtered_content);
+                            combined_content.push_str("\n\n");
+                        }
+                    }
+                }
+                
+                let _ = fs::write(target_file, combined_content);
+                return;
+            }
+        }
+        
+        // Fallback: Look for single models.rs file (older openapi-generator versions)
         if let Ok(entries) = fs::read_dir(&src_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -225,7 +277,7 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
                     if let Ok(content) = fs::read_to_string(&path) {
                         // Add our custom imports and exports
                         let enhanced_content = format!(
-                            "//! Generated API types from OpenAPI specification\n\n{}\n\n// Re-exports\npub use uuid::Uuid;\npub use chrono::{{DateTime, Utc}};",
+                            "//! Generated API types from OpenAPI specification\n\n{}",
                             content
                         );
                         let _ = fs::write(target_file, enhanced_content);

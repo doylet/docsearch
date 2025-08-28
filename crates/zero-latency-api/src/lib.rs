@@ -3,10 +3,89 @@
 //! Generated types and client code for the Zero-Latency document indexing and search API.
 //! This crate provides type-safe access to all API endpoints with support for multiple protocols.
 
+pub mod endpoints;
+
 pub mod types {
-    //! API type definitions generated from OpenAPI specification
+    //! API type definitions
     
-    include!(concat!(env!("OUT_DIR"), "/generated/types.rs"));
+    use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
+    use chrono::{DateTime, Utc};
+
+    /// Error response structure
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct ApiError {
+        pub error: String,
+        pub message: String,
+        pub code: String,
+        pub trace_id: Option<String>,
+        pub details: Option<serde_json::Value>,
+    }
+
+    /// Health check result
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct HealthCheckResult {
+        pub status: String,
+        pub timestamp: DateTime<Utc>,
+        pub version: Option<String>,
+    }
+
+    /// API status response
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct ApiStatusResponse {
+        pub status: String,
+        pub version: String,
+        pub uptime_seconds: u64,
+    }
+
+    /// Search request
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct SearchRequest {
+        pub query: String,
+        pub limit: Option<i32>,
+        pub offset: Option<i32>,
+    }
+
+    /// Search response
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct SearchResponse {
+        pub results: Vec<SearchResult>,
+        pub total: i64,
+        pub query_time_ms: i64,
+    }
+
+    /// Search result
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct SearchResult {
+        pub id: String,
+        pub title: Option<String>,
+        pub content: String,
+        pub score: f64,
+    }
+
+    /// Index request
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct IndexRequest {
+        pub path: String,
+        pub collection: Option<String>,
+        pub recursive: Option<bool>,
+    }
+
+    /// Index response
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct IndexResponse {
+        pub indexed_documents: i64,
+        pub errors: Vec<String>,
+    }
+
+    /// Collection information
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct Collection {
+        pub name: String,
+        pub description: Option<String>,
+        pub document_count: i64,
+        pub created_at: DateTime<Utc>,
+    }
 }
 
 pub mod client {

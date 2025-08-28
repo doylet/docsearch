@@ -5,7 +5,7 @@ use crate::commands::collection::{
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use zero_latency_contracts::api::{endpoints, urls};
+use zero_latency_api::{endpoints, urls};
 use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
 
 /// Response wrapper for list collections API call
