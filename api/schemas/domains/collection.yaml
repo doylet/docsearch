@@ -1,0 +1,165 @@
+# Collection Domain Schemas
+
+Collection:
+  allOf:
+    - $ref: './common.yaml#/TenantResource'
+    - type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          pattern: '^[a-zA-Z0-9_-]+$'
+          minLength: 1
+          maxLength: 64
+          description: Collection name (alphanumeric, underscore, hyphen only)
+          example: "api_documentation"
+        description:
+          type: string
+          maxLength: 512
+          description: Human-readable description
+          example: "API reference documentation collection"
+        metadata:
+          $ref: './common.yaml#/Metadata'
+        document_count:
+          type: integer
+          minimum: 0
+          description: Number of documents in collection
+          example: 156
+        status:
+          type: string
+          enum: [active, inactive, indexing, error]
+          description: Collection status
+          example: "active"
+        settings:
+          type: object
+          properties:
+            auto_index:
+              type: boolean
+              default: true
+              description: Whether to automatically index new documents
+            embedding_model:
+              type: string
+              description: Model used for embeddings
+              example: "text-embedding-ada-002"
+            chunk_size:
+              type: integer
+              minimum: 100
+              maximum: 10000
+              default: 1000
+              description: Text chunk size for embeddings
+          additionalProperties: true
+
+CreateCollectionRequest:
+  type: object
+  required:
+    - name
+    - description
+  properties:
+    name:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]+$'
+      minLength: 1
+      maxLength: 64
+      description: Collection name
+      example: "api_documentation"
+    description:
+      type: string
+      maxLength: 512
+      description: Collection description
+      example: "API reference documentation collection"
+    metadata:
+      $ref: './common.yaml#/Metadata'
+    settings:
+      type: object
+      properties:
+        auto_index:
+          type: boolean
+          default: true
+        embedding_model:
+          type: string
+          example: "text-embedding-ada-002"
+        chunk_size:
+          type: integer
+          minimum: 100
+          maximum: 10000
+          default: 1000
+      additionalProperties: true
+
+UpdateCollectionRequest:
+  type: object
+  properties:
+    description:
+      type: string
+      maxLength: 512
+      description: Updated description
+    metadata:
+      $ref: './common.yaml#/Metadata'
+    settings:
+      type: object
+      additionalProperties: true
+      description: Updated collection settings
+
+ListCollectionsResponse:
+  type: object
+  required:
+    - collections
+  allOf:
+    - $ref: './common.yaml#/PaginationInfo'
+    - type: object
+      properties:
+        collections:
+          type: array
+          items:
+            $ref: '#/Collection'
+
+CollectionStats:
+  type: object
+  required:
+    - collection_name
+    - document_count
+    - total_size_bytes
+    - last_updated
+  properties:
+    collection_name:
+      type: string
+      description: Collection name
+      example: "api_documentation"
+    document_count:
+      type: integer
+      minimum: 0
+      description: Number of documents
+      example: 156
+    total_size_bytes:
+      type: integer
+      minimum: 0
+      description: Total size in bytes
+      example: 2048576
+    average_document_size:
+      type: integer
+      minimum: 0
+      description: Average document size in bytes
+      example: 13132
+    index_size_bytes:
+      type: integer
+      minimum: 0
+      description: Vector index size in bytes
+      example: 524288
+    last_updated:
+      type: string
+      format: date-time
+      description: Last update timestamp
+      example: "2024-01-15T10:35:00Z"
+    last_indexed:
+      type: string
+      format: date-time
+      description: Last indexing operation timestamp
+      example: "2024-01-15T10:30:00Z"
+    status:
+      type: string
+      enum: [active, inactive, indexing, error]
+      description: Current collection status
+      example: "active"
+    metadata:
+      $ref: './common.yaml#/Metadata'

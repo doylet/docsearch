@@ -1,0 +1,316 @@
+# Document Domain Schemas
+
+Document:
+  allOf:
+    - $ref: './common.yaml#/TenantResource'
+    - type: object
+      required:
+        - title
+        - content
+        - collection_name
+      properties:
+        title:
+          type: string
+          maxLength: 256
+          description: Document title
+          example: "API Authentication Guide"
+        content:
+          type: string
+          description: Full document content
+          example: "This guide covers authentication methods..."
+        content_preview:
+          type: string
+          maxLength: 500
+          description: Preview/excerpt of document content
+          example: "This guide covers authentication methods including..."
+        collection_name:
+          type: string
+          description: Name of the collection containing this document
+          example: "api_documentation"
+        path:
+          type: string
+          description: Original file path (if applicable)
+          example: "/docs/api/authentication.md"
+        document_type:
+          type: string
+          description: Type/format of document
+          enum: [markdown, text, html, pdf, docx, rst, json, yaml]
+          example: "markdown"
+        language:
+          type: string
+          description: Document language (ISO 639-1 code)
+          example: "en"
+        size_bytes:
+          type: integer
+          minimum: 0
+          description: Document size in bytes
+          example: 15360
+        hash:
+          type: string
+          description: Content hash for change detection
+          example: "sha256:abc123..."
+        metadata:
+          $ref: './common.yaml#/Metadata'
+        embeddings:
+          type: array
+          items:
+            type: number
+            format: float
+          description: Vector embeddings for semantic search
+          example: [0.1, -0.5, 0.8, 0.3]
+        chunks:
+          type: array
+          items:
+            $ref: '#/DocumentChunk'
+          description: Document chunks for processing
+        index_status:
+          type: string
+          enum: [pending, indexing, indexed, failed]
+          description: Indexing status
+          example: "indexed"
+        last_indexed:
+          type: string
+          format: date-time
+          description: Last indexing timestamp
+          example: "2024-01-15T10:35:00Z"
+
+DocumentChunk:
+  type: object
+  required:
+    - id
+    - content
+    - position
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique chunk identifier
+      example: "550e8400-e29b-41d4-a716-446655440002"
+    content:
+      type: string
+      description: Chunk content
+      example: "Authentication is the process of verifying..."
+    position:
+      type: integer
+      minimum: 0
+      description: Chunk position in document
+      example: 0
+    start_offset:
+      type: integer
+      minimum: 0
+      description: Start character offset in original document
+      example: 0
+    end_offset:
+      type: integer
+      minimum: 0
+      description: End character offset in original document
+      example: 512
+    embeddings:
+      type: array
+      items:
+        type: number
+        format: float
+      description: Chunk embeddings
+      example: [0.2, -0.3, 0.9, 0.1]
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Chunk-specific metadata
+      example:
+        section: "introduction"
+        heading: "Authentication Overview"
+
+CreateDocumentRequest:
+  type: object
+  required:
+    - title
+    - content
+    - collection_name
+  properties:
+    title:
+      type: string
+      maxLength: 256
+      description: Document title
+      example: "New API Guide"
+    content:
+      type: string
+      description: Document content
+      example: "This is the content of the new guide..."
+    collection_name:
+      type: string
+      description: Target collection name
+      example: "api_documentation"
+    path:
+      type: string
+      description: Optional file path
+      example: "/docs/new-guide.md"
+    document_type:
+      type: string
+      enum: [markdown, text, html, pdf, docx, rst, json, yaml]
+      default: text
+      description: Document type
+      example: "markdown"
+    language:
+      type: string
+      default: "en"
+      description: Document language
+      example: "en"
+    metadata:
+      $ref: './common.yaml#/Metadata'
+    auto_index:
+      type: boolean
+      default: true
+      description: Whether to automatically index the document
+      example: true
+
+UpdateDocumentRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      maxLength: 256
+      description: Updated title
+    content:
+      type: string
+      description: Updated content
+    metadata:
+      $ref: './common.yaml#/Metadata'
+    auto_reindex:
+      type: boolean
+      default: true
+      description: Whether to automatically reindex after update
+
+ListDocumentsResponse:
+  type: object
+  required:
+    - documents
+  allOf:
+    - $ref: './common.yaml#/PaginationInfo'
+    - type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/Document'
+
+GetDocumentResponse:
+  type: object
+  required:
+    - document
+  properties:
+    document:
+      $ref: '#/Document'
+    related_documents:
+      type: array
+      items:
+        $ref: '#/Document'
+      description: Semantically related documents
+      maxItems: 10
+    collection_info:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        document_count:
+          type: integer
+
+DocumentIndexingResult:
+  type: object
+  required:
+    - document_id
+    - success
+  properties:
+    document_id:
+      type: string
+      format: uuid
+      description: Document identifier
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    success:
+      type: boolean
+      description: Whether indexing succeeded
+      example: true
+    error_message:
+      type: string
+      description: Error message if indexing failed
+      example: "Failed to generate embeddings"
+    processing_time_ms:
+      type: integer
+      minimum: 0
+      description: Processing time in milliseconds
+      example: 150
+    chunks_created:
+      type: integer
+      minimum: 0
+      description: Number of chunks created
+      example: 5
+    embeddings_generated:
+      type: integer
+      minimum: 0
+      description: Number of embeddings generated
+      example: 5
+
+BulkDocumentOperation:
+  type: object
+  required:
+    - operation
+    - document_ids
+  properties:
+    operation:
+      type: string
+      enum: [index, reindex, delete]
+      description: Operation to perform
+      example: "reindex"
+    document_ids:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: List of document IDs
+      example: ["550e8400-e29b-41d4-a716-446655440000"]
+    options:
+      type: object
+      additionalProperties: true
+      description: Operation-specific options
+      example:
+        force: true
+        update_embeddings: true
+
+BulkDocumentResult:
+  type: object
+  required:
+    - operation
+    - total_count
+    - success_count
+    - failure_count
+  properties:
+    operation:
+      type: string
+      description: Operation performed
+      example: "reindex"
+    total_count:
+      type: integer
+      minimum: 0
+      description: Total documents processed
+      example: 10
+    success_count:
+      type: integer
+      minimum: 0
+      description: Successfully processed documents
+      example: 9
+    failure_count:
+      type: integer
+      minimum: 0
+      description: Failed documents
+      example: 1
+    results:
+      type: array
+      items:
+        $ref: '#/DocumentIndexingResult'
+      description: Detailed results for each document
+    processing_time_ms:
+      type: integer
+      minimum: 0
+      description: Total processing time
+      example: 1500

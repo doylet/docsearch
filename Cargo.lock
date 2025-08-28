@@ -5083,6 +5083,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zero-latency-api"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "reqwest 0.12.23",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "zero-latency-config"
 version = "0.1.0"
 dependencies = [
