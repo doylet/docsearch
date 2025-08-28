@@ -132,16 +132,13 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Create protocol adapters using the new adapter factory
-    let adapter_factory = infrastructure::protocol_adapters::ProtocolAdapterFactory::new(container.clone());
-    
-    // Create and start HTTP server with protocol adapters
-    let server = HttpServer::new_with_adapters(config.server.clone(), adapter_factory)
+    // Create and start HTTP server
+    let server = HttpServer::new(config.server.clone(), container)
         .await
         .map_err(|e| anyhow::Error::msg(format!("Failed to create HTTP server: {}", e)))?;
 
     info!(
-        "Starting HTTP server with protocol adapters on {}:{}",
+        "Starting HTTP server on {}:{}",
         config.server.host, config.server.port
     );
 

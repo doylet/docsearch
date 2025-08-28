@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// and the application services, following the clean architecture pattern.
 use std::sync::Arc;
 use std::time::Instant;
-use zero_latency_api::endpoints;
+use zero_latency_api::endpoints::endpoints;
 use zero_latency_core::ZeroLatencyError;
 use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 
