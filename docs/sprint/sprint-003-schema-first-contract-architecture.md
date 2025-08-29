@@ -35,9 +35,16 @@ Transform the Zero-Latency system from manual contract constants to a comprehens
 #### **ZL-003-001: Create Master OpenAPI Specification**
 **Story Points:** 8  
 **Priority:** Critical  
-**Status:** Ready  
+**Status:** In Progress (25% Complete)  
+
+**Progress Update (Aug 29, 2025):**
+- ✅ **Schema divergence analysis completed**: Identified CLI/REST API schema compliance issues
+- ✅ **Existing OpenAPI specification analyzed**: Found nested `filters.collection_name` structure
+- 🔄 **Schema validation patterns documented**: ADR-042 captures real-world compliance issues
+- ⏳ **Master specification creation**: Ready to proceed with lessons learned
 
 **Acceptance Criteria:**
+- [x] Analyze existing schema compliance issues and document patterns
 - [ ] Complete OpenAPI 3.1 specification for all doc-indexer endpoints
 - [ ] Tenant-aware schema patterns with `tenant_id` in all resources
 - [ ] Comprehensive error response schemas with trace context

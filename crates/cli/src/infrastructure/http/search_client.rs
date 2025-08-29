@@ -48,7 +48,7 @@ impl SearchApiClient {
             .json(&serde_json::json!({
                 "query": query.effective_query(),
                 "limit": query.limit,
-                "collection_name": self.collection_name
+                "filters": {}
             }))
             .send()
             .await

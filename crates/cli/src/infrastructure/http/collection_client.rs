@@ -5,7 +5,7 @@ use crate::commands::collection::{
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use zero_latency_api::{endpoints, urls};
+use zero_latency_api::endpoints::{self, urls};
 use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
 
 /// Response wrapper for list collections API call
@@ -41,7 +41,7 @@ impl CollectionApiClient {
 
     /// List all collections
     pub async fn list_collections(&self) -> ZeroLatencyResult<Vec<CollectionInfo>> {
-        let url = format!("{}{}", self.base_url, endpoints::COLLECTIONS);
+        let url = format!("{}{}", self.base_url, endpoints::endpoints::COLLECTIONS);
 
         let response =
             self.client
@@ -106,7 +106,7 @@ impl CollectionApiClient {
         &self,
         request: CreateCollectionRequest,
     ) -> ZeroLatencyResult<CreateCollectionResponse> {
-        let url = format!("{}{}", self.base_url, endpoints::COLLECTIONS);
+        let url = format!("{}{}", self.base_url, endpoints::endpoints::COLLECTIONS);
 
         let response = self
             .client

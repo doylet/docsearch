@@ -77,8 +77,15 @@ impl HttpServer {
 
     /// Start the HTTP server
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Handle localhost resolution to IP address
+        let host_ip = if self.config.host == "localhost" {
+            "127.0.0.1".to_string()
+        } else {
+            self.config.host.clone()
+        };
+        
         let addr = SocketAddr::from((
-            self.config.host.parse::<std::net::IpAddr>()?,
+            host_ip.parse::<std::net::IpAddr>()?,
             self.config.port,
         ));
 
