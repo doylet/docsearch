@@ -91,6 +91,8 @@ pub struct SearchResult {
     pub final_score: Score,
     pub ranking_signals: Option<RankingSignals>,
     pub url: Option<String>,
+    pub collection: Option<String>,
+    pub custom_metadata: std::collections::HashMap<String, String>,
 }
 
 /// Ranking signals for transparency

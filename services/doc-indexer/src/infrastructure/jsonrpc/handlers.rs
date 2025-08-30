@@ -335,16 +335,23 @@ pub async fn handle_search_documents(
                             let results: Vec<SearchResultItem> = search_response
                                 .results
                                 .into_iter()
-                                .map(|result| SearchResultItem {
-                                    id: result.document_id.to_string(),
-                                    content: if params.include_content.unwrap_or(true) {
-                                        Some(result.content)
-                                    } else {
-                                        None
-                                    },
-                                    title: None, // Not available in SearchResult yet
-                                    score: result.final_score.value(),
-                                    metadata: std::collections::HashMap::new(),
+                                .map(|result| {
+                                    let mut metadata = result.custom_metadata.clone();
+                                    if let Some(collection) = result.collection {
+                                        metadata.insert("collection".to_string(), collection);
+                                    }
+                                    
+                                    SearchResultItem {
+                                        id: result.document_id.to_string(),
+                                        content: if params.include_content.unwrap_or(true) {
+                                            Some(result.content)
+                                        } else {
+                                            None
+                                        },
+                                        title: Some(result.document_title),
+                                        score: result.final_score.value(),
+                                        metadata,
+                                    }
                                 })
                                 .collect();
 

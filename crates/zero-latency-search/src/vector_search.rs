@@ -122,6 +122,8 @@ impl SearchStep for VectorSearchStep {
                 final_score: result.similarity,
                 ranking_signals: None,
                 url: result.metadata.url.clone(),
+                collection: result.metadata.collection.clone(),
+                custom_metadata: result.metadata.custom.clone(),
             })
             .collect();
 
