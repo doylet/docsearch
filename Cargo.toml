@@ -7,6 +7,7 @@ members = [
     "crates/zero-latency-search",
     "crates/zero-latency-vector",
     "crates/zero-latency-contracts",
+    "crates/zero-latency-api",
     "services/doc-indexer",
 ]
 resolver = "2"

@@ -875,8 +875,8 @@ dependencies = [
  "uuid",
  "walkdir",
  "xxhash-rust",
+ "zero-latency-api",
  "zero-latency-config",
- "zero-latency-contracts",
  "zero-latency-core",
  "zero-latency-observability",
  "zero-latency-search",
@@ -2067,8 +2067,8 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zero-latency-api",
  "zero-latency-config",
- "zero-latency-contracts",
  "zero-latency-core",
  "zero-latency-observability",
  "zero-latency-search",
@@ -5080,6 +5080,21 @@ dependencies = [
  "quote",
  "syn 2.0.106",
  "synstructure",
+]
+
+[[package]]
+name = "zero-latency-api"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "reqwest 0.12.23",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

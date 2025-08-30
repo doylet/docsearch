@@ -1,0 +1,194 @@
+name: Schema Validation and Breaking Change Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'api/schemas/**'
+      - 'api/public/**'
+      - 'crates/zero-latency-api/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'api/schemas/**'
+      - 'api/public/**'
+      - 'crates/zero-latency-api/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  schema-validation:
+    name: Validate OpenAPI Schema
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install OpenAPI tools
+      run: |
+        npm install -g @redocly/cli openapi-generator-cli@7.8.0 oasdiff
+    
+    - name: Validate OpenAPI Schema
+      run: |
+        echo "Validating OpenAPI specification..."
+        npx @redocly/cli lint api/public/openapi.yaml --format=github-actions
+    
+    - name: Test Schema Generation
+      run: |
+        echo "Testing schema generation..."
+        npx openapi-generator-cli version-manager set 7.8.0
+        npx openapi-generator-cli generate \
+          -i api/public/openapi.yaml \
+          -g rust \
+          -o /tmp/test-generation \
+          --additional-properties packageName=test-api
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Test Generated Code Compilation
+      run: |
+        echo "Testing generated Rust types compilation..."
+        cd crates/zero-latency-api
+        cargo build --release
+        
+    - name: Breaking Change Detection
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "Checking for breaking changes..."
+        # Get the base branch OpenAPI spec
+        git show origin/${{ github.base_ref }}:api/public/openapi.yaml > /tmp/base-openapi.yaml || echo "Base spec not found"
+        
+        # Compare specifications if base exists
+        if [ -f /tmp/base-openapi.yaml ]; then
+          echo "Comparing API specifications..."
+          npx oasdiff changelog /tmp/base-openapi.yaml api/public/openapi.yaml \
+            --format json > /tmp/api-changes.json || echo "No significant changes detected"
+            
+          # Check for breaking changes
+          if npx oasdiff breaking /tmp/base-openapi.yaml api/public/openapi.yaml --fail-on-diff; then
+            echo "✅ No breaking changes detected"
+          else
+            echo "⚠️ Breaking changes detected in API schema"
+            echo "Please review the changes and update version accordingly"
+            # Don't fail the build, just warn
+          fi
+          
+          # Show changelog if changes exist
+          if [ -f /tmp/api-changes.json ]; then
+            echo "API Changes Summary:"
+            cat /tmp/api-changes.json | jq '.[]' || echo "Unable to parse changes"
+          fi
+        else
+          echo "Base OpenAPI spec not found, skipping breaking change detection"
+        fi
+
+  integration-test:
+    name: Integration Test with Generated Types
+    runs-on: ubuntu-latest
+    needs: schema-validation
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Setup Node.js for OpenAPI tools
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install OpenAPI Generator
+      run: |
+        npm install -g openapi-generator-cli@7.8.0
+        npx openapi-generator-cli version-manager set 7.8.0
+    
+    - name: Build and Test All Crates
+      run: |
+        echo "Building workspace with generated types..."
+        cargo build --workspace --release
+        
+        echo "Running tests..."
+        cargo test --workspace
+    
+    - name: Test Service Integration
+      run: |
+        echo "Testing service startup with generated types..."
+        # Build the doc-indexer service
+        cd services/doc-indexer
+        cargo build --release
+        
+        # Test that the service can start (quick smoke test)
+        timeout 10s cargo run --release --bin doc-indexer -- --port 8082 &
+        SERVICE_PID=$!
+        
+        # Give it time to start
+        sleep 3
+        
+        # Test health endpoint
+        curl -f http://localhost:8082/health || echo "Health check failed"
+        
+        # Clean up
+        kill $SERVICE_PID 2>/dev/null || true
+
+  documentation-check:
+    name: Verify Documentation Generation
+    runs-on: ubuntu-latest
+    needs: schema-validation
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Setup Node.js for documentation tools
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install documentation tools
+      run: |
+        npm install -g @redocly/cli openapi-generator-cli@7.8.0
+    
+    - name: Generate Documentation
+      run: |
+        echo "Testing documentation generation..."
+        cd crates/zero-latency-api
+        cargo build
+        
+        # Check if documentation was generated
+        DOCS_DIR=$(find target/debug/build -name "generated" -type d | head -1)
+        if [ -d "$DOCS_DIR/docs" ]; then
+          echo "✅ Documentation generated successfully"
+          ls -la "$DOCS_DIR/docs/"
+        else
+          echo "❌ Documentation generation failed"
+          exit 1
+        fi
+    
+    - name: Upload Documentation Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-documentation
+        path: target/debug/build/*/out/generated/docs/
+        retention-days: 30

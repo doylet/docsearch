@@ -2,6 +2,7 @@ use reqwest::Client;
 use std::time::Duration;
 use zero_latency_core::{values::SearchQuery, Result as ZeroLatencyResult, ZeroLatencyError};
 use zero_latency_search::SearchResponse;
+use zero_latency_api::{SearchRequest, SearchFilters};
 
 /// HTTP client for search operations against the Zero Latency API.
 ///
@@ -42,14 +43,24 @@ impl SearchApiClient {
     pub async fn search(&self, query: SearchQuery) -> ZeroLatencyResult<SearchResponse> {
         let url = format!("{}/api/search", self.base_url);
 
+        // Create filters with collection name
+        let filters = SearchFilters {
+            collection_name: Some(self.collection_name.clone()),
+            ..Default::default()
+        };
+
+        // Create comprehensive search request using generated types
+        let search_request = SearchRequest {
+            query: query.effective_query().to_string(),
+            limit: Some(query.limit as i32),
+            filters: Some(Box::new(filters)),
+            ..Default::default()
+        };
+
         let response = self
             .client
             .post(&url)
-            .json(&serde_json::json!({
-                "query": query.effective_query(),
-                "limit": query.limit,
-                "collection_name": self.collection_name
-            }))
+            .json(&search_request)
             .send()
             .await
             .map_err(|e| ZeroLatencyError::Network {

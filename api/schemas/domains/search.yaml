@@ -1,0 +1,361 @@
+# Search Domain Schemas
+
+SearchRequest:
+  type: object
+  required:
+    - query
+  properties:
+    query:
+      type: string
+      minLength: 1
+      maxLength: 512
+      description: Search query text
+      example: "rust async programming patterns"
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 1000
+      default: 10
+      description: Maximum number of results to return
+      example: 20
+    offset:
+      type: integer
+      minimum: 0
+      default: 0
+      description: Number of results to skip
+      example: 0
+    filters:
+      $ref: '#/SearchFilters'
+    search_type:
+      type: string
+      enum: [semantic, keyword, hybrid]
+      default: semantic
+      description: Type of search to perform
+      example: "semantic"
+    include_metadata:
+      type: boolean
+      default: true
+      description: Whether to include document metadata in results
+      example: true
+    include_highlights:
+      type: boolean
+      default: true
+      description: Whether to include text highlights in results
+      example: true
+    include_embeddings:
+      type: boolean
+      default: false
+      description: Whether to include embeddings in results
+      example: false
+    similarity_threshold:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      description: Minimum similarity score for results
+      example: 0.5
+    rerank_results:
+      type: boolean
+      default: true
+      description: Whether to apply result reranking
+      example: true
+
+SearchFilters:
+  type: object
+  description: Search filters for refining results
+  properties:
+    collection_name:
+      type: string
+      description: Filter by collection name
+      example: "programming_docs"
+    collection_names:
+      type: array
+      items:
+        type: string
+      description: Filter by multiple collection names
+      example: ["api_docs", "tutorials"]
+    document_type:
+      type: string
+      description: Filter by document type
+      example: "tutorial"
+    document_types:
+      type: array
+      items:
+        type: string
+      description: Filter by multiple document types
+      example: ["markdown", "text"]
+    tags:
+      type: array
+      items:
+        type: string
+      description: Filter by document tags
+      example: ["async", "rust"]
+    language:
+      type: string
+      description: Filter by document language
+      example: "en"
+    created_after:
+      type: string
+      format: date-time
+      description: Filter documents created after this date
+      example: "2024-01-01T00:00:00Z"
+    created_before:
+      type: string
+      format: date-time
+      description: Filter documents created before this date
+      example: "2024-12-31T23:59:59Z"
+    updated_after:
+      type: string
+      format: date-time
+      description: Filter documents updated after this date
+      example: "2024-01-01T00:00:00Z"
+    updated_before:
+      type: string
+      format: date-time
+      description: Filter documents updated before this date
+      example: "2024-12-31T23:59:59Z"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Filter by custom metadata fields
+      example:
+        author: "API Team"
+        version: "1.0.0"
+    path_pattern:
+      type: string
+      description: Filter by file path pattern (glob or regex)
+      example: "/docs/api/**"
+    content_type:
+      type: string
+      description: Filter by content type
+      example: "application/json"
+    size_min:
+      type: integer
+      minimum: 0
+      description: Minimum document size in bytes
+      example: 1024
+    size_max:
+      type: integer
+      minimum: 0
+      description: Maximum document size in bytes
+      example: 1048576
+
+SearchResponse:
+  type: object
+  required:
+    - results
+    - total_count
+    - query_time_ms
+  properties:
+    results:
+      type: array
+      items:
+        $ref: '#/SearchResult'
+      description: Search results
+    total_count:
+      type: integer
+      minimum: 0
+      description: Total number of matching documents
+      example: 156
+    query_time_ms:
+      type: integer
+      minimum: 0
+      description: Query execution time in milliseconds
+      example: 45
+    limit:
+      type: integer
+      description: Applied limit
+      example: 20
+    offset:
+      type: integer
+      description: Applied offset
+      example: 0
+    filters_applied:
+      $ref: '#/SearchFilters'
+    search_metadata:
+      type: object
+      properties:
+        search_type:
+          type: string
+          example: "semantic"
+        embeddings_model:
+          type: string
+          example: "text-embedding-ada-002"
+        reranking_applied:
+          type: boolean
+          example: true
+        similarity_threshold:
+          type: number
+          format: float
+          example: 0.5
+      additionalProperties: true
+
+SearchResult:
+  type: object
+  required:
+    - document
+    - score
+  properties:
+    document:
+      $ref: './document.yaml#/Document'
+    score:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      description: Relevance score (0-1)
+      example: 0.87
+    highlights:
+      type: array
+      items:
+        $ref: '#/TextHighlight'
+      description: Highlighted text snippets
+    explanation:
+      type: object
+      description: Score explanation for debugging
+      properties:
+        similarity_score:
+          type: number
+          format: float
+          example: 0.85
+        keyword_score:
+          type: number
+          format: float
+          example: 0.90
+        rerank_score:
+          type: number
+          format: float
+          example: 0.87
+        boost_applied:
+          type: number
+          format: float
+          example: 1.0
+      additionalProperties: true
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Search-specific metadata
+
+TextHighlight:
+  type: object
+  required:
+    - text
+    - start
+    - end
+  properties:
+    text:
+      type: string
+      description: Highlighted text snippet
+      example: "This guide covers <mark>rust async</mark> programming..."
+    start:
+      type: integer
+      minimum: 0
+      description: Start position of highlight in content
+      example: 20
+    end:
+      type: integer
+      minimum: 0
+      description: End position of highlight in content
+      example: 30
+    field:
+      type: string
+      description: Document field containing the highlight
+      example: "content"
+    score:
+      type: number
+      format: float
+      description: Relevance score of this highlight
+      example: 0.95
+
+SavedSearch:
+  allOf:
+    - $ref: './common.yaml#/TenantResource'
+    - type: object
+      required:
+        - name
+        - search_request
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          description: Saved search name
+          example: "Rust Programming Resources"
+        description:
+          type: string
+          maxLength: 512
+          description: Search description
+          example: "All documents related to Rust programming"
+        search_request:
+          $ref: '#/SearchRequest'
+        is_public:
+          type: boolean
+          default: false
+          description: Whether search is public to other users
+          example: false
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for organizing saved searches
+          example: ["programming", "rust", "tutorials"]
+        last_executed:
+          type: string
+          format: date-time
+          description: Last execution timestamp
+          example: "2024-01-15T10:30:00Z"
+        execution_count:
+          type: integer
+          minimum: 0
+          description: Number of times executed
+          example: 15
+
+SearchSuggestion:
+  type: object
+  required:
+    - suggestion
+    - type
+  properties:
+    suggestion:
+      type: string
+      description: Suggested query or term
+      example: "rust async await"
+    type:
+      type: string
+      enum: [query_completion, term_suggestion, related_query, typo_correction]
+      description: Type of suggestion
+      example: "query_completion"
+    score:
+      type: number
+      format: float
+      minimum: 0
+      maximum: 1
+      description: Suggestion relevance score
+      example: 0.92
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Suggestion-specific metadata
+      example:
+        popularity: 0.8
+        recent_usage: true
+
+AutoCompleteResponse:
+  type: object
+  required:
+    - suggestions
+    - query
+  properties:
+    query:
+      type: string
+      description: Original query
+      example: "rust as"
+    suggestions:
+      type: array
+      items:
+        $ref: '#/SearchSuggestion'
+      description: List of suggestions
+    response_time_ms:
+      type: integer
+      minimum: 0
+      description: Response time in milliseconds
+      example: 15

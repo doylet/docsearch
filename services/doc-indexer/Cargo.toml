@@ -24,7 +24,7 @@ zero-latency-search = { path = "../../crates/zero-latency-search" }
 zero-latency-vector = { path = "../../crates/zero-latency-vector" }
 zero-latency-observability = { path = "../../crates/zero-latency-observability" }
 zero-latency-config = { path = "../../crates/zero-latency-config" }
-zero-latency-contracts = { path = "../../crates/zero-latency-contracts" }
+zero-latency-api = { path = "../../crates/zero-latency-api" }
 
 # File watching
 notify = "6.1"

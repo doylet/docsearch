@@ -1,0 +1,1368 @@
+openapi: 3.1.0
+info:
+  title: Zero-Latency API
+  description: >
+    Zero-Latency Document Indexing and Search API providing real-time document 
+    ingestion, semantic search, and collection management capabilities with 
+    multi-tenant support.
+  version: 1.0.0
+  contact:
+    name: Zero-Latency Team
+    url: https://github.com/zero-latency
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8081
+    description: Local development server
+  - url: http://localhost:8081/api
+    description: API-prefixed endpoints
+
+paths:
+  # Health endpoints
+  /health:
+    get:
+      tags: [Health]
+      summary: Basic health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResult'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Service is ready to accept requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResult'
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResult'
+
+  # API Status
+  /api/status:
+    get:
+      tags: [API]
+      summary: Get API status
+      operationId: getApiStatus
+      responses:
+        '200':
+          description: API status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiStatusResponse'
+
+  # Search endpoints
+  /api/search:
+    post:
+      tags: [Search]
+      summary: Search documents
+      operationId: searchDocuments
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              basic_search:
+                summary: Basic text search
+                value:
+                  query: "rust programming"
+                  limit: 10
+              semantic_search:
+                summary: Semantic search with filters
+                value:
+                  query: "async await patterns"
+                  limit: 20
+                  filters:
+                    collection_name: "programming_docs"
+                    document_type: "tutorial"
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Document search (alias)
+  /api/documents/search:
+    post:
+      tags: [Documents]
+      summary: Search documents (alias)
+      operationId: searchDocumentsAlias
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        $ref: '#/components/requestBodies/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Indexing endpoints
+  /api/index:
+    post:
+      tags: [Indexing]
+      summary: Index documents from path
+      operationId: indexDocuments
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndexRequest'
+            examples:
+              index_directory:
+                summary: Index entire directory
+                value:
+                  path: "/path/to/docs"
+                  collection_name: "documentation"
+                  recursive: true
+      responses:
+        '200':
+          description: Indexing completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/reindex:
+    post:
+      tags: [Indexing]
+      summary: Reindex existing documents
+      operationId: reindexDocuments
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReindexRequest'
+      responses:
+        '200':
+          description: Reindexing completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Collection management
+  /api/collections:
+    get:
+      tags: [Collections]
+      summary: List all collections
+      operationId: listCollections
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: limit
+          in: query
+          description: Maximum number of collections to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of collections to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of collections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListCollectionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Collections]
+      summary: Create a new collection
+      operationId: createCollection
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCollectionRequest'
+            examples:
+              create_docs_collection:
+                summary: Create documentation collection
+                value:
+                  name: "api_documentation"
+                  description: "API reference documentation collection"
+                  metadata:
+                    project: "zero-latency"
+                    version: "1.0.0"
+      responses:
+        '201':
+          description: Collection created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Collection already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/collections/{name}:
+    get:
+      tags: [Collections]
+      summary: Get collection by name
+      operationId: getCollection
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: name
+          in: path
+          required: true
+          description: Collection name
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+            minLength: 1
+            maxLength: 64
+      responses:
+        '200':
+          description: Collection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Collections]
+      summary: Delete a collection
+      operationId: deleteCollection
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: name
+          in: path
+          required: true
+          description: Collection name
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9_-]+$'
+      responses:
+        '204':
+          description: Collection deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/collections/{name}/stats:
+    get:
+      tags: [Collections]
+      summary: Get collection statistics
+      operationId: getCollectionStats
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: name
+          in: path
+          required: true
+          description: Collection name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Collection statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionStats'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Document management
+  /api/documents:
+    get:
+      tags: [Documents]
+      summary: List documents with pagination
+      operationId: listDocuments
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: collection_name
+          in: query
+          description: Filter by collection name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of documents to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          description: Number of documents to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListDocumentsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get document by ID
+      operationId: getDocument
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: id
+          in: path
+          required: true
+          description: Document ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDocumentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Server management
+  /api/server/start:
+    post:
+      tags: [Server]
+      summary: Start server components
+      operationId: startServer
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Server started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/server/stop:
+    post:
+      tags: [Server]
+      summary: Stop server components
+      operationId: stopServer
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Server stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Analytics endpoints
+  /api/analytics/summary:
+    get:
+      tags: [Analytics]
+      summary: Get analytics summary
+      operationId: getAnalyticsSummary
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSummary'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/popular-queries:
+    get:
+      tags: [Analytics]
+      summary: Get popular search queries
+      operationId: getPopularQueries
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: limit
+          in: query
+          description: Number of popular queries to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Popular queries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PopularQuery'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/search-trends:
+    get:
+      tags: [Analytics]
+      summary: Get search trends
+      operationId: getSearchTrends
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: period
+          in: query
+          description: Time period for trends
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: week
+      responses:
+        '200':
+          description: Search trends data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchTrends'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TenantId:
+      name: x-tenant-id
+      in: header
+      description: Tenant identifier for multi-tenant operations
+      required: false
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+  requestBodies:
+    SearchRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SearchRequest'
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            validation_error:
+              summary: Validation error
+              value:
+                error: "Validation failed"
+                message: "Query parameter 'query' is required"
+                code: "VALIDATION_ERROR"
+                trace_id: "req_123456789"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            collection_not_found:
+              summary: Collection not found
+              value:
+                error: "Collection not found"
+                message: "Collection 'unknown_collection' does not exist"
+                code: "COLLECTION_NOT_FOUND"
+                trace_id: "req_987654321"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            general_error:
+              summary: General internal error
+              value:
+                error: "Internal server error"
+                message: "An unexpected error occurred"
+                code: "INTERNAL_ERROR"
+                trace_id: "req_456789123"
+
+  schemas:
+    # Base schemas for multi-tenant resources
+    TenantResource:
+      type: object
+      required:
+        - id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        tenant_id:
+          type: string
+          format: uuid
+          description: Tenant identifier (optional for single-tenant)
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-15T10:35:00Z"
+
+    # Core domain schemas
+    Collection:
+      allOf:
+        - $ref: '#/components/schemas/TenantResource'
+        - type: object
+          required:
+            - name
+            - description
+          properties:
+            name:
+              type: string
+              pattern: '^[a-zA-Z0-9_-]+$'
+              minLength: 1
+              maxLength: 64
+              description: Collection name (alphanumeric, underscore, hyphen only)
+              example: "api_documentation"
+            description:
+              type: string
+              maxLength: 512
+              description: Human-readable description
+              example: "API reference documentation collection"
+            metadata:
+              type: object
+              additionalProperties: true
+              description: Custom metadata for the collection
+              example:
+                project: "zero-latency"
+                version: "1.0.0"
+                tags: ["api", "documentation"]
+            document_count:
+              type: integer
+              minimum: 0
+              description: Number of documents in collection
+              example: 156
+            status:
+              type: string
+              enum: [active, inactive, indexing]
+              description: Collection status
+              example: "active"
+
+    Document:
+      allOf:
+        - $ref: '#/components/schemas/TenantResource'
+        - type: object
+          required:
+            - title
+            - content
+            - collection_name
+          properties:
+            title:
+              type: string
+              maxLength: 256
+              description: Document title
+              example: "API Authentication Guide"
+            content:
+              type: string
+              description: Full document content
+              example: "This guide covers authentication methods..."
+            collection_name:
+              type: string
+              description: Name of the collection containing this document
+              example: "api_documentation"
+            path:
+              type: string
+              description: Original file path (if applicable)
+              example: "/docs/api/authentication.md"
+            document_type:
+              type: string
+              description: Type of document
+              example: "markdown"
+            metadata:
+              type: object
+              additionalProperties: true
+              description: Document metadata
+              example:
+                author: "API Team"
+                tags: ["auth", "security"]
+                version: "1.2.0"
+            embeddings:
+              type: array
+              items:
+                type: number
+                format: float
+              description: Vector embeddings for semantic search
+              example: [0.1, -0.5, 0.8, 0.3]
+
+    # Search schemas
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Search query text
+          example: "rust async programming patterns"
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 10
+          description: Maximum number of results to return
+          example: 20
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of results to skip
+          example: 0
+        filters:
+          $ref: '#/components/schemas/SearchFilters'
+        search_type:
+          type: string
+          enum: [semantic, keyword, hybrid]
+          default: semantic
+          description: Type of search to perform
+          example: "semantic"
+        include_metadata:
+          type: boolean
+          default: true
+          description: Whether to include document metadata in results
+          example: true
+        include_highlights:
+          type: boolean
+          default: true
+          description: Whether to include text highlights in results
+          example: true
+        include_embeddings:
+          type: boolean
+          default: false
+          description: Whether to include embeddings in results
+          example: false
+        similarity_threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Minimum similarity score for results
+          example: 0.5
+        rerank_results:
+          type: boolean
+          default: true
+          description: Whether to apply result reranking
+          example: true
+
+    SearchFilters:
+      type: object
+      description: Search filters for refining results
+      properties:
+        collection_name:
+          type: string
+          description: Filter by collection name
+          example: "programming_docs"
+        collection_names:
+          type: array
+          items:
+            type: string
+          description: Filter by multiple collection names
+          example: ["api_docs", "tutorials"]
+        document_type:
+          type: string
+          description: Filter by document type
+          example: "tutorial"
+        document_types:
+          type: array
+          items:
+            type: string
+          description: Filter by multiple document types
+          example: ["markdown", "text"]
+        tags:
+          type: array
+          items:
+            type: string
+          description: Filter by document tags
+          example: ["async", "rust"]
+        language:
+          type: string
+          description: Filter by document language
+          example: "en"
+        created_after:
+          type: string
+          format: date-time
+          description: Filter documents created after this date
+          example: "2024-01-01T00:00:00Z"
+        created_before:
+          type: string
+          format: date-time
+          description: Filter documents created before this date
+          example: "2024-12-31T23:59:59Z"
+        updated_after:
+          type: string
+          format: date-time
+          description: Filter documents updated after this date
+          example: "2024-01-01T00:00:00Z"
+        updated_before:
+          type: string
+          format: date-time
+          description: Filter documents updated before this date
+          example: "2024-12-31T23:59:59Z"
+      additionalProperties: false
+
+    SearchResponse:
+      type: object
+      required:
+        - results
+        - total_count
+        - query_time_ms
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+          description: Search results
+        total_count:
+          type: integer
+          minimum: 0
+          description: Total number of matching documents
+          example: 156
+        query_time_ms:
+          type: integer
+          minimum: 0
+          description: Query execution time in milliseconds
+          example: 45
+        limit:
+          type: integer
+          description: Applied limit
+          example: 20
+        offset:
+          type: integer
+          description: Applied offset
+          example: 0
+        filters_applied:
+          type: object
+          description: Filters that were applied to the search
+          additionalProperties: true
+
+    SearchResult:
+      type: object
+      required:
+        - document
+        - score
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Relevance score (0-1)
+          example: 0.87
+        highlights:
+          type: array
+          items:
+            type: string
+          description: Highlighted text snippets
+          example: ["This guide covers <mark>rust async</mark> programming..."]
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Search-specific metadata
+
+    # Indexing schemas
+    IndexRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          description: Path to index (file or directory)
+          example: "/path/to/documentation"
+        collection_name:
+          type: string
+          description: Target collection name
+          example: "documentation"
+        recursive:
+          type: boolean
+          default: true
+          description: Whether to index subdirectories recursively
+          example: true
+        file_patterns:
+          type: array
+          items:
+            type: string
+          description: File patterns to include (glob patterns)
+          example: ["*.md", "*.txt", "*.rst"]
+        exclude_patterns:
+          type: array
+          items:
+            type: string
+          description: File patterns to exclude
+          example: ["node_modules/*", "*.tmp"]
+        force_reindex:
+          type: boolean
+          default: false
+          description: Whether to reindex existing documents
+          example: false
+
+    ReindexRequest:
+      type: object
+      properties:
+        collection_name:
+          type: string
+          description: Collection to reindex (if not specified, reindex all)
+          example: "documentation"
+        document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Specific document IDs to reindex
+          example: ["550e8400-e29b-41d4-a716-446655440000"]
+
+    IndexResponse:
+      type: object
+      required:
+        - success
+        - processed_count
+      properties:
+        success:
+          type: boolean
+          description: Whether indexing completed successfully
+          example: true
+        processed_count:
+          type: integer
+          minimum: 0
+          description: Number of documents processed
+          example: 42
+        failed_count:
+          type: integer
+          minimum: 0
+          description: Number of documents that failed to index
+          example: 0
+        processing_time_ms:
+          type: integer
+          minimum: 0
+          description: Total processing time in milliseconds
+          example: 1500
+        errors:
+          type: array
+          items:
+            type: string
+          description: List of error messages (if any)
+          example: []
+        collection_name:
+          type: string
+          description: Target collection name
+          example: "documentation"
+
+    # Collection schemas
+    CreateCollectionRequest:
+      type: object
+      required:
+        - name
+        - description
+      properties:
+        name:
+          type: string
+          pattern: '^[a-zA-Z0-9_-]+$'
+          minLength: 1
+          maxLength: 64
+          description: Collection name
+          example: "api_documentation"
+        description:
+          type: string
+          maxLength: 512
+          description: Collection description
+          example: "API reference documentation collection"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Custom metadata
+          example:
+            project: "zero-latency"
+            version: "1.0.0"
+
+    ListCollectionsResponse:
+      type: object
+      required:
+        - collections
+        - total_count
+      properties:
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/Collection'
+        total_count:
+          type: integer
+          minimum: 0
+          description: Total number of collections
+          example: 5
+        limit:
+          type: integer
+          description: Applied limit
+          example: 50
+        offset:
+          type: integer
+          description: Applied offset
+          example: 0
+
+    CollectionStats:
+      type: object
+      required:
+        - collection_name
+        - document_count
+        - total_size_bytes
+        - last_updated
+      properties:
+        collection_name:
+          type: string
+          description: Collection name
+          example: "api_documentation"
+        document_count:
+          type: integer
+          minimum: 0
+          description: Number of documents
+          example: 156
+        total_size_bytes:
+          type: integer
+          minimum: 0
+          description: Total size in bytes
+          example: 2048576
+        average_document_size:
+          type: integer
+          minimum: 0
+          description: Average document size in bytes
+          example: 13132
+        last_updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-15T10:35:00Z"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Collection metadata
+
+    # Document schemas
+    ListDocumentsResponse:
+      type: object
+      required:
+        - documents
+        - total_count
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        total_count:
+          type: integer
+          minimum: 0
+          description: Total number of documents
+          example: 1000
+        limit:
+          type: integer
+          description: Applied limit
+          example: 100
+        offset:
+          type: integer
+          description: Applied offset
+          example: 0
+
+    GetDocumentResponse:
+      type: object
+      required:
+        - document
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+        related_documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          description: Semantically related documents
+          maxItems: 10
+
+    # Health and status schemas
+    HealthCheckResult:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Check timestamp
+          example: "2024-01-15T10:30:00Z"
+        version:
+          type: string
+          description: Service version
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+          minimum: 0
+          description: Service uptime in seconds
+          example: 3600
+
+    ReadinessResult:
+      type: object
+      required:
+        - ready
+        - timestamp
+      properties:
+        ready:
+          type: boolean
+          description: Whether service is ready to accept requests
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          description: Check timestamp
+          example: "2024-01-15T10:30:00Z"
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ready, not_ready]
+          description: Status of service dependencies
+          example:
+            vector_db: "ready"
+            embeddings_service: "ready"
+
+    LivenessResult:
+      type: object
+      required:
+        - alive
+        - timestamp
+      properties:
+        alive:
+          type: boolean
+          description: Whether service is alive
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          description: Check timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    ApiStatusResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [running, starting, stopping, error]
+          description: API status
+          example: "running"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        timestamp:
+          type: string
+          format: date-time
+          description: Status timestamp
+          example: "2024-01-15T10:30:00Z"
+        uptime_seconds:
+          type: integer
+          minimum: 0
+          description: API uptime in seconds
+          example: 7200
+        endpoints_count:
+          type: integer
+          minimum: 0
+          description: Number of available endpoints
+          example: 25
+        active_connections:
+          type: integer
+          minimum: 0
+          description: Number of active connections
+          example: 5
+
+    # Server management schemas
+    ServerResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Whether operation succeeded
+          example: true
+        message:
+          type: string
+          description: Operation result message
+          example: "Server started successfully"
+        timestamp:
+          type: string
+          format: date-time
+          description: Operation timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    # Analytics schemas
+    AnalyticsSummary:
+      type: object
+      required:
+        - total_searches
+        - total_documents
+        - average_query_time_ms
+      properties:
+        total_searches:
+          type: integer
+          minimum: 0
+          description: Total number of searches performed
+          example: 1500
+        total_documents:
+          type: integer
+          minimum: 0
+          description: Total number of indexed documents
+          example: 5000
+        total_collections:
+          type: integer
+          minimum: 0
+          description: Total number of collections
+          example: 10
+        average_query_time_ms:
+          type: number
+          format: float
+          minimum: 0
+          description: Average query execution time
+          example: 45.5
+        popular_collections:
+          type: array
+          items:
+            type: string
+          description: Most searched collections
+          example: ["api_docs", "tutorials", "guides"]
+        period:
+          type: string
+          description: Analytics period
+          example: "last_30_days"
+
+    PopularQuery:
+      type: object
+      required:
+        - query
+        - count
+      properties:
+        query:
+          type: string
+          description: Search query text
+          example: "rust async programming"
+        count:
+          type: integer
+          minimum: 1
+          description: Number of times queried
+          example: 25
+        last_queried:
+          type: string
+          format: date-time
+          description: Last time this query was made
+          example: "2024-01-15T09:45:00Z"
+
+    SearchTrends:
+      type: object
+      required:
+        - period
+        - data_points
+      properties:
+        period:
+          type: string
+          enum: [day, week, month]
+          description: Trend period
+          example: "week"
+        data_points:
+          type: array
+          items:
+            type: object
+            required:
+              - timestamp
+              - search_count
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+                description: Data point timestamp
+                example: "2024-01-15T00:00:00Z"
+              search_count:
+                type: integer
+                minimum: 0
+                description: Number of searches in this period
+                example: 150
+              unique_queries:
+                type: integer
+                minimum: 0
+                description: Number of unique queries
+                example: 75
+
+    # Error schemas
+    ApiError:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+          description: Error summary
+          example: "Validation failed"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Query parameter 'query' is required and cannot be empty"
+        code:
+          type: string
+          description: Error code for programmatic handling
+          example: "VALIDATION_ERROR"
+        trace_id:
+          type: string
+          description: Request trace ID for debugging
+          example: "req_123456789"
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+          example:
+            field: "query"
+            provided_value: ""
+            expected: "non-empty string"
+
+  securitySchemes:
+    TenantAuth:
+      type: apiKey
+      in: header
+      name: x-tenant-id
+      description: Tenant-based authentication using tenant ID
+
+tags:
+  - name: Health
+    description: Health check and monitoring endpoints
+  - name: API
+    description: API status and information endpoints
+  - name: Search
+    description: Document search operations
+  - name: Indexing
+    description: Document indexing and reindexing operations
+  - name: Collections
+    description: Collection management operations
+  - name: Documents
+    description: Document management operations
+  - name: Server
+    description: Server lifecycle management
+  - name: Analytics
+    description: Search analytics and insights

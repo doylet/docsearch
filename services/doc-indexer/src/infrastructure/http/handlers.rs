@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// and the application services, following the clean architecture pattern.
 use std::sync::Arc;
 use std::time::Instant;
-use zero_latency_contracts::api::endpoints;
+use zero_latency_api::endpoints::endpoints;
 use zero_latency_core::ZeroLatencyError;
 use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 
@@ -273,11 +273,18 @@ async fn get_document(
 /// Search for documents
 async fn search_documents(
     State(state): State<AppState>,
-    Json(request): Json<SearchRequest>,
+    Json(request): Json<zero_latency_api::SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
     let default_collection = &state.container.config().service.default_collection;
-    let collection_name = request.collection.as_deref().unwrap_or(default_collection);
-    let limit = request.limit.unwrap_or(10);
+    
+    // Extract collection from filters or use default
+    let collection_name = if let Some(filters) = &request.filters {
+        filters.collection_name.as_deref().unwrap_or(default_collection)
+    } else {
+        default_collection
+    };
+    
+    let limit = request.limit.unwrap_or(10) as usize;
 
     let search_response = state
         .document_service
@@ -629,15 +636,6 @@ pub struct GetDocumentResponse {
     pub metadata: Option<std::collections::HashMap<String, String>>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SearchRequest {
-    pub query: String,
-    pub collection: Option<String>,
-    pub limit: Option<usize>,
-    #[allow(dead_code)]
-    pub filters: Option<std::collections::HashMap<String, String>>,
-}
-
 #[derive(Debug, Serialize)]
 pub struct ServiceInfoResponse {
     pub name: String,
@@ -677,8 +675,6 @@ pub struct IndexPathResponse {
 #[derive(Debug, Deserialize)]
 pub struct ReindexRequest {
     pub collection: Option<String>,
-    #[allow(dead_code)]
-    pub force: Option<bool>,
     #[allow(dead_code)]
     pub safe_patterns: Option<Vec<String>>,
     #[allow(dead_code)]
