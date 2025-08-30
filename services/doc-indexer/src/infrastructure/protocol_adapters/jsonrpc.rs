@@ -210,7 +210,7 @@ impl JsonRpcAdapter {
 impl JsonRpcAdapter {
     async fn search_documents(&self, request: JsonRpcRequest) -> JsonRpcResponse {
         // Parse search request from params
-        let search_request: SearchRequest = match request.params {
+        let search_request: zero_latency_api::SearchRequest = match request.params {
             Some(params) => match serde_json::from_value(params) {
                 Ok(req) => req,
                 Err(e) => {
@@ -236,11 +236,11 @@ impl JsonRpcAdapter {
             }
         };
         
-        // Convert to domain request
+        // Convert generated API request to domain request
         let domain_request = zero_latency_search::SearchRequest {
             query: search_request.query.clone(),
-            limit: search_request.limit.unwrap_or(10),
-            offset: search_request.offset.unwrap_or(0),
+            limit: search_request.limit.map(|l| l as usize).unwrap_or(10),
+            offset: search_request.offset.map(|o| o as usize).unwrap_or(0),
         };
         
         match self.container.document_service.search(domain_request).await {

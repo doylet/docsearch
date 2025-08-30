@@ -176,11 +176,35 @@ impl RestAdapter {
 impl RestAdapter {
     #[instrument(skip(state, headers))]
     async fn search_documents(
-        State(state): State<RestAdapter>,
-        headers: HeaderMap,
-        Json(request): Json<SearchRequest>,
-    ) -> impl IntoResponse {
-        debug!("Processing search request: {:?}", request);
+        &self,
+        Json(request): Json<zero_latency_api::SearchRequest>,
+    ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
+        tracing::info!("REST search request: {:?}", request);
+
+        // Convert generated API request to domain request
+        let domain_request = zero_latency_search::SearchRequest {
+            query: request.query.clone(),
+            limit: request.limit.map(|l| l as usize),
+            collection: if let Some(filters) = &request.filters {
+                filters.collection_name.clone()
+            } else {
+                None
+            },
+        };
+
+        match self.document_service.search(domain_request).await {
+            Ok(domain_response) => {
+                let response = SearchResponse {
+                    results: domain_response.results,
+                    total_count: domain_response.total_count,
+                    query_time_ms: domain_response.query_time_ms,
+                    processing_time_ms: domain_response.processing_time_ms,
+                };
+                Ok(Json(response))
+            }
+            Err(e) => Err(AppError(e)),
+        }
+    }", request);
         
         // Extract tenant context
         let _tenant_id = match state.extract_tenant_context(&headers) {
