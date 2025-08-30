@@ -94,7 +94,39 @@ fn main() {
         ])
         .output();
     
+    // Generate API documentation
+    generate_docs(&schema_path, &generated_dir);
+    
     println!("cargo:rustc-env=GENERATED_CODE_DIR={}", generated_dir.display());
+}
+
+/// Generate API documentation in multiple formats
+fn generate_docs(spec_path: &Path, output_dir: &Path) {
+    let docs_dir = output_dir.join("docs");
+    let _ = fs::create_dir_all(&docs_dir);
+
+    // Generate Markdown documentation
+    let md_output = docs_dir.join("api-reference.md");
+    if let Ok(spec_content) = fs::read_to_string(spec_path) {
+        if let Ok(spec) = serde_yaml::from_str::<serde_yaml::Value>(&spec_content) {
+            if let Ok(markdown_content) = generate_markdown_docs(&spec) {
+                let _ = fs::write(md_output, markdown_content);
+                println!("cargo:warning=Generated Markdown API documentation");
+            }
+        }
+    }
+
+    // Try to generate HTML documentation with redocly
+    let html_output = docs_dir.join("api-reference.html");
+    let _html_generation = Command::new("npx")
+        .args([
+            "@redocly/cli",
+            "build-docs",
+            spec_path.to_str().unwrap(),
+            "--output",
+            html_output.to_str().unwrap(),
+        ])
+        .output();
 }
 
 fn generate_placeholder_types(output_dir: &Path) {
@@ -344,4 +376,74 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
         },
         _ => processed
     }
+}
+
+/// Generate basic Markdown documentation from OpenAPI spec
+fn generate_markdown_docs(spec: &serde_yaml::Value) -> Result<String, Box<dyn std::error::Error>> {
+    let mut content = String::new();
+    
+    content.push_str("# Zero-Latency API Documentation\n\n");
+    
+    if let Some(info) = spec.get("info") {
+        if let Some(title) = info.get("title") {
+            content.push_str(&format!("## {}\n\n", title.as_str().unwrap_or("API")));
+        }
+        if let Some(description) = info.get("description") {
+            content.push_str(&format!("{}\n\n", description.as_str().unwrap_or("")));
+        }
+        if let Some(version) = info.get("version") {
+            content.push_str(&format!("**Version:** {}\n\n", version.as_str().unwrap_or("1.0.0")));
+        }
+    }
+
+    content.push_str("## Endpoints\n\n");
+    
+    if let Some(paths) = spec.get("paths").and_then(|p| p.as_mapping()) {
+        for (path, path_obj) in paths {
+            let path_str = path.as_str().unwrap_or("");
+            content.push_str(&format!("### {}\n\n", path_str));
+            
+            if let Some(path_mapping) = path_obj.as_mapping() {
+                for (method, method_obj) in path_mapping {
+                    let method_str = method.as_str().unwrap_or("").to_uppercase();
+                    content.push_str(&format!("#### {} {}\n\n", method_str, path_str));
+                    
+                    if let Some(summary) = method_obj.get("summary") {
+                        content.push_str(&format!("{}\n\n", summary.as_str().unwrap_or("")));
+                    }
+                    
+                    if let Some(description) = method_obj.get("description") {
+                        content.push_str(&format!("{}\n\n", description.as_str().unwrap_or("")));
+                    }
+                    
+                    // Add request/response schema information
+                    if let Some(request_body) = method_obj.get("requestBody") {
+                        content.push_str("**Request Body:**\n");
+                        if let Some(content_obj) = request_body.get("content").and_then(|c| c.get("application/json")) {
+                            if let Some(schema) = content_obj.get("schema") {
+                                content.push_str(&format!("```json\n{}\n```\n\n", 
+                                    serde_yaml::to_string(schema).unwrap_or_default().trim()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    content.push_str("## Components\n\n");
+    if let Some(components) = spec.get("components") {
+        if let Some(schemas) = components.get("schemas").and_then(|s| s.as_mapping()) {
+            content.push_str("### Schemas\n\n");
+            for (schema_name, schema_obj) in schemas {
+                let name = schema_name.as_str().unwrap_or("");
+                content.push_str(&format!("#### {}\n\n", name));
+                if let Some(description) = schema_obj.get("description") {
+                    content.push_str(&format!("{}\n\n", description.as_str().unwrap_or("")));
+                }
+            }
+        }
+    }
+
+    Ok(content)
 }

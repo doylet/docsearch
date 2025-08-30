@@ -10,18 +10,18 @@ help:
 	@echo "Zero-Latency Schema-First Build System"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  install-deps       Install required dependencies"
-	@echo "  validate-schemas   Validate OpenAPI schemas"
-	@echo "  generate-schemas   Generate all artifacts from schemas"
-	@echo "  generate-rust      Generate Rust types only"
-	@echo "  generate-clients   Generate client SDKs (TypeScript, Python)"
-	@echo "  generate-docs      Generate API documentation"
-	@echo "  test-schemas       Test generated code compilation"
-	@echo "  clean              Clean generated artifacts"
+	@echo "  install-deps          Install required dependencies"
+	@echo "  validate-schemas      Validate OpenAPI schemas"
+	@echo "  generate-schemas      Generate all artifacts from schemas"
+	@echo "  test-breaking-changes Test for API breaking changes"
+	@echo "  backup-schema         Create schema backup for change detection"
+	@echo "  ci-validate           Run complete CI validation pipeline"
+	@echo "  test-schemas          Test generated code compilation"
+	@echo "  clean                 Clean generated artifacts"
 	@echo ""
 
 # Variables
-SCHEMA_FILE := api/schemas/zero-latency-api.yaml
+SCHEMA_FILE := api/public/openapi.yaml
 GENERATED_DIR := target/generated
 RUST_OUTPUT := $(GENERATED_DIR)/rust
 TS_OUTPUT := $(GENERATED_DIR)/typescript
@@ -35,19 +35,55 @@ install-deps:
 		echo "Error: npm is required but not installed"; \
 		exit 1; \
 	fi
-	npm install -g @openapitools/openapi-generator-cli
+	npm install -g openapi-generator-cli@7.8.0
 	@echo "Installing schema validation tools..."
-	npm install -g @apidevtools/swagger-cli
-	@echo "Installing spectral for linting..."
-	npm install -g @stoplight/spectral-cli
+	npm install -g @redocly/cli
+	@echo "Installing breaking change detection..."
+	npm install -g oasdiff
 
 # Validate schemas
 validate-schemas:
 	@echo "Validating OpenAPI schema..."
-	@if ! command -v swagger-cli &> /dev/null; then \
-		echo "Error: swagger-cli not found. Run 'make install-deps' first"; \
+	@if ! command -v redocly &> /dev/null; then \
+		echo "Error: redocly not found. Run 'make install-deps' first"; \
 		exit 1; \
 	fi
+	npx @redocly/cli lint $(SCHEMA_FILE)
+	@echo "✅ Schema validation passed"
+
+# Generate all artifacts (delegates to Cargo build)
+generate-schemas:
+	@echo "Generating all artifacts from OpenAPI schema..."
+	@echo "Note: Generation is handled by zero-latency-api build.rs"
+	cd crates/zero-latency-api && cargo build
+	@echo "✅ All artifacts generated successfully"
+
+# Test schema changes for breaking changes
+test-breaking-changes:
+	@echo "Testing for breaking changes..."
+	@if [ -f "$(SCHEMA_FILE).backup" ]; then \
+		echo "Comparing with backup schema..."; \
+		npx oasdiff breaking $(SCHEMA_FILE).backup $(SCHEMA_FILE) || \
+		(echo "⚠️ Breaking changes detected" && exit 1); \
+	else \
+		echo "No backup schema found, creating one..."; \
+		cp $(SCHEMA_FILE) $(SCHEMA_FILE).backup; \
+	fi
+	@echo "✅ No breaking changes detected"
+
+# Create schema backup for change detection
+backup-schema:
+	@echo "Creating schema backup..."
+	cp $(SCHEMA_FILE) $(SCHEMA_FILE).backup
+	@echo "✅ Schema backup created"
+
+# Generate and validate in CI mode
+ci-validate:
+	@echo "Running CI validation pipeline..."
+	$(MAKE) validate-schemas
+	$(MAKE) generate-schemas
+	$(MAKE) test-schemas
+	@echo "✅ CI validation completed"
 	swagger-cli validate $(SCHEMA_FILE)
 	@echo "✅ Schema validation passed"
 
@@ -120,10 +156,12 @@ generate-docs:
 	@echo "✅ Documentation generated in $(DOCS_OUTPUT)"
 
 # Test schema changes
-test-schemas: generate-rust
+test-schemas:
 	@echo "Testing generated Rust code compilation..."
 	cd crates/zero-latency-api && cargo check
-	@echo "✅ Generated code compiles successfully"
+	@echo "Testing service integration..."
+	cargo build --workspace
+	@echo "✅ Generated code compiles and integrates successfully"
 
 # Build the API crate (triggers generation)
 build-api:

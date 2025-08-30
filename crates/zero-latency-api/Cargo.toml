@@ -18,6 +18,8 @@ thiserror = "1.0"
 [build-dependencies]
 # Note: Code generation is handled by external tools
 # Build script will generate placeholder types if openapi-generator-cli is not available
+serde_yaml = "0.9"
+anyhow = "1.0"
 
 [features]
 default = ["client"]
