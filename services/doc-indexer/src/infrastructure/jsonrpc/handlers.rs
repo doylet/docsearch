@@ -324,11 +324,34 @@ pub async fn handle_search_documents(
                 Ok(params) => {
                     let start_time = std::time::Instant::now();
 
-                    match state
-                        .document_service
-                        .search_documents(&params.query, params.limit.unwrap_or(10))
-                        .await
-                    {
+                    // Check if collection filter is specified
+                    let search_result = if let Some(filters) = &params.filters {
+                        if let Some(collection_name) = filters.get("collection") {
+                            // Search in specific collection
+                            state
+                                .document_service
+                                .search_documents_in_collection(
+                                    &params.query, 
+                                    collection_name, 
+                                    params.limit.unwrap_or(10)
+                                )
+                                .await
+                        } else {
+                            // No collection filter, search all collections
+                            state
+                                .document_service
+                                .search_documents(&params.query, params.limit.unwrap_or(10))
+                                .await
+                        }
+                    } else {
+                        // No filters specified, search all collections
+                        state
+                            .document_service
+                            .search_documents(&params.query, params.limit.unwrap_or(10))
+                            .await
+                    };
+
+                    match search_result {
                         Ok(search_response) => {
                             let took_ms = start_time.elapsed().as_millis() as u64;
 
