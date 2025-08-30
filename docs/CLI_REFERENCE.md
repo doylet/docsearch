@@ -62,6 +62,58 @@ mdx search [OPTIONS] <QUERY>
 | `--threshold <F>` | Minimum similarity score | `0.5` |
 | `--format <FORMAT>` | Output format: json, table, yaml | `table` |
 
+**Global Options for Search:**
+| Option | Description | Default | Notes |
+|--------|-------------|---------|-------|
+| `--collection <NAME>` | Filter search to specific collection | `zero_latency_docs` | Use for targeted searches |
+| `--server <URL>` | API server URL | `http://localhost:8081` | Override default server |
+
+### Collection Filtering
+
+Collection filtering allows you to search within a specific collection of documents, providing more targeted and relevant results.
+
+#### How Collection Filtering Works
+- **Purpose**: Narrow search scope to documents from a specific collection
+- **Performance**: Faster searches when you know the target collection
+- **Relevance**: More accurate results from related documents
+
+#### Collection Filtering Examples
+```bash
+# Search only in documentation collection
+mdx search "API endpoints" --collection zero_latency_docs
+
+# Search in tutorial collection with higher threshold
+mdx search "getting started" --collection tutorials --threshold 0.8
+
+# Search across multiple queries in same collection
+mdx --collection api-docs search "authentication"
+mdx --collection api-docs search "rate limiting"
+
+# Search with collection and output formatting
+mdx search "configuration" --collection config-docs --format json --limit 20
+```
+
+#### Available Collections
+To see available collections, use:
+```bash
+# List all collections
+mdx collection list
+
+# Get specific collection info
+mdx collection get zero_latency_docs
+```
+
+#### Collection vs Default Search Comparison
+```bash
+# Default search (searches all collections)
+mdx search "test methods"
+# Result: May return results from docs, tutorials, API references, etc.
+
+# Collection-filtered search (searches specific collection)
+mdx search "test methods" --collection zero_latency_docs  
+# Result: Only returns results from zero_latency_docs collection
+```
+
 ### Examples
 ```bash
 # Basic search

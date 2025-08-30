@@ -153,22 +153,29 @@ Fix search and filtering functionality issues that prevent users from effectivel
 #### **ZL-005-006: Search Documentation & Examples**
 **Story Points:** 3  
 **Priority:** Low  
-**Status:** PLANNED 📋  
+**Status:** COMPLETED ✅  
 **Dependencies:** ZL-005-005
 
 **Description**: Update documentation and provide examples for collection filtering functionality.
 
 **Acceptance Criteria**:
-- [ ] CLI documentation updated with collection filtering examples
-- [ ] API documentation includes collection parameter details
-- [ ] Common use cases and examples provided
-- [ ] Troubleshooting guide for filtering issues
+- [x] CLI documentation updated with collection filtering examples ✅ **Enhanced CLI_REFERENCE.md with comprehensive collection filtering section**
+- [x] API documentation includes collection parameter details ✅ **Added detailed collection filtering to API_REFERENCE.md**
+- [x] Common use cases and examples provided ✅ **Added JSON-RPC documentation with collection filtering examples**
+- [x] Troubleshooting guide for filtering issues ✅ **Created comprehensive SEARCH_FILTERING_TROUBLESHOOTING.md**
 
 **Technical Tasks**:
-- [ ] Update `CLI_REFERENCE.md` with collection filtering examples
-- [ ] Add collection filtering to `API_REFERENCE.md`
-- [ ] Create troubleshooting section for search issues
-- [ ] Add practical examples for different interfaces
+- [x] Update `CLI_REFERENCE.md` with collection filtering examples ✅ **Added collection filtering section with examples and best practices**
+- [x] Add collection filtering to `API_REFERENCE.md` ✅ **Enhanced REST API documentation and added complete JSON-RPC section**
+- [x] Create troubleshooting section for search issues ✅ **Created dedicated troubleshooting guide with common issues and solutions**
+- [x] Add practical examples for different interfaces ✅ **Provided examples for CLI, REST API, and JSON-RPC interfaces**
+
+**Implementation**:
+- **CLI Documentation**: Enhanced `docs/CLI_REFERENCE.md` with collection filtering section, parameter usage, and practical examples
+- **API Documentation**: Updated `docs/API_REFERENCE.md` with comprehensive collection filtering documentation for REST API
+- **JSON-RPC Documentation**: Added complete JSON-RPC section with collection filtering examples and protocol comparisons  
+- **Troubleshooting Guide**: Created `docs/SEARCH_FILTERING_TROUBLESHOOTING.md` with common issues, diagnosis steps, and solutions
+- **Cross-Interface Examples**: Provided consistent examples across all three interfaces (CLI, REST, JSON-RPC)
 
 ### **Epic 4: Testing & Quality Assurance**
 **Story Points:** 8  

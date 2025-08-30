@@ -482,6 +482,100 @@ GET /search
 | `threshold` | float | `0.5` | Minimum similarity score (0.0-1.0) |
 | `include_content` | boolean | `false` | Include document content in results |
 
+### Collection Filtering in Search
+
+Collection filtering allows you to restrict search results to a specific collection, providing more targeted and relevant results.
+
+#### Collection Parameter Usage
+
+**GET Request with Collection Filtering:**
+```bash
+# Search in specific collection
+curl -X GET "http://localhost:8081/search?q=authentication&collection=api-docs"
+
+# Search with collection and additional filters
+curl -X GET "http://localhost:8081/search?q=tutorials&collection=documentation&limit=20&threshold=0.8"
+```
+
+**POST Request with Collection Filtering:**
+```json
+{
+  "query": "configuration setup",
+  "collection": "zero_latency_docs",
+  "limit": 15,
+  "threshold": 0.6
+}
+```
+
+#### Available Collections
+
+To get a list of available collections, use the Collections API:
+
+```bash
+# List all collections
+curl -X GET "http://localhost:8081/api/collections"
+
+# Get specific collection details
+curl -X GET "http://localhost:8081/api/collections/zero_latency_docs"
+```
+
+#### Collection Filtering Examples
+
+**Example 1: Basic Collection Filtering**
+```bash
+# Request
+curl -X GET "http://localhost:8081/search?q=test%20methods&collection=zero_latency_docs"
+
+# Response includes only results from zero_latency_docs collection
+{
+  "query": "test methods",
+  "results": [
+    {
+      "document": {
+        "id": "doc-789",
+        "title": "Testing Methodology Guide",
+        "collection": "zero_latency_docs"
+      },
+      "score": 0.94
+    }
+  ],
+  "collection": "zero_latency_docs"
+}
+```
+
+**Example 2: Collection vs All-Collection Search Comparison**
+```bash
+# Search across all collections (default)
+curl -X GET "http://localhost:8081/search?q=python"
+# Returns: 15 results from various collections
+
+# Search in specific collection
+curl -X GET "http://localhost:8081/search?q=python&collection=tutorials"  
+# Returns: 5 results only from tutorials collection
+```
+
+**Example 3: POST Request with Collection Filtering**
+```bash
+curl -X POST "http://localhost:8081/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "API rate limiting",
+    "collection": "api-docs",
+    "limit": 10,
+    "threshold": 0.7,
+    "filters": {
+      "collection_name": "api-docs"
+    }
+  }'
+```
+
+#### Collection Filtering Benefits
+
+- **Performance**: Faster searches when targeting specific collections
+- **Relevance**: More accurate results from related documents
+- **Organization**: Better search experience for users working within specific domains
+- **Scalability**: Efficient searches in large multi-collection systems
+
 #### Response
 ```json
 {
@@ -573,6 +667,157 @@ POST /search
 
 #### Response
 Same format as GET `/search`
+
+## JSON-RPC API
+
+The JSON-RPC API provides an alternative interface for programmatic access to search functionality, following the JSON-RPC 2.0 specification.
+
+### Endpoint
+```
+POST /jsonrpc
+```
+
+### Document Search (JSON-RPC)
+
+Search for documents using the JSON-RPC protocol.
+
+#### Request Format
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "document.search",
+  "params": {
+    "query": "search terms",
+    "filters": {
+      "collection": "collection_name"
+    },
+    "limit": 10,
+    "threshold": 0.5
+  },
+  "id": 1
+}
+```
+
+#### Request Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `jsonrpc` | string | Yes | Must be "2.0" |
+| `method` | string | Yes | Must be "document.search" |
+| `params.query` | string | Yes | Search query text |
+| `params.filters.collection` | string | No | Collection to search in |
+| `params.limit` | integer | No | Maximum results (default: 10) |
+| `params.threshold` | float | No | Minimum similarity score (default: 0.5) |
+| `id` | integer/string | Yes | Request identifier |
+
+#### Response Format
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "results": [
+      {
+        "id": "doc-123",
+        "content": "Document content snippet...",
+        "metadata": {
+          "title": "Document Title",
+          "collection": "zero_latency_docs",
+          "path": "/path/to/document.md"
+        },
+        "score": 0.89
+      }
+    ],
+    "total_results": 1,
+    "search_time_ms": 45.2
+  },
+  "id": 1
+}
+```
+
+#### Collection Filtering Examples
+
+**Example 1: Search with Collection Filter**
+```bash
+curl -X POST "http://localhost:8081/jsonrpc" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "document.search",
+    "params": {
+      "query": "API authentication",
+      "filters": {
+        "collection": "api-docs"
+      },
+      "limit": 5
+    },
+    "id": 1
+  }'
+```
+
+**Example 2: Search Without Collection Filter (All Collections)**
+```bash
+curl -X POST "http://localhost:8081/jsonrpc" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "document.search",
+    "params": {
+      "query": "getting started",
+      "limit": 10,
+      "threshold": 0.7
+    },
+    "id": 2
+  }'
+```
+
+**Example 3: Collection-Specific Search with Higher Threshold**
+```bash
+curl -X POST "http://localhost:8081/jsonrpc" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "document.search",
+    "params": {
+      "query": "configuration setup",
+      "filters": {
+        "collection": "zero_latency_docs"
+      },
+      "threshold": 0.8
+    },
+    "id": 3
+  }'
+```
+
+#### Error Response Format
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32602,
+    "message": "Invalid params",
+    "data": {
+      "details": "Missing required parameter: query"
+    }
+  },
+  "id": 1
+}
+```
+
+#### JSON-RPC vs REST API Comparison
+
+| Feature | JSON-RPC | REST API |
+|---------|----------|----------|
+| Collection Parameter | `filters.collection` | `collection` or `filters.collection_name` |
+| Request Method | POST only | GET or POST |
+| Response Format | Wrapped in `result` | Direct response |
+| Protocol | JSON-RPC 2.0 | Standard HTTP |
+| Error Format | JSON-RPC error object | HTTP status + error object |
+
+#### Collection Filtering Benefits in JSON-RPC
+
+- **Targeted Results**: Filter searches to specific document collections
+- **Performance**: Faster searches when collection scope is known
+- **Organization**: Better results from related document sets
+- **Programmatic Access**: Easy integration with JSON-RPC clients
 
 ## Health and Status API
 
