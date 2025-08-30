@@ -720,24 +720,7 @@ components:
           description: Number of results to skip
           example: 0
         filters:
-          type: object
-          description: Search filters
-          properties:
-            collection_name:
-              type: string
-              description: Filter by collection name
-              example: "programming_docs"
-            document_type:
-              type: string
-              description: Filter by document type
-              example: "tutorial"
-            tags:
-              type: array
-              items:
-                type: string
-              description: Filter by document tags
-              example: ["async", "rust"]
-          additionalProperties: true
+          $ref: '#/components/schemas/SearchFilters'
         search_type:
           type: string
           enum: [semantic, keyword, hybrid]
@@ -749,6 +732,84 @@ components:
           default: true
           description: Whether to include document metadata in results
           example: true
+        include_highlights:
+          type: boolean
+          default: true
+          description: Whether to include text highlights in results
+          example: true
+        include_embeddings:
+          type: boolean
+          default: false
+          description: Whether to include embeddings in results
+          example: false
+        similarity_threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Minimum similarity score for results
+          example: 0.5
+        rerank_results:
+          type: boolean
+          default: true
+          description: Whether to apply result reranking
+          example: true
+
+    SearchFilters:
+      type: object
+      description: Search filters for refining results
+      properties:
+        collection_name:
+          type: string
+          description: Filter by collection name
+          example: "programming_docs"
+        collection_names:
+          type: array
+          items:
+            type: string
+          description: Filter by multiple collection names
+          example: ["api_docs", "tutorials"]
+        document_type:
+          type: string
+          description: Filter by document type
+          example: "tutorial"
+        document_types:
+          type: array
+          items:
+            type: string
+          description: Filter by multiple document types
+          example: ["markdown", "text"]
+        tags:
+          type: array
+          items:
+            type: string
+          description: Filter by document tags
+          example: ["async", "rust"]
+        language:
+          type: string
+          description: Filter by document language
+          example: "en"
+        created_after:
+          type: string
+          format: date-time
+          description: Filter documents created after this date
+          example: "2024-01-01T00:00:00Z"
+        created_before:
+          type: string
+          format: date-time
+          description: Filter documents created before this date
+          example: "2024-12-31T23:59:59Z"
+        updated_after:
+          type: string
+          format: date-time
+          description: Filter documents updated after this date
+          example: "2024-01-01T00:00:00Z"
+        updated_before:
+          type: string
+          format: date-time
+          description: Filter documents updated before this date
+          example: "2024-12-31T23:59:59Z"
+      additionalProperties: false
 
     SearchResponse:
       type: object

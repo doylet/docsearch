@@ -223,43 +223,31 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
             if let Ok(entries) = fs::read_dir(&models_dir) {
                 let mut combined_content = String::from("// Generated API types from OpenAPI specification\n\nuse serde::{Deserialize, Serialize};\nuse uuid::Uuid;\nuse chrono::{DateTime, Utc};\n\n");
                 
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.extension().and_then(|ext| ext.to_str()) == Some("rs") && path.file_name().and_then(|n| n.to_str()) != Some("mod.rs") {
-                        if let Ok(content) = fs::read_to_string(&path) {
-                            // Remove use statements, comments and module declarations from individual files
-                            let mut in_comment_block = false;
-                            let filtered_content = content
-                                .lines()
-                                .filter_map(|line| {
-                                    let trimmed = line.trim();
-                                    
-                                    // Handle multi-line comments
-                                    if trimmed.starts_with("/*") {
-                                        in_comment_block = true;
-                                        return None;
-                                    }
-                                    if in_comment_block {
-                                        if trimmed.ends_with("*/") {
-                                            in_comment_block = false;
-                                        }
-                                        return None;
-                                    }
-                                    
-                                    // Filter out unwanted lines
-                                    if trimmed.starts_with("use ") || 
-                                       trimmed.starts_with("//") ||
-                                       trimmed.starts_with("*") ||
-                                       trimmed.is_empty() {
-                                        None
-                                    } else {
-                                        Some(line.to_string())
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            combined_content.push_str(&filtered_content);
-                            combined_content.push_str("\n\n");
+                // Priority files to include (search-related types)
+                let priority_files = [
+                    "search_request.rs",
+                    "search_response.rs", 
+                    "search_result.rs",
+                    "search_filters.rs",
+                    "api_error.rs",
+                    "document.rs",
+                    "collection.rs",
+                    "index_request.rs",
+                    "index_response.rs",
+                    "health_check_result.rs",
+                    "api_status_response.rs"
+                ];
+                
+                // First include priority files
+                for priority_file in &priority_files {
+                    let file_path = models_dir.join(priority_file);
+                    if file_path.exists() {
+                        if let Ok(content) = fs::read_to_string(&file_path) {
+                            let processed_content = process_model_file(&file_path, &content);
+                            if !processed_content.trim().is_empty() {
+                                combined_content.push_str(&processed_content);
+                                combined_content.push_str("\n\n");
+                            }
                         }
                     }
                 }
@@ -286,5 +274,74 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
                 }
             }
         }
+    }
+}
+
+fn process_model_file(file_path: &Path, content: &str) -> String {
+    let mut in_comment_block = false;
+    let processed = content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            
+            // Handle multi-line comments
+            if trimmed.starts_with("/*") {
+                in_comment_block = true;
+                return None;
+            }
+            if in_comment_block {
+                if trimmed.ends_with("*/") {
+                    in_comment_block = false;
+                }
+                return None;
+            }
+            
+            // Filter out unwanted lines but keep struct/enum definitions
+            if trimmed.starts_with("use ") || 
+               trimmed.starts_with("//") ||
+               trimmed.starts_with("*") ||
+               (trimmed.is_empty() && !line.starts_with("    ")) {
+                None
+            } else {
+                Some(line.to_string())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        // Fix model references - replace crate::models:: and models:: with local references
+        .replace("crate::models::", "")
+        .replace("models::", "");
+
+    // Rename Status enums to avoid conflicts
+    let file_name = file_path.file_name().unwrap().to_str().unwrap();
+    match file_name {
+        "api_status_response.rs" => {
+            processed
+                .replace("pub enum Status", "pub enum ApiStatus")
+                .replace("pub status: Status", "pub status: ApiStatus")
+                .replace("status: Status", "status: ApiStatus")
+                .replace("-> Status {", "-> ApiStatus {")
+                .replace("impl Default for Status", "impl Default for ApiStatus")
+                .replace("Self::", "ApiStatus::")
+        },
+        "collection.rs" => {
+            processed
+                .replace("pub enum Status", "pub enum CollectionStatus")
+                .replace("pub status: Status", "pub status: CollectionStatus")
+                .replace("status: Option<Status>", "status: Option<CollectionStatus>")
+                .replace("-> Status {", "-> CollectionStatus {")
+                .replace("impl Default for Status", "impl Default for CollectionStatus")
+                .replace("Self::", "CollectionStatus::")
+        },
+        "health_check_result.rs" => {
+            processed
+                .replace("pub enum Status", "pub enum HealthStatus")
+                .replace("pub status: Status", "pub status: HealthStatus")
+                .replace("status: Status", "status: HealthStatus")
+                .replace("-> Status {", "-> HealthStatus {")
+                .replace("impl Default for Status", "impl Default for HealthStatus")
+                .replace("Self::", "HealthStatus::")
+        },
+        _ => processed
     }
 }
