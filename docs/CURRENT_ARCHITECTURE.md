@@ -6,7 +6,24 @@
 
 ## 🏗️ System Overview
 
-The Zero-Latency Document Search system is a Rust-based CLI and server application providing semantic document search capabilities with a clean architecture that separates concerns between:
+The Zero-Latency Document Se## 🚨 Known Issues
+
+##### 🔗 Related Documentation
+
+- [Installation Guide](../README.md)
+- [CLI Reference](CLI_REFERENCE.md)
+- [API Reference](API_REFERENCE.md)
+- [Known Issues](issues/README.md)
+- [Architecture Decisions](adr/)
+- [Implementation Notes](implementation/)al Issues (Require Investigation)
+- **Collection Metadata Missing**: Search results return empty metadata despite collection information being set during indexing
+- **Document ID Not Preserved**: MCP interface ignores provided document IDs and generates system UUIDs
+- **Collection Association Lost**: Documents not properly associated with collections in search responses
+
+### Medium Priority Issues
+- **CLI Collection Filtering**: CLI search with collection filters returns no results
+
+**See [Issues Index](issues/README.md) for complete issue tracking, root cause analysis, and recommended fixes.**is a Rust-based CLI and server application providing semantic document search capabilities with a clean architecture that separates concerns between:
 
 - **Filesystem Management**: Documents sourced from filesystem
 - **Indexing Operations**: Processing and vectorizing documents
@@ -258,7 +275,20 @@ mdx search "query" --server http://production-server:8081
 - **Memory Usage**: ~2GB RAM for 50K document collection
 - **Storage**: Vector embeddings ~1.5KB per document
 
-## 🔗 Related Documentation
+## � Known Issues
+
+### Critical Issues (Require Investigation)
+- **Collection Metadata Missing**: Search results return empty metadata despite collection information being set during indexing
+- **Document ID Not Preserved**: MCP interface ignores provided document IDs and generates system UUIDs
+- **Collection Association Lost**: Documents not properly associated with collections in search responses
+
+See [Collection Metadata Search Issues](implementation/COLLECTION_METADATA_SEARCH_ISSUES.md) for detailed analysis.
+
+### Medium Priority Issues
+- **CLI Collection Filtering**: CLI search with collection filters returns no results
+- See [CLI Search Collection Filtering Issue](implementation/CLI_SEARCH_COLLECTION_FILTERING_ISSUE.md)
+
+## �🔗 Related Documentation
 
 - [Installation Guide](../README.md)
 - [CLI Reference](CLI_REFERENCE.md)

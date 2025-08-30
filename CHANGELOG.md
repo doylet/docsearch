@@ -5,6 +5,34 @@ All notable changes to the Zero-Latency Documentation Search project will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2025-08-30
+
+### Issues Discovered
+- **Collection Metadata Missing in Search Results**: End-to-end testing revealed search results return empty metadata `{}` despite collection information being set during document indexing
+- **Document ID Not Preserved During MCP Indexing**: MCP tools interface ignores provided document IDs and generates system UUIDs instead
+- **Collection Association Lost**: Documents not properly associated with collections in search response metadata
+- **Impact**: Core functionality works but collection-based organization and external ID tracking is compromised
+
+### Documentation Added
+- **Comprehensive Issue Analysis**: `docs/implementation/COLLECTION_METADATA_SEARCH_ISSUES.md`
+  - Detailed root cause analysis with code investigation
+  - Testing evidence and functional impact assessment  
+  - Recommended fixes for document ID preservation and metadata serialization
+- **Known Issues Section**: Added to `docs/INDEX.md` and `docs/CURRENT_ARCHITECTURE.md`
+
+### Sprint Planning
+- **Sprint 004**: Metadata & Collection Management Issues Resolution (2 weeks, 47 story points)
+- **Sprint 005**: Search & Filtering Issues Resolution (1.5 weeks, 37 story points)  
+- **Sprint 006**: Protocol Compliance & Standards Alignment (2 weeks, 46 story points)
+
+### Documentation Organization
+- **Issues Folder**: Created `docs/issues/` with centralized issue tracking
+  - `docs/issues/README.md` - Master issues index with status tracking
+  - `docs/issues/metadata-issues.md` - Critical metadata and collection problems
+  - `docs/issues/search-issues.md` - Search and filtering issues
+  - `docs/issues/protocol-issues.md` - Protocol compliance review
+- **Sprint Plans**: Added comprehensive sprint plans to `docs/sprint/` following established conventions
+
 ## [1.1.1] - 2025-08-24
 
 ### Fixed

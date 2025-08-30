@@ -41,9 +41,18 @@
 ### **🔧 Implementation Details**
 | Document | Description | Status |
 |----------|-------------|--------|
-| [implementation/COE_INDEXING_ARCHITECTURE_FIXES.md](implementation/COE_INDEXING_ARCHITECTURE_FIXES.md) | Recent architecture improvements | ✅ Current |
+| [implementation/SEARCH_LIMIT_BUG_FIX.md](implementation/SEARCH_LIMIT_BUG_FIX.md) | Search limit bug resolution | ✅ |
 | [implementation/JSON_RPC_MCP_COMPLIANCE_GAP.md](implementation/JSON_RPC_MCP_COMPLIANCE_GAP.md) | JSON-RPC/MCP analysis | ✅ |
 | [implementation/JSON_RPC_MCP_PHASE_1_IMPLEMENTATION.md](implementation/JSON_RPC_MCP_PHASE_1_IMPLEMENTATION.md) | Phase 1 implementation | ✅ |
+| [implementation/SCHEMA_FIRST_CONTRACT_SYNC.md](implementation/SCHEMA_FIRST_CONTRACT_SYNC.md) | Schema-first contract sync | ✅ |
+
+### **🐛 Issues & Troubleshooting**
+| Document | Description | Status |
+|----------|-------------|--------|
+| [issues/README.md](issues/README.md) | **Issues Index** - Complete issue tracking | 📊 Current |
+| [issues/metadata-issues.md](issues/metadata-issues.md) | Critical metadata & collection problems | 🔍 Investigation |
+| [issues/search-issues.md](issues/search-issues.md) | Search & filtering issues | 📝 Documented |
+| [issues/protocol-issues.md](issues/protocol-issues.md) | Protocol compliance review | 📝 Documented |
 
 ### **📐 Architecture Decision Records (ADRs)**
 | Document | Description | Status |
@@ -52,6 +61,16 @@
 | [adr/002_model_host_placement.md](adr/002_model_host_placement.md) | Model hosting strategy | ✅ |
 | [adr/008_contract_strategy_contract-first-daemon.md](adr/008_contract_strategy_contract-first-daemon.md) | Contract-first approach | ✅ |
 | [adr/039-json-rpc-mcp-protocol-compliance.md](adr/039-json-rpc-mcp-protocol-compliance.md) | MCP protocol compliance | ✅ |
+
+### **🏃‍♂️ Sprint Plans**
+| Sprint | Description | Status |
+|--------|-------------|--------|
+| [sprint/sprint-004-metadata-collection-management-issues.md](sprint/sprint-004-metadata-collection-management-issues.md) | Metadata & Collection Issues Resolution | 📋 Planned |
+| [sprint/sprint-005-search-filtering-issues.md](sprint/sprint-005-search-filtering-issues.md) | Search & Filtering Issues Resolution | 📋 Planned |
+| [sprint/sprint-006-protocol-compliance-standards.md](sprint/sprint-006-protocol-compliance-standards.md) | Protocol Compliance & Standards | 📋 Planned |
+| [sprint/sprint-003-schema-first-contract-architecture.md](sprint/sprint-003-schema-first-contract-architecture.md) | Schema-First Contract Architecture | ✅ Completed |
+| [sprint/sprint-002-configuration-architecture-implementation.md](sprint/sprint-002-configuration-architecture-implementation.md) | Configuration Architecture | ✅ Completed |
+| [sprint/sprint-001-advanced-search-pipeline-activation.md](sprint/sprint-001-advanced-search-pipeline-activation.md) | Advanced Search Pipeline | ✅ Completed |
 
 ### **🛠️ Development & Strategy**
 | Document | Description | Status |
@@ -117,6 +136,15 @@ mdx status                            # System health
 - ✅ **Milestone Documentation**: Current architecture completion milestone
 - ✅ **Naming Standardization**: Consistent file naming conventions
 - ✅ **Navigation Structure**: Improved documentation organization
+
+### **🚨 Known Issues**
+| Issue | Document | Severity | Status |
+|-------|----------|----------|--------|
+| Collection Metadata Missing | [issues/metadata-issues.md](issues/metadata-issues.md) | High | 🔍 Investigation |
+| Document ID Not Preserved | [issues/metadata-issues.md](issues/metadata-issues.md) | High | 🔍 Investigation |
+| CLI Collection Filtering | [issues/search-issues.md](issues/search-issues.md) | Medium | 📝 Documented |
+
+**See [Issues Index](issues/README.md) for complete issue tracking and status.**
 
 ### **Documentation Standards**
 - **Naming Convention**: 
