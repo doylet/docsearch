@@ -538,7 +538,7 @@ impl DocumentIndexingService {
                 end_offset: 0,        // Would be calculated in real implementation
                 metadata: zero_latency_core::models::ChunkMetadata {
                     custom: {
-                        let mut custom = HashMap::new();
+                        let mut custom = document.metadata.custom.clone(); // Start with document metadata
                         custom.insert("chunk_index".to_string(), i.to_string());
                         custom.insert("parent_document_id".to_string(), document.id.to_string());
                         custom
