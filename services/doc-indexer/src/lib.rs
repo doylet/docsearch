@@ -9,9 +9,6 @@ pub mod application;
 pub mod config;
 pub mod infrastructure;
 
-// Phase 4D: Core placeholder for missing dependencies
-pub mod core_placeholder;
-
 // Re-export key types for easier access
 pub use application::adapters::*;
 pub use application::indexing_strategies::*;
