@@ -100,6 +100,64 @@ impl SimpleQueryEnhancer {
             ],
         );
 
+        // Document and content-related terms
+        technical_terms.insert(
+            "markdown".to_string(),
+            vec![
+                "md".to_string(),
+                "markup".to_string(),
+                "documentation".to_string(),
+                "format".to_string(),
+                "text formatting".to_string(),
+                "content".to_string(),
+            ],
+        );
+
+        technical_terms.insert(
+            "mdx".to_string(),
+            vec![
+                "markdown".to_string(),
+                "jsx".to_string(),
+                "react markdown".to_string(),
+                "component".to_string(),
+                "interactive documentation".to_string(),
+            ],
+        );
+
+        technical_terms.insert(
+            "html".to_string(),
+            vec![
+                "hypertext markup language".to_string(),
+                "web".to_string(),
+                "markup".to_string(),
+                "tag".to_string(),
+                "element".to_string(),
+                "dom".to_string(),
+            ],
+        );
+
+        technical_terms.insert(
+            "content".to_string(),
+            vec![
+                "document".to_string(),
+                "text".to_string(),
+                "information".to_string(),
+                "data".to_string(),
+                "material".to_string(),
+            ],
+        );
+
+        technical_terms.insert(
+            "processing".to_string(),
+            vec![
+                "parsing".to_string(),
+                "transformation".to_string(),
+                "conversion".to_string(),
+                "handling".to_string(),
+                "indexing".to_string(),
+            ],
+        );
+
         // Add enhanced synonyms
         synonyms.insert(
             "search".to_string(),
