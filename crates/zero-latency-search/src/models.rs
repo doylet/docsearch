@@ -281,7 +281,7 @@ pub enum EntityType {
 }
 
 /// Search pipeline step context
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SearchContext {
     pub request: SearchRequest,
     pub enhanced_query: Option<EnhancedQuery>,
