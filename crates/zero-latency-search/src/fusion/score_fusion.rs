@@ -143,6 +143,13 @@ impl ScoreFusion {
         Ok(Self { config })
     }
     
+    /// Create with default configuration
+    pub fn default() -> Self {
+        Self {
+            config: FusionConfig::default(),
+        }
+    }
+    
     /// Fuse BM25 and vector scores according to configuration
     pub fn fuse_scores(
         &self,
