@@ -137,7 +137,7 @@ impl ProductionDeployment {
 
         // Initialize startup validator
         if self.config.startup_validation_enabled {
-            let startup_config = crate::infrastructure::production::startup::StartupConfig {
+            let startup_config = crate::infrastructure::operations::production::startup::StartupConfig {
                 startup_timeout_seconds: self.config.startup_timeout.as_secs(),
                 continue_on_warnings: true, // or derive from ProductionConfig if available
                 enable_parallel_validation: true, // or derive from ProductionConfig if available
@@ -160,13 +160,13 @@ impl ProductionDeployment {
         // Initialize monitoring
         if self.config.monitoring_enabled {
             let monitoring_config =
-                crate::infrastructure::production::monitoring::MonitoringConfig {
+                crate::infrastructure::operations::production::monitoring::MonitoringConfig {
                     collection_interval_seconds: self.config.metrics_collection_interval.as_secs(),
                     enable_detailed_logging: false, // or derive from ProductionConfig if available
                     enable_profiling: false,        // or derive from ProductionConfig if available
                     export_endpoints: vec![],       // or derive from ProductionConfig if available
                     alert_thresholds:
-                        crate::infrastructure::production::monitoring::AlertThresholds {
+                        crate::infrastructure::operations::production::monitoring::AlertThresholds {
                             cpu_threshold_percent: 80.0,
                             memory_threshold_percent: 85.0,
                             disk_threshold_percent: 90.0,
@@ -179,7 +179,7 @@ impl ProductionDeployment {
 
         // Initialize graceful shutdown
         if self.config.shutdown_signal_handlers {
-            let shutdown_config = crate::infrastructure::production::shutdown::ShutdownConfig {
+            let shutdown_config = crate::infrastructure::operations::production::shutdown::ShutdownConfig {
                 grace_period_seconds: self.config.graceful_shutdown_timeout.as_secs(),
                 service_timeout_seconds: 30, // or derive from ProductionConfig if available
                 save_state_on_shutdown: false, // or derive from ProductionConfig if available
@@ -270,7 +270,7 @@ impl ProductionDeployment {
         self.status = DeploymentStatus::ShuttingDown;
 
         if let Some(shutdown_handler) = &mut self.shutdown_handler {
-            use crate::infrastructure::production::ShutdownSignal;
+            use crate::infrastructure::operations::production::ShutdownSignal;
             shutdown_handler
                 .initiate_shutdown(ShutdownSignal::Graceful)
                 .await?;

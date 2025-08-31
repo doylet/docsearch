@@ -8,7 +8,7 @@ use serde_json::json;
 use std::{convert::Infallible, time::Duration};
 use tokio::time::interval;
 
-use crate::infrastructure::http::handlers::AppState;
+use crate::infrastructure::api::http::handlers::AppState;
 
 /// Create streaming router with SSE endpoints
 pub fn create_streaming_router() -> Router<AppState> {

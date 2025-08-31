@@ -1,4 +1,4 @@
-use crate::infrastructure::jsonrpc::types::{HealthCheckResult, LivenessResult, ReadinessResult};
+use crate::infrastructure::api::jsonrpc::types::{HealthCheckResult, LivenessResult, ReadinessResult};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -29,7 +29,7 @@ pub struct AppState {
     pub document_service: DocumentIndexingService,
     pub health_service: HealthService,
     pub collection_service: CollectionService,
-    pub analytics_service: Arc<crate::infrastructure::analytics::ProductionSearchAnalytics>,
+    pub analytics_service: Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     pub start_time: Instant,
 }
 
@@ -947,7 +947,7 @@ pub struct GetCollectionStatsResponse {
 /// Get comprehensive analytics summary
 async fn get_analytics_summary(
     State(state): State<AppState>,
-) -> Result<Json<crate::infrastructure::analytics::AnalyticsSummary>, AppError> {
+) -> Result<Json<crate::infrastructure::operations::analytics::AnalyticsSummary>, AppError> {
     tracing::info!("[Analytics] Getting analytics summary");
 
     let summary = state.analytics_service.get_analytics_summary().await;

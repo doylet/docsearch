@@ -6,9 +6,9 @@
 use axum::{extract::State, response::Json, routing::post, Router};
 use serde_json::Value;
 
-use crate::infrastructure::http::handlers::AppState;
-use crate::infrastructure::jsonrpc::handlers::route_method;
-use crate::infrastructure::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+use crate::infrastructure::api::http::handlers::AppState;
+use crate::infrastructure::api::jsonrpc::handlers::route_method;
+use crate::infrastructure::api::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 
 /// JSON-RPC server state (wraps the existing AppState)
 #[derive(Clone)]
@@ -126,11 +126,11 @@ async fn handle_batch_jsonrpc_request(
 
 /// Create a combined router that includes REST, JSON-RPC, and streaming endpoints
 pub fn create_dual_protocol_router(app_state: AppState) -> Router {
-    let rest_router = crate::infrastructure::http::handlers::create_router(app_state.clone());
+    let rest_router = crate::infrastructure::api::http::handlers::create_router(app_state.clone());
     let jsonrpc_server = JsonRpcServer::new(app_state.clone());
     let jsonrpc_router = jsonrpc_server.create_router();
     let streaming_router =
-        crate::infrastructure::streaming::create_streaming_router().with_state(app_state);
+        crate::infrastructure::protocols::streaming::create_streaming_router().with_state(app_state);
 
     // Combine all routers
     rest_router.merge(jsonrpc_router).merge(streaming_router)

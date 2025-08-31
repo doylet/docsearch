@@ -4,7 +4,7 @@
 //! This adapter provides MCP-compliant JSON-RPC methods that delegate to domain services.
 
 use crate::application::ServiceContainer;
-use crate::infrastructure::jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};
+use crate::infrastructure::api::jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcError};
 use axum::{
     extract::State,
     http::StatusCode,

@@ -7,8 +7,8 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 use crate::infrastructure::{
-    http::handlers::AppState,
-    jsonrpc::{handlers::route_method, JsonRpcError, JsonRpcRequest, JsonRpcResponse},
+    api::http::handlers::AppState,
+    api::jsonrpc::{handlers::route_method, JsonRpcError, JsonRpcRequest, JsonRpcResponse},
 };
 
 /// Stdio JSON-RPC server

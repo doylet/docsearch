@@ -141,20 +141,20 @@ pub struct ServiceCapabilities {
 
 // Error conversion utilities
 
-impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::jsonrpc::JsonRpcError {
+impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::api::jsonrpc::JsonRpcError {
     fn from(err: zero_latency_core::ZeroLatencyError) -> Self {
-        use crate::infrastructure::jsonrpc::error_codes;
+        use crate::infrastructure::api::jsonrpc::error_codes;
         use zero_latency_core::ZeroLatencyError;
 
         match err {
             ZeroLatencyError::Validation { field, message } => {
-                crate::infrastructure::jsonrpc::JsonRpcError::validation_error(&field, &message)
+                crate::infrastructure::api::jsonrpc::JsonRpcError::validation_error(&field, &message)
             }
             ZeroLatencyError::NotFound { resource } => {
                 if resource.contains("document") {
-                    crate::infrastructure::jsonrpc::JsonRpcError::document_not_found(&resource)
+                    crate::infrastructure::api::jsonrpc::JsonRpcError::document_not_found(&resource)
                 } else {
-                    crate::infrastructure::jsonrpc::JsonRpcError {
+                    crate::infrastructure::api::jsonrpc::JsonRpcError {
                         code: error_codes::INTERNAL_ERROR,
                         message: format!("Resource not found: {}", resource),
                         data: None,
@@ -166,10 +166,10 @@ impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::jsonrp
             | ZeroLatencyError::Database { message }
             | ZeroLatencyError::Network { message }
             | ZeroLatencyError::Serialization { message } => {
-                crate::infrastructure::jsonrpc::JsonRpcError::internal_error(Some(message))
+                crate::infrastructure::api::jsonrpc::JsonRpcError::internal_error(Some(message))
             }
             ZeroLatencyError::ExternalService { service, message } => {
-                crate::infrastructure::jsonrpc::JsonRpcError {
+                crate::infrastructure::api::jsonrpc::JsonRpcError {
                     code: error_codes::INTERNAL_ERROR,
                     message: format!("External service error: {}", service),
                     data: Some(serde_json::json!({
@@ -179,7 +179,7 @@ impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::jsonrp
                 }
             }
             ZeroLatencyError::PermissionDenied { operation } => {
-                crate::infrastructure::jsonrpc::JsonRpcError {
+                crate::infrastructure::api::jsonrpc::JsonRpcError {
                     code: error_codes::INTERNAL_ERROR,
                     message: format!("Permission denied: {}", operation),
                     data: None,

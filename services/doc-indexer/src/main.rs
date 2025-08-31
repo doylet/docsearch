@@ -105,7 +105,7 @@ async fn main() -> Result<()> {
 
     // Check if stdio mode is requested
     if cli.stdio || cli.batch {
-        let app_state = infrastructure::http::handlers::AppState::new_async(container.clone())
+        let app_state = infrastructure::api::http::handlers::AppState::new_async(container.clone())
             .await
             .map_err(|e| anyhow::Error::msg(format!("Failed to initialize app state: {}", e)))?;
 

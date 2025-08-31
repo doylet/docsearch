@@ -6,9 +6,9 @@
 use serde_json::{json, Value};
 use zero_latency_core::models::Document;
 
-use crate::infrastructure::http::handlers::AppState;
-use crate::infrastructure::jsonrpc::types::*;
-use crate::infrastructure::jsonrpc::{JsonRpcError, JsonRpcResponse};
+use crate::infrastructure::api::http::handlers::AppState;
+use crate::infrastructure::api::jsonrpc::types::*;
+use crate::infrastructure::api::jsonrpc::{JsonRpcError, JsonRpcResponse};
 
 /// MCP Tools Interface Handler: tools/list
 /// Returns list of available tools/capabilities

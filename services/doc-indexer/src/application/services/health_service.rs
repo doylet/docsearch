@@ -1,4 +1,4 @@
-use crate::infrastructure::jsonrpc::types::{
+use crate::infrastructure::api::jsonrpc::types::{
     HealthCheckItem, HealthCheckResult, LivenessResult, ReadinessResult,
 };
 use std::collections::HashMap;
