@@ -17,6 +17,8 @@ pub struct FromSignals {
     pub vector: bool,
     /// Query variant indices that found this result (for multi-query expansion)
     pub variants: Vec<usize>,
+    /// Result enhanced by query expansion
+    pub query_expansion: bool,
 }
 
 impl FromSignals {
@@ -26,44 +28,48 @@ impl FromSignals {
             bm25: false,
             vector: true,
             variants: vec![0], // Original query
+            query_expansion: false,
         }
     }
-    
+
     /// Create new signals for BM25-only result
     pub fn bm25_only() -> Self {
         Self {
             bm25: true,
             vector: false,
             variants: vec![0], // Original query
+            query_expansion: false,
         }
     }
-    
-    /// Create new signals for hybrid result
+
+    /// Create new signals for hybrid result (both engines)
     pub fn hybrid() -> Self {
         Self {
             bm25: true,
             vector: true,
             variants: vec![0], // Original query
+            query_expansion: false,
         }
-    }
-    
-    /// Create signals for specific query variant
+    }    /// Create signals for specific query variant
     pub fn from_variant(variant_index: usize, engine: SearchEngine) -> Self {
         match engine {
             SearchEngine::Vector => Self {
                 bm25: false,
                 vector: true,
                 variants: vec![variant_index],
+                query_expansion: false,
             },
             SearchEngine::BM25 => Self {
                 bm25: true,
                 vector: false,
                 variants: vec![variant_index],
+                query_expansion: false,
             },
             SearchEngine::Hybrid => Self {
                 bm25: true,
                 vector: true,
                 variants: vec![variant_index],
+                query_expansion: false,
             },
         }
     }
@@ -72,6 +78,7 @@ impl FromSignals {
     pub fn merge(&mut self, other: &FromSignals) {
         self.bm25 |= other.bm25;
         self.vector |= other.vector;
+        self.query_expansion |= other.query_expansion;
         
         // Merge variant indices, keeping unique values
         for &variant in &other.variants {
