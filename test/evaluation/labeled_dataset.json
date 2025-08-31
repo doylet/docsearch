@@ -1,5 +1,5 @@
 {
-  "name": "hybrid_search_evaluation_dataset",
+  "name": "hybrid_search_evaluation_dataset", 
   "description": "Labeled dataset for evaluating hybrid BM25 + vector search quality improvements",
   "version": "20250831_v1",
   "examples": [
@@ -11,7 +11,7 @@
         "external_id": "rust_language_intro",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "programming_language",
       "metadata": {
         "difficulty": "beginner",
@@ -26,7 +26,7 @@
         "external_id": "javascript_basics",
         "version": 1
       },
-      "relevance": 0,
+      "relevance": "NotRelevant",
       "category": "programming_language",
       "metadata": {
         "difficulty": "beginner",
@@ -41,7 +41,7 @@
         "external_id": "qdrant_integration_guide",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "vector_search",
       "metadata": {
         "difficulty": "intermediate",
@@ -56,7 +56,7 @@
         "external_id": "embedding_generation_tutorial", 
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "vector_search",
       "metadata": {
         "difficulty": "intermediate",
@@ -71,7 +71,7 @@
         "external_id": "mysql_database_setup",
         "version": 1
       },
-      "relevance": 0,
+      "relevance": "NotRelevant",
       "category": "vector_search", 
       "metadata": {
         "difficulty": "beginner",
@@ -86,7 +86,7 @@
         "external_id": "search_architecture_overview",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "search_architecture",
       "metadata": {
         "difficulty": "advanced",
@@ -101,7 +101,7 @@
         "external_id": "tantivy_integration_guide",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "search_architecture",
       "metadata": {
         "difficulty": "advanced",
@@ -116,7 +116,7 @@
         "external_id": "basic_text_search",
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "search_architecture",
       "metadata": {
         "difficulty": "beginner",
@@ -131,7 +131,7 @@
         "external_id": "api_reference_search",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "api_documentation",
       "metadata": {
         "difficulty": "intermediate",
@@ -146,7 +146,7 @@
         "external_id": "cli_usage_guide",
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "api_documentation",
       "metadata": {
         "difficulty": "beginner",
@@ -161,7 +161,7 @@
         "external_id": "performance_optimization_guide",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "performance",
       "metadata": {
         "difficulty": "advanced",
@@ -176,7 +176,7 @@
         "external_id": "caching_strategies",
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "performance",
       "metadata": {
         "difficulty": "intermediate", 
@@ -191,7 +191,7 @@
         "external_id": "system_architecture_overview",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "architecture",
       "metadata": {
         "difficulty": "advanced",
@@ -206,7 +206,7 @@
         "external_id": "search_step_implementation",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "architecture",
       "metadata": {
         "difficulty": "advanced",
@@ -221,7 +221,7 @@
         "external_id": "configuration_reference",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "configuration",
       "metadata": {
         "difficulty": "intermediate",
@@ -236,7 +236,7 @@
         "external_id": "environment_setup",
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "configuration",
       "metadata": {
         "difficulty": "beginner",
@@ -251,7 +251,7 @@
         "external_id": "troubleshooting_search_issues",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "troubleshooting",
       "metadata": {
         "difficulty": "intermediate",
@@ -266,7 +266,7 @@
         "external_id": "common_errors_guide",
         "version": 1
       },
-      "relevance": 1,
+      "relevance": "SomewhatRelevant",
       "category": "troubleshooting",
       "metadata": {
         "difficulty": "beginner",
@@ -281,7 +281,7 @@
         "external_id": "local_embedding_setup",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "embedding", 
       "metadata": {
         "difficulty": "advanced",
@@ -296,7 +296,7 @@
         "external_id": "onnx_model_integration",
         "version": 1
       },
-      "relevance": 2,
+      "relevance": "HighlyRelevant",
       "category": "embedding",
       "metadata": {
         "difficulty": "advanced",

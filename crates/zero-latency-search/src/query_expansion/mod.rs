@@ -5,5 +5,8 @@
 pub mod expansion;
 pub mod strategies;
 
+#[cfg(test)]
+pub mod examples;
+
 pub use expansion::*;
 pub use strategies::*;

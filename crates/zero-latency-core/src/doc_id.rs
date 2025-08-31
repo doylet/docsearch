@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// This provides a consistent identification scheme that works across
 /// both tantivy BM25 indexes and vector databases, ensuring documents
 /// can be uniquely identified and synchronized between storage systems.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocId {
     /// Collection namespace this document belongs to
     pub collection: String,
