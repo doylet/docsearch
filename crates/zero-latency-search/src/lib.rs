@@ -8,6 +8,7 @@
 pub mod bm25;
 pub mod evaluation;
 pub mod fusion;
+pub mod hybrid;
 pub mod models;
 pub mod services;
 pub mod traits;
@@ -16,6 +17,7 @@ pub mod vector_search;
 pub use bm25::*;
 pub use evaluation::*;
 pub use fusion::*;
+pub use hybrid::*;
 pub use models::*;
 pub use services::*;
 pub use traits::*;

@@ -117,3 +117,9 @@ impl From<std::io::Error> for ZeroLatencyError {
         Self::network(error.to_string())
     }
 }
+
+impl From<String> for ZeroLatencyError {
+    fn from(error: String) -> Self {
+        Self::internal(error)
+    }
+}

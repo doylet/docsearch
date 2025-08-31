@@ -205,6 +205,79 @@ impl ScoreFusion {
         
         Ok(results)
     }
+    
+    /// Fuse search results by combining duplicate documents and applying score fusion
+    pub fn fuse_results(&self, results: Vec<crate::models::SearchResult>) -> Result<Vec<crate::models::SearchResult>, String> {
+        use std::collections::HashMap;
+        use crate::models::SearchResult;
+        
+        if results.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // Group results by document ID to handle duplicates
+        let mut doc_groups: HashMap<String, Vec<SearchResult>> = HashMap::new();
+        
+        for result in results {
+            let doc_key = result.doc_id.to_index_key();
+            doc_groups.entry(doc_key).or_insert_with(Vec::new).push(result);
+        }
+        
+        let mut fused_results = Vec::new();
+        
+        for (_doc_key, doc_results) in doc_groups {
+            if doc_results.len() == 1 {
+                // Single result, no fusion needed
+                fused_results.push(doc_results.into_iter().next().unwrap());
+            } else {
+                // Multiple results for same document, need to fuse scores
+                let bm25_scores: Vec<f32> = doc_results.iter()
+                    .filter_map(|r| r.scores.bm25_raw)
+                    .collect();
+                let vector_scores: Vec<f32> = doc_results.iter()
+                    .filter_map(|r| r.scores.vector_raw)
+                    .collect();
+                
+                // Use the first result as the base and update its scores
+                let mut fused_result = doc_results.into_iter().next().unwrap();
+                
+                // Calculate new score breakdown
+                let fused_scores = self.fuse_scores(
+                    if bm25_scores.is_empty() { &[0.0] } else { &bm25_scores },
+                    if vector_scores.is_empty() { &[0.0] } else { &vector_scores }
+                )?;
+                
+                if let Some(new_scores) = fused_scores.into_iter().next() {
+                    fused_result.scores = new_scores;
+                    
+                    // Update final score for legacy compatibility
+                    fused_result.final_score = zero_latency_core::values::Score::new(fused_result.scores.fused)
+                        .unwrap_or_else(|_| zero_latency_core::values::Score::zero());
+                    
+                    // Merge from_signals to reflect both engines contributed
+                    let has_bm25 = fused_result.scores.bm25_raw.is_some();
+                    let has_vector = fused_result.scores.vector_raw.is_some();
+                    
+                    if has_bm25 && has_vector {
+                        fused_result.from_signals = crate::fusion::FromSignals::hybrid();
+                    } else if has_bm25 {
+                        fused_result.from_signals = crate::fusion::FromSignals::bm25_only();
+                    } else if has_vector {
+                        fused_result.from_signals = crate::fusion::FromSignals::vector_only();
+                    }
+                }
+                
+                fused_results.push(fused_result);
+            }
+        }
+        
+        // Sort by fused score (descending)
+        fused_results.sort_by(|a, b| {
+            b.scores.fused.partial_cmp(&a.scores.fused).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        
+        Ok(fused_results)
+    }
 }
 
 #[cfg(test)]
