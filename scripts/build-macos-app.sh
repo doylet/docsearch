@@ -1,9 +1,9 @@
 #!/bin/bash
-# Package Zero-Latency as macOS App Bundle
+# Package docsearch as macOS App Bundle
 
 set -e
 
-APP_NAME="Zero-Latency"
+APP_NAME="docsearch"
 BUNDLE_DIR="./dist/$APP_NAME.app"
 CONTENTS_DIR="$BUNDLE_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -32,11 +32,11 @@ cat > "$CONTENTS_DIR/Info.plist" << 'EOF'
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>Zero-Latency</string>
+    <string>docsearch</string>
     <key>CFBundleIdentifier</key>
     <string>com.zerolatency.app</string>
     <key>CFBundleName</key>
-    <string>Zero-Latency</string>
+    <string>docsearch</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -54,9 +54,9 @@ cat > "$CONTENTS_DIR/Info.plist" << 'EOF'
 EOF
 
 # Create main app launcher script
-cat > "$MACOS_DIR/Zero-Latency" << 'EOF'
+cat > "$MACOS_DIR/docsearch" << 'EOF'
 #!/bin/bash
-# Zero-Latency App Launcher
+# docsearch App Launcher
 
 APP_DIR="$(dirname "$0")"
 RESOURCES_DIR="$APP_DIR/../Resources"
@@ -68,7 +68,7 @@ if [ ! -t 1 ] && [ ! -t 0 ]; then
     # Launched from Finder - open in Terminal
     osascript << EOD
 tell application "Terminal"
-    do script "cd '$APP_DIR' && ./Zero-Latency"
+    do script "cd '$APP_DIR' && ./docsearch"
     activate
 end tell
 EOD
@@ -77,7 +77,7 @@ fi
 
 # Function to install launch agent
 install_daemon() {
-    echo "🔧 Installing Zero-Latency daemon..."
+    echo "🔧 Installing docsearch daemon..."
     
     # Create user launch agents directory if it doesn't exist
     mkdir -p "$USER_LAUNCH_AGENTS"
@@ -102,7 +102,7 @@ install_daemon() {
     # Verify the service is actually running
     sleep 2
     if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
-        echo "✅ Zero-Latency daemon is running"
+        echo "✅ docsearch daemon is running"
         echo "🌐 Service available at: http://localhost:8080"
         
         # Test if service responds
@@ -118,7 +118,7 @@ install_daemon() {
 
 # Function to uninstall launch agent
 uninstall_daemon() {
-    echo "🗑️  Uninstalling Zero-Latency daemon..."
+    echo "🗑️  Uninstalling docsearch daemon..."
     
     # Check if service is running
     if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
@@ -138,17 +138,17 @@ uninstall_daemon() {
     if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
         echo "⚠️  Service may still be running - try again in a moment"
     else
-        echo "✅ Zero-Latency daemon completely removed"
+        echo "✅ docsearch daemon completely removed"
     fi
 }
 
 # Function to show status
 show_status() {
-    echo "🔍 Zero-Latency Service Status"
+    echo "🔍 docsearch Service Status"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     if launchctl list | grep -q "com.zerolatency.doc-indexer"; then
-        echo "✅ Zero-Latency daemon is running"
+        echo "✅ docsearch daemon is running"
         
         # Get PID and status
         local status_line=$(launchctl list | grep "com.zerolatency.doc-indexer")
@@ -167,7 +167,7 @@ show_status() {
         echo "📋 Logs: /tmp/zero-latency.log"
         echo "❌ Errors: /tmp/zero-latency-error.log"
     else
-        echo "❌ Zero-Latency daemon is not running"
+        echo "❌ docsearch daemon is not running"
         echo ""
         echo "To start the service, choose option 1"
     fi
@@ -175,17 +175,17 @@ show_status() {
 
 # Function to open CLI
 open_cli() {
-    echo "🖥️  Opening Zero-Latency CLI..."
+    echo "🖥️  Opening docsearch CLI..."
     osascript << EOD
 tell application "Terminal"
-    do script "cd '$APP_DIR' && echo 'Zero-Latency CLI Ready! Try: ./mdx search \"your query\"' && zsh || bash"
+    do script "cd '$APP_DIR' && echo 'docsearch CLI Ready! Try: ./mdx search \"your query\"' && zsh || bash"
     activate
 end tell
 EOD
 }
 
 # Main menu
-echo "🚀 Zero-Latency Documentation Search"
+echo "🚀 docsearch Documentation Search"
 echo ""
 echo "1) Install & Start Daemon"
 echo "2) Stop & Uninstall Daemon" 
@@ -206,7 +206,7 @@ esac
 EOF
 
 # Make launcher executable
-chmod +x "$MACOS_DIR/Zero-Latency"
+chmod +x "$MACOS_DIR/docsearch"
 
 # Create LaunchAgent plist
 cat > "$LAUNCH_AGENTS_DIR/com.zerolatency.doc-indexer.plist" << 'PLISTEOF'

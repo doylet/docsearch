@@ -170,7 +170,7 @@ Daemon settings configured in both scripts:
 <string>com.zerolatency.doc-indexer</string>
 <key>ProgramArguments</key>
 <array>
-    <string>/Applications/Zero-Latency.app/Contents/MacOS/doc-indexer</string>
+    <string>/Applications/docsearch.app/Contents/MacOS/doc-indexer</string>
     <string>--port</string>
     <string>8080</string>
 </array>
@@ -238,7 +238,7 @@ df -h .
 # Check LaunchAgent syntax
 plutil -lint ~/Library/LaunchAgents/com.zerolatency.doc-indexer.plist
 # Manual daemon test
-/Applications/Zero-Latency.app/Contents/MacOS/doc-indexer --help
+/Applications/docsearch.app/Contents/MacOS/doc-indexer --help
 ```
 
 **"CLI not found"**:

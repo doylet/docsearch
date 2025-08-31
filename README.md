@@ -283,7 +283,7 @@ sudo cp target/release/{doc-indexer,mdx} /usr/local/bin/
 ```bash
 # Clone repository
 git clone <repo-url>
-cd Zero-Latency
+cd docsearch
 
 # Build with feature flags for optimized deployment
 

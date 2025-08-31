@@ -39,7 +39,7 @@ INSTALLATION:
 USAGE:
 - The daemon runs in the background on port 8080
 - Default docs path: ~/Documents (configure as needed)
-- Use the CLI tool: /Applications/Zero-Latency.app/Contents/MacOS/mdx
+- Use the CLI tool: /Applications/docsearch.app/Contents/MacOS/mdx
 - Or open a CLI terminal from the control panel
 
 INDEXING YOUR DOCUMENTS:
@@ -63,16 +63,16 @@ cat > "$STAGING_DIR/Install.command" << 'EOF'
 echo "🚀 Installing Zero-Latency..."
 
 # Copy to Applications if not already there
-if [ ! -d "/Applications/Zero-Latency.app" ]; then
+if [ ! -d "/Applications/docsearch.app" ]; then
     echo "📦 Copying to Applications..."
     cp -R "Zero-Latency.app" "/Applications/"
-    echo "✅ Installed to /Applications/Zero-Latency.app"
+    echo "✅ Installed to /Applications/docsearch.app"
 else
     echo "ℹ️  Already installed in Applications"
 fi
 
 echo "🎉 Installation complete!"
-echo "💡 Launch from Applications or run: open /Applications/Zero-Latency.app"
+echo "💡 Launch from Applications or run: open /Applications/docsearch.app"
 
 read -p "Press Enter to continue..."
 EOF

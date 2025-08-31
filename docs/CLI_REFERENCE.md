@@ -9,7 +9,7 @@
 ```bash
 # Build from source
 git clone <repository>
-cd Zero-Latency
+cd docsearch
 cargo build --release
 
 # The CLI binary will be available at:

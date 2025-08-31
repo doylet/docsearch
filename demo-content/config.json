@@ -1,0 +1,29 @@
+{
+  "name": "doc-indexer-demo",
+  "version": "1.0.0",
+  "description": "Demonstration of JSON content processing in the doc-indexer service",
+  "features": {
+    "content_processing": "Extracts key-value pairs from JSON files",
+    "semantic_search": "Enables search across JSON metadata and values",
+    "vector_indexing": "Converts JSON content to searchable embeddings"
+  },
+  "supported_formats": [
+    "JSON",
+    "YAML", 
+    "TOML",
+    "Markdown",
+    "HTML",
+    "Plain Text"
+  ],
+  "configuration": {
+    "max_file_size": "10MB",
+    "timeout_seconds": 300,
+    "embedding_dimension": 384,
+    "vector_backend": "embedded"
+  },
+  "metadata": {
+    "created": "2025-08-31",
+    "purpose": "Content type processing demonstration",
+    "tags": ["demo", "json", "content-processing", "indexing"]
+  }
+}
