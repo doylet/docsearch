@@ -6,11 +6,13 @@
 /// - Result types and error handling
 /// - Service traits and interfaces
 /// - Shared value objects
+pub mod doc_id;
 pub mod error;
 pub mod models;
 pub mod traits;
 pub mod values;
 
+pub use doc_id::DocId;
 pub use error::{Result, ZeroLatencyError};
 
 /// Re-export commonly used types

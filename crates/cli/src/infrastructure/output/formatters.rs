@@ -75,10 +75,10 @@ impl TableFormatter {
                     for (index, result) in response.results.iter().enumerate() {
                         // Format the score to 3 decimal places
                         let score = format!("{:.3}", result.final_score.value());
-                        let source = if !result.document_title.is_empty()
-                            && result.document_title != result.document_path
+                        let source = if !result.title.is_empty()
+                            && result.title != result.document_path
                         {
-                            format!("{} ({})", result.document_title, result.document_path)
+                            format!("{} ({})", result.title, result.document_path)
                         } else {
                             result.document_path.clone()
                         };

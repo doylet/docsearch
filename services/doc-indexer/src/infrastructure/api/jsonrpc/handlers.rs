@@ -371,7 +371,7 @@ pub async fn handle_search_documents(
                                         } else {
                                             None
                                         },
-                                        title: Some(result.document_title),
+                                        title: Some(result.title),
                                         score: result.final_score.value(),
                                         metadata,
                                     }

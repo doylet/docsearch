@@ -852,7 +852,7 @@ impl MultiFactorResultRanker {
         let mut metadata_fields_checked = 0;
 
         // Check document title
-        let title_lower = result.document_title.to_lowercase();
+        let title_lower = result.title.to_lowercase();
         let title_matches = query_terms
             .iter()
             .filter(|term| title_lower.contains(&term.to_lowercase()))

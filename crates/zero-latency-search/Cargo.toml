@@ -5,6 +5,10 @@ edition = "2021"
 description = "Search domain logic for Zero-Latency"
 license = "MIT"
 
+[features]
+default = []
+tantivy = ["dep:tantivy"]
+
 [dependencies]
 zero-latency-core = { path = "../zero-latency-core" }
 zero-latency-vector = { path = "../zero-latency-vector" }
@@ -14,6 +18,11 @@ async-trait = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 uuid = { version = "1.0", features = ["v4"] }
 tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+
+# BM25 full-text search (optional)
+tantivy = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
+tempfile = "3.0"

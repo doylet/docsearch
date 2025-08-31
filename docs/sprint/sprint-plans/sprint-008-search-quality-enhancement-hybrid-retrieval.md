@@ -73,7 +73,10 @@ Comprehensive technical assessment of BM25 (tantivy) integration with existing v
 Create comprehensive evaluation dataset and metrics framework for search quality assessment. Establish baseline measurements and automated evaluation capabilities.
 
 **Acceptance Criteria:**
-- [ ] Small labeled dataset (50-100 queries) with relevance judgments created
+- [ ] **CI gating step** with "fail if NDCG@10 drops >3%" configurable threshold
+- [ ] **Small golden snapshot** to catch regressions in CI pipeline
+- [ ] **Dataset with graded relevance** (0/1/2) for 50-100 labeled queries
+- [ ] **Cost & latency panels** including tokens and rerank time tracking
 - [ ] NDCG@10 calculation implementation completed
 - [ ] Hit@K and precision@K metrics implemented
 - [ ] Baseline performance measurements for current vector-only search
@@ -106,19 +109,34 @@ Create comprehensive evaluation dataset and metrics framework for search quality
 Design and prototype score fusion algorithm for combining BM25 and vector similarity scores with transparency and configurability.
 
 **Acceptance Criteria:**
-- [ ] Score normalization strategy designed and implemented
-- [ ] Fusion algorithm with configurable weights developed
-- [ ] Score breakdown structure (bm25_score, vector_score, fused_score) defined
+- [ ] **Score normalization method specified**: min-max per list OR z-score + clamp to [0,1]
+- [ ] **Fusion formula explicit**: `fused = w_bm25 * bm25_norm + w_vec * vec_norm` with configurable weights
+- [ ] Score breakdown structure includes **raw and normalized scores** for transparency
+- [ ] **Unit tests with known inputs/outputs** for normalization and fusion logic
 - [ ] Performance impact assessment completed
-- [ ] Unit tests for fusion logic implemented
-- [ ] Configuration interface for tuning fusion parameters
+- [ ] Configuration interface for per-collection weight tuning
 - [ ] Documentation for score interpretation and tuning
 
 **Files to Create:**
 - `crates/zero-latency-search/src/fusion/`
 - `crates/zero-latency-search/src/fusion/score_fusion.rs`
 - `crates/zero-latency-search/src/fusion/normalization.rs`
-- `crates/zero-latency-search/src/models.rs` (extend SearchResult)
+- `crates/zero-latency-search/src/models.rs` (extend SearchResult with enhanced structure)
+- `crates/zero-latency-core/src/doc_id.rs` (shared DocId definition)
+
+**Enhanced SearchResult Model:**
+```rust
+pub struct SearchResult {
+    pub doc_id: DocId,
+    pub uri: String,
+    pub title: String,
+    pub snippet: String,
+    pub section_path: Vec<String>,
+    pub scores: Scores,        // raw + normalized + fused
+    pub from_signals: FromSignals,  // {bm25: bool, vector: bool, variants: Vec<usize>}
+    // ... existing fields
+}
+```
 
 **Deliverables:**
 - Score fusion algorithm implementation
@@ -141,11 +159,14 @@ Design and prototype score fusion algorithm for combining BM25 and vector simila
 Integrate tantivy BM25 search engine with existing search architecture, maintaining clean separation of concerns and performance characteristics.
 
 **Acceptance Criteria:**
+- [ ] **Stable DocId definition**: `{collection, external_id, version}` shared across BM25 and vector stores
+- [ ] **Index Sync contract**: dual-write upsert/delete/batch operations with version/seqno logging
+- [ ] **Dual-index reconciliation**: background task comparing counts & sample IDs with drift alerts
+- [ ] **Index sync verified via reconciliation report** showing zero drift over 1k-doc sample
 - [ ] Tantivy dependency added with appropriate feature flags
 - [ ] BM25 index creation pipeline implemented
 - [ ] Document indexing workflow updated for dual indexing
 - [ ] BM25 search interface implementation completed
-- [ ] Index synchronization between vector and BM25 stores
 - [ ] Performance optimization for index operations
 - [ ] Error handling and recovery mechanisms implemented
 
@@ -175,12 +196,15 @@ Integrate tantivy BM25 search engine with existing search architecture, maintain
 Implement unified hybrid search pipeline that combines vector similarity and BM25 results with score fusion and transparent breakdown.
 
 **Acceptance Criteria:**
+- [ ] **Parallel engine execution** with `tokio::try_join!` and per-engine timeouts
+- [ ] **Partial failure handling**: use available engine if one times out, mark `partial=true`
+- [ ] **Enhanced SearchResult model** with score breakdown and provenance tracking
+- [ ] **Score breakdown present in API & docs** with raw/normalized/fused scores
+- [ ] **Per-collection feature flagging & rollout** documentation completed
 - [ ] Hybrid search orchestration pipeline implemented
-- [ ] Parallel execution of vector and BM25 searches
 - [ ] Result fusion with score breakdown completed
 - [ ] Search response format updated with score transparency
 - [ ] Performance optimization to meet ≤350ms P95 target
-- [ ] Error handling for partial search failures
 - [ ] Configuration interface for hybrid search parameters
 
 **Files to Create/Modify:**
@@ -211,12 +235,13 @@ Implement unified hybrid search pipeline that combines vector similarity and BM2
 Extend existing query enhancement pipeline to generate 2-3 query paraphrases for improved recall and semantic coverage.
 
 **Acceptance Criteria:**
+- [ ] **Global MQE latency budget** ≤150ms total with concurrent paraphrase generation
+- [ ] **Paraphrase caching** for 5-15 minutes keyed by `(norm_query, filters)`
+- [ ] **Fallback mechanism** if paraphrase generator errors or times out
 - [ ] Query paraphrase generation algorithm implemented
 - [ ] Integration with existing query enhancement pipeline
 - [ ] Configurable number of paraphrases (2-3 default)
 - [ ] Quality filtering for generated paraphrases
-- [ ] Performance optimization to maintain latency targets
-- [ ] Fallback mechanism if paraphrase generation fails
 - [ ] A/B testing support for paraphrase effectiveness
 
 **Files to Create/Modify:**
@@ -243,13 +268,15 @@ Extend existing query enhancement pipeline to generate 2-3 query paraphrases for
 Implement result deduplication and intelligent merging for multiple query variations to prevent duplicate results and maintain ranking quality.
 
 **Acceptance Criteria:**
+- [ ] **Deduplication stable across doc reorderings** with consistent tie-breaking
+- [ ] **Ties broken by fused score then recency** for deterministic ranking
+- [ ] **Union + dedupe with per-variant provenance** for debugging support
 - [ ] Document-level deduplication algorithm implemented
 - [ ] Score aggregation strategy for duplicate results
 - [ ] Ranking preservation across merged results
 - [ ] Performance optimization for large result sets
 - [ ] Configurable deduplication sensitivity
 - [ ] Metrics tracking for deduplication effectiveness
-- [ ] Integration testing with various query patterns
 
 **Files to Create/Modify:**
 - `crates/zero-latency-search/src/fusion/result_merger.rs`
@@ -277,11 +304,12 @@ Implement result deduplication and intelligent merging for multiple query variat
 Conduct comprehensive evaluation of hybrid search implementation against baseline and quality targets using established metrics framework.
 
 **Acceptance Criteria:**
+- [ ] **A/B testing with statistical significance** using randomization test or similar method
+- [ ] **Report includes per-query diffs and aggregated deltas** with confidence intervals
 - [ ] NDCG@10 improvement ≥15% vs vector-only baseline validated
 - [ ] Hit@K and precision@K improvements measured and documented
 - [ ] Query recall improvement ≥20% with multi-query expansion validated
 - [ ] Search relevance quality assessment completed
-- [ ] A/B testing results with statistical significance
 - [ ] Performance regression testing completed
 - [ ] User experience impact assessment documented
 
@@ -308,13 +336,16 @@ Conduct comprehensive evaluation of hybrid search implementation against baselin
 Implement performance optimizations and result caching to ensure latency targets are maintained with enhanced search capabilities.
 
 **Acceptance Criteria:**
+- [ ] **Cache key includes flags + collection version** for proper invalidation
+- [ ] **≥40% cache hit-rate on mixed workload** benchmark achieved
+- [ ] **Collection version-based invalidation** prevents phantom cache wins
+- [ ] **Small rerank cache** for `(doc_id, query_hash) -> rerank_score` tail latency reduction
 - [ ] P95 latency ≤350ms for hybrid search achieved
 - [ ] Query result caching with TTL implemented
 - [ ] Vector store connection pooling optimized
 - [ ] BM25 index warming strategies implemented
 - [ ] Memory usage optimization for hybrid operations
 - [ ] Performance monitoring and alerting setup
-- [ ] Capacity planning documentation updated
 
 **Files to Create/Modify:**
 - `crates/zero-latency-search/src/caching/`
@@ -390,7 +421,7 @@ Implement performance optimizations and result caching to ensure latency targets
 
 ### **Feature Flags**
 - `hybrid_search`: Enable hybrid BM25 + vector search
-- `multi_query_expansion`: Enable query paraphrase generation
+- `multi_query_expansion`: Enable query paraphrase generation  
 - `result_caching`: Enable query result caching
 - `evaluation_metrics`: Enable comprehensive search quality metrics
 
@@ -402,22 +433,41 @@ search:
     bm25_weight: 0.3
     vector_weight: 0.7
     fusion_method: "normalized_sum"
+    normalization: "min_max"  # or "z_score"
+    engine_timeout_ms: 200
   
   multi_query:
     enabled: true
     max_paraphrases: 3
     quality_threshold: 0.7
+    global_timeout_ms: 150
+    cache_ttl_minutes: 10
   
   caching:
     enabled: true
     ttl_seconds: 300
     max_entries: 10000
+    include_collection_version: true
 
   evaluation:
     enabled: true
     dataset_path: "test/evaluation/labeled_dataset.json"
     metrics: ["ndcg@10", "hit@5", "precision@10"]
+    ci_regression_threshold: 0.03
 ```
+
+---
+
+## 🎯 Quick Wins (This Week)
+
+Based on consultant feedback, implement these foundational changes immediately:
+
+### **Week 0: Immediate Implementation (3 days)**
+1. **Define DocId + extend SearchResult** with score breakdown & provenance
+2. **Implement parallel vector+BM25 execution** with timeout guards (stub BM25 initially)  
+3. **Ship evaluation harness + CI gate** (NDCG@10 baseline, hybrid stubbed)
+
+These changes keep the sprint on-track while making hybrid rollout safer, explainable, and easier to iterate.
 
 ---
 

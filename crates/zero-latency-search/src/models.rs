@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use tracing;
-use zero_latency_core::{values::*, DateTime, Utc, Uuid};
+use zero_latency_core::{values::*, DateTime, DocId, Utc, Uuid};
+
+// Re-export fusion types for convenience
+pub use crate::fusion::{FromSignals, ScoreBreakdown};
 
 /// Search request with all parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,18 +84,101 @@ impl Default for SearchOptions {
 /// Individual search result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
+    /// Stable document identifier
+    pub doc_id: DocId,
+    /// Legacy chunk ID for backward compatibility
     pub chunk_id: Uuid,
+    /// Legacy document ID for backward compatibility  
     pub document_id: Uuid,
-    pub document_title: String,
+    /// URI/path to the document
+    pub uri: String,
+    /// Document title
+    pub title: String,
+    /// Document path (legacy)
     pub document_path: String,
+    /// Full content of the chunk/document
     pub content: String,
+    /// Extracted snippet for display
     pub snippet: Option<String>,
+    /// Section path breadcrumb (e.g., ["Chapter 1", "Section 1.1"])
+    pub section_path: Vec<String>,
+    /// Legacy heading path for backward compatibility
     pub heading_path: Vec<String>,
+    /// Score breakdown with raw, normalized, and fused scores
+    pub scores: ScoreBreakdown,
+    /// Legacy final score for backward compatibility
     pub final_score: Score,
+    /// Which engines and query variants found this result
+    pub from_signals: FromSignals,
+    /// Legacy ranking signals for backward compatibility
     pub ranking_signals: Option<RankingSignals>,
+    /// URL for accessing the document
     pub url: Option<String>,
+    /// Collection this document belongs to
     pub collection: Option<String>,
+    /// Custom metadata
     pub custom_metadata: std::collections::HashMap<String, String>,
+}
+
+impl SearchResult {
+    /// Create a new search result with enhanced scoring
+    pub fn new(
+        doc_id: DocId,
+        uri: String,
+        title: String,
+        content: String,
+        scores: ScoreBreakdown,
+        from_signals: FromSignals,
+    ) -> Self {
+        let chunk_id = Uuid::new_v4();
+        let document_id = Uuid::new_v4(); // Legacy compatibility
+        let final_score = Score::new(scores.fused).unwrap_or_else(|_| Score::zero());
+        
+        Self {
+            doc_id,
+            chunk_id,
+            document_id,
+            uri: uri.clone(),
+            title: title.clone(),
+            document_path: uri, // Legacy compatibility
+            content,
+            snippet: None,
+            section_path: Vec::new(),
+            heading_path: Vec::new(), // Legacy compatibility
+            scores,
+            final_score,
+            from_signals,
+            ranking_signals: None,
+            url: None,
+            collection: None,
+            custom_metadata: HashMap::new(),
+        }
+    }
+    
+    /// Set the snippet for this result
+    pub fn with_snippet(mut self, snippet: String) -> Self {
+        self.snippet = Some(snippet);
+        self
+    }
+    
+    /// Set the section path
+    pub fn with_section_path(mut self, section_path: Vec<String>) -> Self {
+        self.section_path = section_path.clone();
+        self.heading_path = section_path; // Legacy compatibility
+        self
+    }
+    
+    /// Set the collection
+    pub fn with_collection(mut self, collection: String) -> Self {
+        self.collection = Some(collection);
+        self
+    }
+    
+    /// Set custom metadata
+    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.custom_metadata = metadata;
+        self
+    }
 }
 
 /// Ranking signals for transparency
