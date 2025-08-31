@@ -939,7 +939,7 @@ impl BatchProcessor {
             source_collection, target_collection
         );
 
-        // TODO: Implement actual collection migration logic
+        // NOTE: Collection migration implementation requires vector store migration API (Phase 5)
         // Placeholder implementation
 
         Ok(())

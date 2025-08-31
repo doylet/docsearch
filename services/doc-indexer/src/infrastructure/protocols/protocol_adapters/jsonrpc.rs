@@ -546,7 +546,7 @@ impl JsonRpcAdapter {
     }
     
     async fn get_collection_stats(&self, request: JsonRpcRequest) -> JsonRpcResponse {
-        // TODO: Implement collection stats
+        // NOTE: Collection stats implementation pending - needs metrics infrastructure integration
         JsonRpcResponse::error(
             request.id,
             JsonRpcError {

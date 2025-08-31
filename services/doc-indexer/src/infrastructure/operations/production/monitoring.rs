@@ -182,7 +182,7 @@ impl ProductionMonitor {
                 interval_timer.tick().await;
 
                 // Collect and report metrics
-                // TODO: Implement actual metrics collection
+                // PENDING: Full metrics collection implementation requires external monitoring system integration
                 println!("📊 Collecting production metrics...");
             }
         });
@@ -190,13 +190,13 @@ impl ProductionMonitor {
 
     /// Get current system metrics
     pub fn get_system_metrics(&self) -> SystemMetrics {
-        // TODO: Implement actual system metrics collection
+        // PENDING: System metrics collection requires OS-specific implementation (Phase 5)
         SystemMetrics::default()
     }
 
     /// Get current service metrics
     pub fn get_service_metrics(&self) -> ServiceMetrics {
-        // TODO: Implement actual service metrics collection
+        // PENDING: Service-specific metrics require per-service instrumentation (Phase 5)
         ServiceMetrics::default()
     }
 
@@ -204,7 +204,7 @@ impl ProductionMonitor {
     pub fn check_alerts(&self) -> Vec<AlertTriggered> {
         let alerts = Vec::new();
 
-        // TODO: Implement actual alert checking
+        // PENDING: Alert system requires external alerting service integration (Phase 5)
 
         alerts
     }

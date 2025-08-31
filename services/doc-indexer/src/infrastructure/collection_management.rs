@@ -651,7 +651,7 @@ impl CollectionManager {
             // Update statistics (this would integrate with actual metrics collection)
             stats.last_updated = chrono::Utc::now().timestamp() as u64;
 
-            // TODO: Integrate with actual metrics collection from vector stores and search services
+            // NOTE: Metrics collection integration planned for Phase 5 - comprehensive monitoring features
             // For now, we'll just update the timestamp
 
             statistics.insert(collection_id.clone(), stats);

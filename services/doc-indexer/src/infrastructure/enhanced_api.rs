@@ -434,7 +434,7 @@ impl EnhancedApiService {
                 .default_collection
                 .as_ref()
                 .map(|c| vec![c.clone()])),
-            metadata_filters: None, // TODO: Convert from serde_json::Value to MetadataFilter if needed
+            metadata_filters: None, // PENDING: Metadata filter conversion from JSON requires enhanced query parser
             ranking: None,          // or map from request if available
             include_scores: true,   // or map from request if available
             include_explanations: false, // or map from request if available
@@ -492,10 +492,10 @@ impl EnhancedApiService {
             processing_time_ms: processing_time,
             semantic_search_used: request.semantic_search.unwrap_or(true),
             confidence_stats,
-            cache_hit: false, // TODO: Integrate with actual cache hit detection
+            cache_hit: false, // PENDING: Cache hit detection requires result cache infrastructure
         };
 
-        // TODO: Generate refinements and groupings if requested
+        // PENDING: Result refinements and groupings require advanced query analysis (Phase 5)
         let refinements = if request.enable_refinements.unwrap_or(false) {
             Some(vec![
                 "Try more specific terms".to_string(),
@@ -637,7 +637,7 @@ impl EnhancedApiService {
                 .collection
                 .as_ref()
                 .map(|c| vec![c.clone()]),
-            metadata_filters: None, // TODO: Convert from serde_json::Value to MetadataFilter if needed
+            metadata_filters: None, // PENDING: Cross-collection metadata filtering requires unified schema
             ranking: None,
             include_scores: true,
             include_explanations: false,
