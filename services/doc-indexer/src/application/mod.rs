@@ -9,7 +9,6 @@ pub mod services;
 
 // SOLID-compliant modules (Phase 2)
 pub mod adapters;
-pub mod indexing_service;
 pub mod indexing_strategies;
 pub mod interfaces;
 
