@@ -605,7 +605,7 @@ impl EnhancedSearchService {
     fn calculate_metadata_relevance(&self, result: &SearchResult, query: &str) -> f32 {
         // Use document_title and content for a simple relevance heuristic
         let query_lower = query.to_lowercase();
-        if result.document_title.to_lowercase().contains(&query_lower)
+        if result.title.to_lowercase().contains(&query_lower)
             || result.content.to_lowercase().contains(&query_lower)
         {
             0.8

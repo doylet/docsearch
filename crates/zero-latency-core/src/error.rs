@@ -87,6 +87,19 @@ impl ZeroLatencyError {
             message: message.into(),
         }
     }
+
+    pub fn search(message: impl Into<String>) -> Self {
+        Self::ExternalService {
+            service: "search".to_string(),
+            message: message.into(),
+        }
+    }
+
+    pub fn io(message: impl Into<String>) -> Self {
+        Self::Network {
+            message: message.into(),
+        }
+    }
 }
 
 /// Common Result type used across Zero-Latency services
