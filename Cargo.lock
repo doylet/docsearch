@@ -3608,6 +3608,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "search-filtering-performance"
+version = "0.1.0"
+dependencies = [
+ "fastrand",
+ "reqwest 0.11.27",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+]
+
+[[package]]
 name = "search-quality-evaluation"
 version = "0.1.0"
 dependencies = [
@@ -5513,7 +5524,12 @@ name = "zero-latency-observability"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
+ "futures",
+ "libc",
+ "rand 0.8.5",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "zero-latency-core",
