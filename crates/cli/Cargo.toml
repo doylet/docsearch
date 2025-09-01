@@ -42,7 +42,7 @@ thiserror = "1.0"
 # Output formatting
 colored = "2.0"
 indicatif = "0.17"
-comfy-table = "7.0"
+comfy-table = "6.2"
 
 # Configuration
 dirs = "5.0"
