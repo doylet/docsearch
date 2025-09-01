@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::models::SearchResult;
 use crate::fusion::deduplication::{ResultDeduplicator, DeduplicationConfig, DuplicationStrategy, DeduplicationMetrics};
-use zero_latency_core::error::ZeroLatencyError;
+use zero_latency_core::{error::ZeroLatencyError, DocId};
 
 /// Configuration for result merging behavior
 #[derive(Debug, Clone)]
@@ -151,7 +151,7 @@ impl ResultMerger {
             match b.scores.fused.partial_cmp(&a.scores.fused) {
                 Some(std::cmp::Ordering::Equal) | None => {
                     // Tie-break by document ID for determinism
-                    a.doc_id.cmp(&b.doc_id)
+                    a.doc_id.to_index_key().cmp(&b.doc_id.to_index_key())
                 }
                 Some(other) => other,
             }

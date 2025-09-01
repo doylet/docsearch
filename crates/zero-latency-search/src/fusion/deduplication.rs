@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
 use crate::models::SearchResult;
-use zero_latency_core::error::ZeroLatencyError;
+use zero_latency_core::{error::ZeroLatencyError, DocId};
 
 /// Configuration for result deduplication behavior
 #[derive(Debug, Clone)]
@@ -144,7 +144,7 @@ impl ResultDeduplicator {
             match b.scores.fused.partial_cmp(&a.scores.fused) {
                 Some(Ordering::Equal) | None => {
                     // Secondary sort: document ID for determinism
-                    a.doc_id.cmp(&b.doc_id)
+                    a.doc_id.to_index_key().cmp(&b.doc_id.to_index_key())
                 }
                 Some(other) => other,
             }
