@@ -1,0 +1,80 @@
+# Development Configuration for docsearch
+# Environment: Development
+# Updated: September 1, 2025
+
+[server]
+host = "127.0.0.1"
+port = 8080
+json_rpc_port = 8081
+max_connections = 100
+request_timeout_ms = 10000
+shutdown_timeout_ms = 5000
+
+[logging]
+level = "debug"
+format = "pretty"
+file_path = "./logs/docsearch-dev.log"
+max_file_size_mb = 50
+max_files = 5
+enable_correlation_ids = false
+
+[search]
+# Development search configuration
+vector_weight = 0.7
+bm25_weight = 0.3
+max_results = 20
+default_limit = 10
+enable_query_enhancement = true
+enable_caching = true
+
+[cache]
+# Smaller caches for development
+query_cache_size = 1000
+query_cache_ttl_seconds = 600
+embedding_cache_size = 5000
+embedding_cache_ttl_seconds = 1200
+bm25_cache_size = 2000
+bm25_cache_ttl_seconds = 600
+fusion_cache_size = 1000
+fusion_cache_ttl_seconds = 300
+
+[performance]
+# Relaxed performance thresholds for development
+max_query_latency_ms = 1000
+max_reranking_latency_ms = 2000
+target_cache_hit_rate = 0.70
+max_memory_usage_mb = 1024
+gc_threshold_mb = 768
+
+[observability]
+# Development monitoring
+enable_metrics = true
+metrics_port = 9091
+enable_tracing = true
+trace_sample_rate = 1.0  # Sample all requests in dev
+health_check_interval_seconds = 60
+
+[storage]
+# Local development storage
+data_directory = "./data"
+backup_directory = "./data/backups"
+enable_auto_backup = false
+backup_interval_hours = 24
+max_backup_files = 5
+
+[security]
+# Relaxed security for development
+enable_cors = true
+cors_origins = ["*"]
+enable_rate_limiting = false
+rate_limit_requests_per_minute = 10000
+enable_request_logging = true
+max_request_size_mb = 50
+
+[reranking]
+# Cross-encoder reranking (development)
+enable_reranking = false  # Will enable when ZL-009-004 is complete
+model_path = "./models/ms-marco-MiniLM-L-6-v2.onnx"
+rerank_top_k = 50
+batch_size = 16
+max_concurrent_requests = 2
