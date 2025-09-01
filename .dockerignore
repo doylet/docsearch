@@ -1,0 +1,72 @@
+# Docker ignore file for docsearch
+# Exclude unnecessary files from Docker build context
+
+# Git
+.git/
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+test/results/
+test/coverage/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Development data
+data/
+backups/
+
+# Cache directories
+.cache/
+node_modules/
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+
+# Coverage reports
+coverage/
+*.profraw
+
+# Benchmark results
+bench/results/
+
+# Local development scripts
+scripts/local-*
+scripts/dev-*
+
+# Personal notes
+TODO.md
+NOTES.md
+scratch/

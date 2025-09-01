@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docsearch
+  namespace: default
+  labels:
+    app: docsearch
+    component: api
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: docsearch
+      component: api
+  template:
+    metadata:
+      labels:
+        app: docsearch
+        component: api
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: docsearch
+        image: docsearch:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: indexer
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: DOC_INDEXER_PORT
+          value: "8081"
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: docsearch-config
+              key: LOG_LEVEL
+        - name: RUST_LOG
+          valueFrom:
+            configMapKeyRef:
+              name: docsearch-config
+              key: RUST_LOG
+        - name: WORKER_THREADS
+          valueFrom:
+            configMapKeyRef:
+              name: docsearch-config
+              key: WORKER_THREADS
+        - name: BLOCKING_THREADS
+          valueFrom:
+            configMapKeyRef:
+              name: docsearch-config
+              key: BLOCKING_THREADS
+        - name: CACHE_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: docsearch-config
+              key: CACHE_SIZE
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: docsearch-secrets
+              key: jwt-secret
+        - name: API_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: docsearch-secrets
+              key: api-secret-key
+        # Optional secrets - uncomment as needed
+        # - name: VECTOR_DB_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: docsearch-secrets
+        #       key: vector-db-api-key
+        # - name: EMBEDDING_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: docsearch-secrets
+        #       key: embedding-api-key
+        # - name: RERANKING_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: docsearch-secrets
+        #       key: reranking-api-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-run
+          mountPath: /var/run
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: var-run
+        emptyDir: {}
+      terminationGracePeriodSeconds: 30
+      restartPolicy: Always

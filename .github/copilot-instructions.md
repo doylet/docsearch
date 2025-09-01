@@ -1,0 +1,1 @@
+/Users/thomasdoyle/Daintree/projects/scripts/git/copilot-instructions.md
