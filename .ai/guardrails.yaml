@@ -12,7 +12,7 @@ go:
   test: "go test ./..."
 rust:
   lint: cargo clippy --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --no-deps || echo 'clippy not installed'
-  test: cargo test --quiet
+  test: cargo test --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --quiet
 java:
   test: "mvn -q -DskipTests=false test || ./gradlew test"
 dotnet:

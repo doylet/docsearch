@@ -120,4 +120,29 @@ artifacts:
   - name: memory
     path: .github/instructions/memory.instruction.md
     type: memory_and_policy
-    format: "Markdown with distinct ##
+    format: "Markdown with distinct '## Policies' and '## Heuristics' sections."
+    purpose: "Single source for guiding agent behavior. Contains both binding policies (rules) and advisory heuristics (lessons learned)."
+    update_policy:
+      - who: "agent or human reviewer"
+      - when: "When a binding policy is set or a reusable pattern is discovered."
+      - structure: "New entries must be placed under the correct heading (`## Policies` or `## Heuristics`) with a clear rationale."
+
+  - name: envelope_local
+    path: .ai/envelope.json
+    type: plan_scope
+    format: "JSON matching ai/schemas/copilot_envelope.schema.json"
+    update_policy:
+      - who: "agent"
+      - when: "Before first edit; whenever adding/removing touched files; before Verify."
+      - structure: "Fill discovery/plan/changes/tests/validation/limits with explicit file paths or folder prefixes."
+
+  - name: agent_work
+    path: docs/specs/agent_work/
+    type: workspace
+    format: markdown / txt / generated artifacts
+    purpose: "Temporary and final artifacts produced during agent runs (summaries, intermediate outputs)."
+    filename_convention: "summary_YYYY-MM-DD_HH-MM-SS.md"
+    update_policy:
+      - who: "agent"
+      - when: "during execution"
+```
