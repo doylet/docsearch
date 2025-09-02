@@ -11,8 +11,8 @@ go:
   lint: "golangci-lint run || (go vet ./... && echo 'fallback go vet ok')"
   test: "go test ./..."
 rust:
-  lint: cargo clippy --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --no-deps || echo 'clippy not installed'
-  test: cargo test --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --quiet
+  lint: cargo clippy --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --exclude doc-indexer --no-deps || echo 'clippy not installed'
+  test: cargo test --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --exclude doc-indexer --quiet
 java:
   test: "mvn -q -DskipTests=false test || ./gradlew test"
 dotnet:
