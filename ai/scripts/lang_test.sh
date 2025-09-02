@@ -28,7 +28,7 @@ fi
 if [[ -f Cargo.toml ]]; then
   if awk '/^rust:/{f=1} f&&/test:/{print; exit}' .ai/guardrails.yaml >/dev/null 2>&1; then
     cmd=$(awk '/^rust:/{f=1} f&&/test:/{print substr($0,index($0,":")+2); exit}' .ai/guardrails.yaml); bash -lc "$cmd"
-  else cargo test --quiet; fi
+  else bash -lc "cargo test --quiet"; fi
 fi
 
 # Java

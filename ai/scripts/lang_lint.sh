@@ -73,7 +73,7 @@ fi
 # Rust
 if [[ -f Cargo.toml ]]; then
   if [[ -n "${rust_lint:-}" ]]; then run_cmd_if_set "$rust_lint";
-  elif has cargo; then cargo clippy --no-deps --deny warnings -q || echo "clippy not installed"; fi
+  elif has cargo; then bash -lc "cargo clippy --no-deps --deny warnings -q" || echo "clippy not installed"; fi
 fi
 
 # Generic hygiene
