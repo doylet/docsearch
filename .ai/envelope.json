@@ -1,18 +1,26 @@
 {
   "discovery": [
     { "path": "ai/scripts/", "why": "guardrail hook scripts" },
-    { "path": ".ai/", "why": "lint/test config" }
+    { "path": ".ai/", "why": "lint/test config" },
+    { "path": "crates/", "why": "rust source fixes for clippy warnings" },
+    { "path": "test/performance/", "why": "performance test clippy fixes" }
   ],
   "assumptions": [],
-  "plan": ["Tweak rust lint executor + guardrails config"],
+  "plan": ["Tweak rust lint executor + guardrails config", "Fix clippy warnings in source"],
   "changes": [
     { "path": "ai/scripts/lang_lint.sh", "patch": "" },
-    { "path": ".ai/guardrails.yaml", "patch": "" }
+    { "path": ".ai/guardrails.yaml", "patch": "" },
+    { "path": "crates/zero-latency-api/build.rs", "patch": "" },
+    { "path": "crates/zero-latency-config/src/validation.rs", "patch": "" },
+    { "path": "crates/zero-latency-contracts/src/api.rs", "patch": "" },
+    { "path": "crates/zero-latency-contracts/src/types.rs", "patch": "" },
+    { "path": "test/performance/src/memory_profiler.rs", "patch": "" },
+    { "path": "test/performance/src/sprint_009_benchmarks.rs", "patch": "" }
   ],
   "tests": [],
   "validation": { "commands": [], "results": [] },
-  "limits": { "files_touched": 4, "workflow": "Debug" },
-  "rollback": ["git checkout -- ai/scripts/lang_lint.sh .ai/guardrails.yaml"],
+  "limits": { "files_touched": 10, "workflow": "Debug" },
+  "rollback": ["git checkout -- ai/scripts/lang_lint.sh .ai/guardrails.yaml crates/ test/performance/"],
   "question": null,
   "status": "READY_FOR_REVIEW"
 }
