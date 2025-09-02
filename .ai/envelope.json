@@ -4,10 +4,11 @@
     { "path": ".ai/", "why": "lint/test config" },
     { "path": "crates/", "why": "rust source fixes for clippy warnings" },
     { "path": "test/performance/", "why": "performance test clippy fixes" },
-    { "path": ".github/chatmodes/", "why": "project chatmode documentation" }
+    { "path": ".github/chatmodes/", "why": "project chatmode documentation" },
+    { "path": "services/doc-indexer/tests/", "why": "test compilation fixes" }
   ],
   "assumptions": [],
-  "plan": ["Tweak rust lint executor + guardrails config", "Fix clippy warnings in source"],
+  "plan": ["Tweak rust lint executor + guardrails config", "Fix clippy warnings in source", "Fix test compilation errors"],
   "changes": [
     { "path": "ai/scripts/lang_lint.sh", "patch": "" },
     { "path": "ai/scripts/lang_test.sh", "patch": "" },
@@ -20,12 +21,14 @@
     { "path": "crates/zero-latency-search/src/evaluation/metrics.rs", "patch": "" },
     { "path": "test/performance/src/memory_profiler.rs", "patch": "" },
     { "path": "test/performance/src/sprint_009_benchmarks.rs", "patch": "" },
-    { "path": ".github/chatmodes/blueprint-mode-mod.chatmode.md", "patch": "" }
+    { "path": ".github/chatmodes/blueprint-mode-mod.chatmode.md", "patch": "" },
+    { "path": "services/doc-indexer/tests/smoke_cli_old.rs", "patch": "" },
+    { "path": "services/doc-indexer/tests/test_search_filtering_integration.rs", "patch": "" }
   ],
   "tests": [],
   "validation": { "commands": [], "results": [] },
-  "limits": { "files_touched": 15, "workflow": "Debug" },
-  "rollback": ["git checkout -- ai/scripts/ .ai/guardrails.yaml crates/ test/performance/ .github/chatmodes/"],
+  "limits": { "files_touched": 17, "workflow": "Debug" },
+  "rollback": ["git checkout -- ai/scripts/ .ai/guardrails.yaml crates/ test/performance/ .github/chatmodes/ services/doc-indexer/tests/"],
   "question": null,
   "status": "READY_FOR_REVIEW"
 }

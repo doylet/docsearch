@@ -2,6 +2,7 @@ mod test_utils;
 
 use std::process::{Command, Stdio};
 use std::time::Duration;
+use std::thread;
 use tokio::runtime::Runtime;
 use reqwest::Client;
 use serde_json::json;
@@ -61,7 +62,8 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .expect("Failed to parse search response");
     TestAssertions::assert_search_results_not_empty(&json, "Advanced query search");
 
-    let results = json["results"].as_array().unwrap_or(&vec![]);
+    let default_results = vec![];
+    let results = json["results"].as_array().unwrap_or(&default_results);
     let found = results.iter().any(|res| {
         res.get("content").map_or(false, |c| {
             c.as_str()
@@ -78,7 +80,6 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
     let _ = child.kill();
     let _ = child.wait();
 }
-// Smoke tests for Zero-Latency doc-indexer core functionality
 // These tests validate CLI search, index, and reindex commands at a high level
 
 #[test]
