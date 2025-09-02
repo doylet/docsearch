@@ -11,7 +11,7 @@ use test_utils::{TestUtils, TestAssertions};
 fn smoke_test_advanced_query_enhancement_and_ranking() {
     let test_utils = TestUtils::new();
     let config = test_utils.create_test_config();
-    
+
     let mut child = Command::new(&config.binary_path)
         .args([
             "--docs-path",
@@ -55,11 +55,13 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .block_on(client.post(&config.search_url()).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     TestAssertions::assert_success_response(&resp, "Search");
-    
+
     let json: serde_json::Value = rt
         .block_on(resp.json())
         .expect("Failed to parse search response");
     TestAssertions::assert_search_results_not_empty(&json, "Advanced query search");
+
+    let results = json["results"].as_array().unwrap_or(&vec![]);
     let found = results.iter().any(|res| {
         res.get("content").map_or(false, |c| {
             c.as_str()
@@ -78,16 +80,6 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
 }
 // Smoke tests for Zero-Latency doc-indexer core functionality
 // These tests validate CLI search, index, and reindex commands at a high level
-
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::Duration;
-
-use reqwest::Client;
-use serde_json::json;
-use std::io::Read;
-use std::path::PathBuf;
-use tokio::runtime::Runtime;
 
 #[test]
 fn smoke_test_end_to_end_index_and_search() {
