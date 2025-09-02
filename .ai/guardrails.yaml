@@ -2,7 +2,7 @@
 python:
   lint: "ruff check . || echo 'ruff not available'"
   type: "mypy . || echo 'mypy not available'"
-  test: ""
+  test: "echo 'Python tests disabled for this Rust project'"
 node:
   lint: "npx -y eslint . || npx -y @biomejs/biome check ."
   type: "npx -y tsc --noEmit"
