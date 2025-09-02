@@ -41,3 +41,4 @@ DerivedData/
 # Tooling caches
 .vscode/
 .idea/
+.ai/envelope.json
