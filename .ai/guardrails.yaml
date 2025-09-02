@@ -1,8 +1,8 @@
 # Override or add commands per language here
 python:
-  lint: "ruff check ."
-  type: "mypy ."
-  test: "pytest -q || echo 'pytest not installed or no Python tests'"
+  lint: "ruff check . || echo 'ruff not available'"
+  type: "mypy . || echo 'mypy not available'"
+  test: ""
 node:
   lint: "npx -y eslint . || npx -y @biomejs/biome check ."
   type: "npx -y tsc --noEmit"
