@@ -1,13 +1,18 @@
 {
-  "discovery": [],
+  "discovery": [
+    { "path": "ai/scripts/", "why": "guardrail hook scripts" },
+    { "path": ".ai/", "why": "lint/test config" }
+  ],
   "assumptions": [],
-  "plan": [],
-  "changes": [],
+  "plan": ["Tweak rust lint executor + guardrails config"],
+  "changes": [
+    { "path": "ai/scripts/lang_lint.sh", "patch": "" },
+    { "path": ".ai/guardrails.yaml", "patch": "" }
+  ],
   "tests": [],
   "validation": { "commands": [], "results": [] },
-  "limits": { "files_touched": 5, "workflow": "Main" },
-  "risks": [],
-  "rollback": [],
+  "limits": { "files_touched": 4, "workflow": "Debug" },
+  "rollback": ["git checkout -- ai/scripts/lang_lint.sh .ai/guardrails.yaml"],
   "question": null,
   "status": "READY_FOR_REVIEW"
 }
