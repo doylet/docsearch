@@ -3,24 +3,29 @@
     { "path": "ai/scripts/", "why": "guardrail hook scripts" },
     { "path": ".ai/", "why": "lint/test config" },
     { "path": "crates/", "why": "rust source fixes for clippy warnings" },
-    { "path": "test/performance/", "why": "performance test clippy fixes" }
+    { "path": "test/performance/", "why": "performance test clippy fixes" },
+    { "path": ".github/chatmodes/", "why": "project chatmode documentation" }
   ],
   "assumptions": [],
   "plan": ["Tweak rust lint executor + guardrails config", "Fix clippy warnings in source"],
   "changes": [
     { "path": "ai/scripts/lang_lint.sh", "patch": "" },
+    { "path": "ai/scripts/lang_test.sh", "patch": "" },
     { "path": ".ai/guardrails.yaml", "patch": "" },
     { "path": "crates/zero-latency-api/build.rs", "patch": "" },
     { "path": "crates/zero-latency-config/src/validation.rs", "patch": "" },
+    { "path": "crates/zero-latency-config/src/loader.rs", "patch": "" },
     { "path": "crates/zero-latency-contracts/src/api.rs", "patch": "" },
     { "path": "crates/zero-latency-contracts/src/types.rs", "patch": "" },
+    { "path": "crates/zero-latency-search/src/evaluation/metrics.rs", "patch": "" },
     { "path": "test/performance/src/memory_profiler.rs", "patch": "" },
-    { "path": "test/performance/src/sprint_009_benchmarks.rs", "patch": "" }
+    { "path": "test/performance/src/sprint_009_benchmarks.rs", "patch": "" },
+    { "path": ".github/chatmodes/blueprint-mode-mod.chatmode.md", "patch": "" }
   ],
   "tests": [],
   "validation": { "commands": [], "results": [] },
-  "limits": { "files_touched": 10, "workflow": "Debug" },
-  "rollback": ["git checkout -- ai/scripts/lang_lint.sh .ai/guardrails.yaml crates/ test/performance/"],
+  "limits": { "files_touched": 15, "workflow": "Debug" },
+  "rollback": ["git checkout -- ai/scripts/ .ai/guardrails.yaml crates/ test/performance/ .github/chatmodes/"],
   "question": null,
   "status": "READY_FOR_REVIEW"
 }
