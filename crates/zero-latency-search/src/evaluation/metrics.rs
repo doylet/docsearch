@@ -20,7 +20,7 @@ pub struct QueryMetrics {
     pub hit_at_k: HashMap<usize, f64>,
     /// Precision at K
     pub precision_at_k: HashMap<usize, f64>,
-    /// Recall at K  
+    /// Recall at K
     pub recall_at_k: HashMap<usize, f64>,
     /// Mean Reciprocal Rank
     pub mrr: f64,
@@ -82,7 +82,7 @@ impl MetricsCalculator {
     pub fn new(k_values: Vec<usize>) -> Self {
         Self { k_values }
     }
-    
+
     /// Calculate NDCG@K for a single query
     pub fn calculate_ndcg_at_k(
         &self,
@@ -93,9 +93,9 @@ impl MetricsCalculator {
         if results.is_empty() || ground_truth.is_empty() {
             return 0.0;
         }
-        
+
         let k = k.min(results.len()).min(ground_truth.len());
-        
+
         // Calculate DCG@K
         let mut dcg = 0.0;
         for i in 0..k {
@@ -106,11 +106,11 @@ impl MetricsCalculator {
                 dcg += relevance / (i as f64 + 1.0).log2();
             }
         }
-        
+
         // Calculate IDCG@K (perfect ranking)
         let mut sorted_relevance: Vec<f64> = ground_truth.iter().map(|&r| f64::from(r)).collect();
         sorted_relevance.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        
+
         let mut idcg = 0.0;
         for i in 0..k.min(sorted_relevance.len()) {
             let relevance = sorted_relevance[i];
@@ -120,14 +120,14 @@ impl MetricsCalculator {
                 idcg += relevance / (i as f64 + 1.0).log2();
             }
         }
-        
+
         if idcg == 0.0 {
             0.0
         } else {
             dcg / idcg
         }
     }
-    
+
     /// Calculate Hit@K - did we find any relevant document in top K?
     pub fn calculate_hit_at_k(
         &self,
@@ -137,9 +137,9 @@ impl MetricsCalculator {
         if ground_truth.is_empty() {
             return 0.0;
         }
-        
+
         let k = k.min(ground_truth.len());
-        
+
         for i in 0..k {
             if ground_truth[i] != RelevanceRating::NotRelevant {
                 return 1.0;
@@ -147,7 +147,7 @@ impl MetricsCalculator {
         }
         0.0
     }
-    
+
     /// Calculate Precision@K
     pub fn calculate_precision_at_k(
         &self,
@@ -157,16 +157,16 @@ impl MetricsCalculator {
         if ground_truth.is_empty() {
             return 0.0;
         }
-        
+
         let k = k.min(ground_truth.len());
         let relevant_count = ground_truth[0..k]
             .iter()
             .filter(|&&rating| rating != RelevanceRating::NotRelevant)
             .count();
-        
+
         relevant_count as f64 / k as f64
     }
-    
+
     /// Calculate Recall@K
     pub fn calculate_recall_at_k(
         &self,
@@ -177,16 +177,16 @@ impl MetricsCalculator {
         if total_relevant == 0 {
             return 0.0;
         }
-        
+
         let k = k.min(ground_truth.len());
         let relevant_found = ground_truth[0..k]
             .iter()
             .filter(|&&rating| rating != RelevanceRating::NotRelevant)
             .count();
-        
+
         relevant_found as f64 / total_relevant as f64
     }
-    
+
     /// Calculate Mean Reciprocal Rank
     pub fn calculate_mrr(&self, ground_truth: &[RelevanceRating]) -> f64 {
         for (i, &rating) in ground_truth.iter().enumerate() {
@@ -196,21 +196,21 @@ impl MetricsCalculator {
         }
         0.0
     }
-    
+
     /// Calculate Average Precision
     pub fn calculate_average_precision(&self, ground_truth: &[RelevanceRating]) -> f64 {
         let total_relevant = ground_truth
             .iter()
             .filter(|&&rating| rating != RelevanceRating::NotRelevant)
             .count();
-        
+
         if total_relevant == 0 {
             return 0.0;
         }
-        
+
         let mut ap = 0.0;
         let mut relevant_found = 0;
-        
+
         for (i, &rating) in ground_truth.iter().enumerate() {
             if rating != RelevanceRating::NotRelevant {
                 relevant_found += 1;
@@ -218,10 +218,10 @@ impl MetricsCalculator {
                 ap += precision_at_i;
             }
         }
-        
+
         ap / total_relevant as f64
     }
-    
+
     /// Calculate metrics for a single query
     pub fn calculate_query_metrics(
         &self,
@@ -230,13 +230,13 @@ impl MetricsCalculator {
         dataset: &EvaluationDataset,
     ) -> Result<QueryMetrics> {
         let ground_truth_examples = dataset.get_examples_for_query(query);
-        
+
         // Build ground truth mapping: doc_id -> relevance
         let mut ground_truth_map: HashMap<DocId, RelevanceRating> = HashMap::new();
         for example in &ground_truth_examples {
             ground_truth_map.insert(example.doc_id.clone(), example.relevance);
         }
-        
+
         // Create relevance vector in result order
         let ground_truth: Vec<RelevanceRating> = results
             .iter()
@@ -247,25 +247,25 @@ impl MetricsCalculator {
                     .unwrap_or(RelevanceRating::NotRelevant)
             })
             .collect();
-        
+
         let total_relevant = ground_truth_examples.len();
-        
+
         // Calculate all metrics
         let mut ndcg_at_k = HashMap::new();
         let mut hit_at_k = HashMap::new();
         let mut precision_at_k = HashMap::new();
         let mut recall_at_k = HashMap::new();
-        
+
         for &k in &self.k_values {
             ndcg_at_k.insert(k, self.calculate_ndcg_at_k(results, &ground_truth, k));
             hit_at_k.insert(k, self.calculate_hit_at_k(&ground_truth, k));
             precision_at_k.insert(k, self.calculate_precision_at_k(&ground_truth, k));
             recall_at_k.insert(k, self.calculate_recall_at_k(&ground_truth, total_relevant, k));
         }
-        
+
         let mrr = self.calculate_mrr(&ground_truth);
         let average_precision = self.calculate_average_precision(&ground_truth);
-        
+
         Ok(QueryMetrics {
             query: query.to_string(),
             total_relevant,
@@ -278,7 +278,7 @@ impl MetricsCalculator {
             average_precision,
         })
     }
-    
+
     /// Aggregate metrics across multiple queries
     pub fn aggregate_metrics(&self, query_metrics: &[QueryMetrics]) -> AggregatedMetrics {
         if query_metrics.is_empty() {
@@ -292,13 +292,13 @@ impl MetricsCalculator {
                 mean_average_precision: 0.0,
             };
         }
-        
+
         let num_queries = query_metrics.len();
         let mut mean_ndcg_at_k = HashMap::new();
         let mut mean_hit_at_k = HashMap::new();
         let mut mean_precision_at_k = HashMap::new();
         let mut mean_recall_at_k = HashMap::new();
-        
+
         // Calculate means for each K value
         for &k in &self.k_values {
             let ndcg_sum: f64 = query_metrics
@@ -306,33 +306,33 @@ impl MetricsCalculator {
                 .map(|m| m.ndcg_at_k.get(&k).copied().unwrap_or(0.0))
                 .sum();
             mean_ndcg_at_k.insert(k, ndcg_sum / num_queries as f64);
-            
+
             let hit_sum: f64 = query_metrics
                 .iter()
                 .map(|m| m.hit_at_k.get(&k).copied().unwrap_or(0.0))
                 .sum();
             mean_hit_at_k.insert(k, hit_sum / num_queries as f64);
-            
+
             let precision_sum: f64 = query_metrics
                 .iter()
                 .map(|m| m.precision_at_k.get(&k).copied().unwrap_or(0.0))
                 .sum();
             mean_precision_at_k.insert(k, precision_sum / num_queries as f64);
-            
+
             let recall_sum: f64 = query_metrics
                 .iter()
                 .map(|m| m.recall_at_k.get(&k).copied().unwrap_or(0.0))
                 .sum();
             mean_recall_at_k.insert(k, recall_sum / num_queries as f64);
         }
-        
+
         let mean_mrr: f64 = query_metrics.iter().map(|m| m.mrr).sum::<f64>() / num_queries as f64;
         let mean_average_precision: f64 = query_metrics
             .iter()
             .map(|m| m.average_precision)
             .sum::<f64>()
             / num_queries as f64;
-        
+
         AggregatedMetrics {
             num_queries,
             mean_ndcg_at_k,
@@ -363,7 +363,7 @@ impl RegressionChecker {
     pub fn new(ndcg_10_threshold: f64) -> Self {
         Self { ndcg_10_threshold }
     }
-    
+
     /// Check if current metrics represent a regression from baseline
     pub fn check_regression(
         &self,
@@ -372,10 +372,10 @@ impl RegressionChecker {
     ) -> RegressionCheckResult {
         let current_ndcg_10 = current.mean_ndcg_at_k.get(&10).copied().unwrap_or(0.0);
         let baseline_ndcg_10 = baseline.mean_ndcg_at_k.get(&10).copied().unwrap_or(0.0);
-        
+
         let delta = current_ndcg_10 - baseline_ndcg_10;
         let regression_detected = delta < -self.ndcg_10_threshold;
-        
+
         RegressionCheckResult {
             regression_detected,
             current_ndcg_10,
@@ -428,14 +428,122 @@ mod tests {
     use super::*;
     use crate::evaluation::dataset::{EvaluationDataset, LabeledExample};
     use zero_latency_core::DocId;
+    use zero_latency_core::{Uuid, values::Score};
+    use crate::{ScoreBreakdown, FromSignals};
+    use crate::fusion::NormalizationMethod;
 
     #[test]
     fn test_ndcg_calculation() {
         let calculator = MetricsCalculator::default();
-        
-        // Mock results (not used in this specific test, but needed for function signature)
-        let results = vec![];
-        
+
+        // Create mock results to match the ground truth size
+        let results = vec![
+            SearchResult {
+                doc_id: DocId::new("test", "doc1", 1),
+                chunk_id: Uuid::new_v4(),
+                document_id: Uuid::new_v4(),
+                uri: "test1".to_string(),
+                title: "Test Document 1".to_string(),
+                document_path: "test1".to_string(),
+                content: "test content 1".to_string(),
+                snippet: None,
+                section_path: vec![],
+                heading_path: vec![],
+                scores: ScoreBreakdown {
+                    bm25_raw: Some(1.0),
+                    vector_raw: None,
+                    bm25_normalized: Some(1.0),
+                    vector_normalized: None,
+                    fused: 1.0,
+                    normalization_method: crate::fusion::NormalizationMethod::MinMax,
+                },
+                final_score: Score::new(1.0).unwrap(),
+                from_signals: FromSignals::default(),
+                ranking_signals: None,
+                url: None,
+                collection: None,
+                custom_metadata: std::collections::HashMap::new(),
+            },
+            SearchResult {
+                doc_id: DocId::new("test", "doc2", 1),
+                chunk_id: Uuid::new_v4(),
+                document_id: Uuid::new_v4(),
+                uri: "test2".to_string(),
+                title: "Test Document 2".to_string(),
+                document_path: "test2".to_string(),
+                content: "test content 2".to_string(),
+                snippet: None,
+                section_path: vec![],
+                heading_path: vec![],
+                scores: ScoreBreakdown {
+                    bm25_raw: Some(0.9),
+                    vector_raw: None,
+                    bm25_normalized: Some(0.9),
+                    vector_normalized: None,
+                    fused: 0.9,
+                    normalization_method: crate::fusion::NormalizationMethod::MinMax,
+                },
+                final_score: Score::new(0.9).unwrap(),
+                from_signals: FromSignals::default(),
+                ranking_signals: None,
+                url: None,
+                collection: None,
+                custom_metadata: std::collections::HashMap::new(),
+            },
+            SearchResult {
+                doc_id: DocId::new("test", "doc3", 1),
+                chunk_id: Uuid::new_v4(),
+                document_id: Uuid::new_v4(),
+                uri: "test3".to_string(),
+                title: "Test Document 3".to_string(),
+                document_path: "test3".to_string(),
+                content: "test content 3".to_string(),
+                snippet: None,
+                section_path: vec![],
+                heading_path: vec![],
+                scores: ScoreBreakdown {
+                    bm25_raw: Some(0.8),
+                    vector_raw: None,
+                    bm25_normalized: Some(0.8),
+                    vector_normalized: None,
+                    fused: 0.8,
+                    normalization_method: crate::fusion::NormalizationMethod::MinMax,
+                },
+                final_score: Score::new(0.8).unwrap(),
+                from_signals: FromSignals::default(),
+                ranking_signals: None,
+                url: None,
+                collection: None,
+                custom_metadata: std::collections::HashMap::new(),
+            },
+            SearchResult {
+                doc_id: DocId::new("test", "doc4", 1),
+                chunk_id: Uuid::new_v4(),
+                document_id: Uuid::new_v4(),
+                uri: "test4".to_string(),
+                title: "Test Document 4".to_string(),
+                document_path: "test4".to_string(),
+                content: "test content 4".to_string(),
+                snippet: None,
+                section_path: vec![],
+                heading_path: vec![],
+                scores: ScoreBreakdown {
+                    bm25_raw: Some(0.7),
+                    vector_raw: None,
+                    bm25_normalized: Some(0.7),
+                    vector_normalized: None,
+                    fused: 0.7,
+                    normalization_method: crate::fusion::NormalizationMethod::MinMax,
+                },
+                final_score: Score::new(0.7).unwrap(),
+                from_signals: FromSignals::default(),
+                ranking_signals: None,
+                url: None,
+                collection: None,
+                custom_metadata: std::collections::HashMap::new(),
+            },
+        ];
+
         // Perfect ranking: [2, 1, 0, 0]
         let perfect_relevance = vec![
             RelevanceRating::HighlyRelevant,
@@ -443,10 +551,10 @@ mod tests {
             RelevanceRating::NotRelevant,
             RelevanceRating::NotRelevant,
         ];
-        
+
         let ndcg = calculator.calculate_ndcg_at_k(&results, &perfect_relevance, 4);
         assert!((ndcg - 1.0).abs() < 1e-6); // Should be perfect score
-        
+
         // Reverse ranking: [0, 0, 1, 2]
         let reverse_relevance = vec![
             RelevanceRating::NotRelevant,
@@ -454,7 +562,7 @@ mod tests {
             RelevanceRating::SomewhatRelevant,
             RelevanceRating::HighlyRelevant,
         ];
-        
+
         let ndcg_reverse = calculator.calculate_ndcg_at_k(&results, &reverse_relevance, 4);
         assert!(ndcg_reverse < ndcg); // Should be worse than perfect
     }
@@ -462,16 +570,16 @@ mod tests {
     #[test]
     fn test_precision_recall() {
         let calculator = MetricsCalculator::default();
-        
+
         let relevance = vec![
             RelevanceRating::HighlyRelevant,
             RelevanceRating::NotRelevant,
             RelevanceRating::SomewhatRelevant,
         ];
-        
+
         let precision_at_3 = calculator.calculate_precision_at_k(&relevance, 3);
         assert!((precision_at_3 - 2.0/3.0).abs() < 1e-6); // 2 relevant out of 3
-        
+
         let recall_at_3 = calculator.calculate_recall_at_k(&relevance, 2, 3);
         assert!((recall_at_3 - 1.0).abs() < 1e-6); // Found all 2 relevant docs
     }
@@ -479,13 +587,13 @@ mod tests {
     #[test]
     fn test_mrr() {
         let calculator = MetricsCalculator::default();
-        
+
         let relevance = vec![
             RelevanceRating::NotRelevant,
             RelevanceRating::HighlyRelevant, // First relevant at position 2
             RelevanceRating::SomewhatRelevant,
         ];
-        
+
         let mrr = calculator.calculate_mrr(&relevance);
         assert!((mrr - 0.5).abs() < 1e-6); // 1/2 = 0.5
     }
@@ -493,7 +601,7 @@ mod tests {
     #[test]
     fn test_regression_checker() {
         let checker = RegressionChecker::new(0.05); // 5% threshold
-        
+
         let mut baseline = AggregatedMetrics {
             num_queries: 10,
             mean_ndcg_at_k: HashMap::new(),
@@ -504,13 +612,13 @@ mod tests {
             mean_average_precision: 0.6,
         };
         baseline.mean_ndcg_at_k.insert(10, 0.8);
-        
+
         let mut current = baseline.clone();
         current.mean_ndcg_at_k.insert(10, 0.72); // 8% drop
-        
+
         let result = checker.check_regression(&current, &baseline);
         assert!(result.regression_detected); // Should detect regression
-        
+
         // Test no regression
         current.mean_ndcg_at_k.insert(10, 0.79); // 1% drop
         let result = checker.check_regression(&current, &baseline);
