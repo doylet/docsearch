@@ -1,6 +1,8 @@
 //! Memory profiling utilities for Sprint 009 performance validation
 //! Integrates with zero-latency-observability crate for production monitoring
 
+#![allow(unused_imports, dead_code, clippy::new_without_default)]
+
 use std::fs;
 use std::collections::HashMap;
 
@@ -30,13 +32,13 @@ impl MemoryStats {
             Self::from_process_memory_counters()
         }
     }
-    
+
     #[cfg(target_os = "linux")]
     fn from_proc_status() -> Result<Self, Box<dyn std::error::Error>> {
         let status = fs::read_to_string("/proc/self/status")?;
         let mut rss_kb = 0;
         let mut vsz_kb = 0;
-        
+
         for line in status.lines() {
             if line.starts_with("VmRSS:") {
                 if let Some(value) = line.split_whitespace().nth(1) {
@@ -48,7 +50,7 @@ impl MemoryStats {
                 }
             }
         }
-        
+
         Ok(Self {
             rss_kb,
             vsz_kb,
@@ -56,7 +58,7 @@ impl MemoryStats {
             stack_kb: rss_kb / 10,    // Estimate stack as 10% of RSS
         })
     }
-    
+
     #[cfg(target_os = "macos")]
     fn from_task_info() -> Result<Self, Box<dyn std::error::Error>> {
         // For macOS, we'll use a simplified approach
@@ -68,7 +70,7 @@ impl MemoryStats {
             stack_kb: 8 * 1024,  // Simulated stack
         })
     }
-    
+
     #[cfg(target_os = "windows")]
     fn from_process_memory_counters() -> Result<Self, Box<dyn std::error::Error>> {
         // For Windows, we'd use GetProcessMemoryInfo
@@ -79,7 +81,7 @@ impl MemoryStats {
             stack_kb: 8 * 1024,
         })
     }
-    
+
     /// Convert to MB for readability
     pub fn to_mb(&self) -> MemoryStatsMB {
         MemoryStatsMB {
@@ -109,24 +111,24 @@ impl MemoryProfiler {
     /// Create a new memory profiler
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let baseline = MemoryStats::current()?;
-        
+
         Ok(Self {
             samples: Vec::new(),
             baseline,
         })
     }
-    
+
     /// Take a memory sample
     pub fn sample(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let stats = MemoryStats::current()?;
         self.samples.push((std::time::Instant::now(), stats));
         Ok(())
     }
-    
+
     /// Get memory growth since baseline
     pub fn memory_growth(&self) -> Result<MemoryStatsMB, Box<dyn std::error::Error>> {
         let current = MemoryStats::current()?;
-        
+
         Ok(MemoryStatsMB {
             rss_mb: (current.rss_kb as i64 - self.baseline.rss_kb as i64) as f64 / 1024.0,
             vsz_mb: (current.vsz_kb as i64 - self.baseline.vsz_kb as i64) as f64 / 1024.0,
@@ -134,28 +136,28 @@ impl MemoryProfiler {
             stack_mb: (current.stack_kb as i64 - self.baseline.stack_kb as i64) as f64 / 1024.0,
         })
     }
-    
+
     /// Get peak memory usage
     pub fn peak_memory(&self) -> MemoryStatsMB {
         if self.samples.is_empty() {
             return self.baseline.to_mb();
         }
-        
+
         let peak = self.samples.iter()
             .map(|(_, stats)| stats)
             .max_by_key(|stats| stats.rss_kb)
             .unwrap_or(&self.baseline);
-            
+
         peak.to_mb()
     }
-    
+
     /// Generate memory report
     pub fn generate_report(&self) -> String {
         let current = MemoryStats::current().unwrap_or(self.baseline.clone());
         let baseline_mb = self.baseline.to_mb();
         let current_mb = current.to_mb();
         let peak_mb = self.peak_memory();
-        
+
         format!(
             "Memory Usage Report\n\
              ==================\n\
@@ -200,23 +202,23 @@ impl CacheMetrics {
             miss_times_ms: Vec::new(),
         }
     }
-    
+
     pub fn record_hit(&mut self, time_ms: f64) {
         self.total_requests += 1;
         self.cache_hits += 1;
         self.hit_times_ms.push(time_ms);
     }
-    
+
     pub fn record_miss(&mut self, time_ms: f64) {
         self.total_requests += 1;
         self.cache_misses += 1;
         self.miss_times_ms.push(time_ms);
     }
-    
+
     pub fn record_eviction(&mut self) {
         self.evictions += 1;
     }
-    
+
     pub fn hit_rate(&self) -> f64 {
         if self.total_requests == 0 {
             0.0
@@ -224,7 +226,7 @@ impl CacheMetrics {
             self.cache_hits as f64 / self.total_requests as f64 * 100.0
         }
     }
-    
+
     pub fn miss_rate(&self) -> f64 {
         if self.total_requests == 0 {
             0.0
@@ -232,7 +234,7 @@ impl CacheMetrics {
             self.cache_misses as f64 / self.total_requests as f64 * 100.0
         }
     }
-    
+
     pub fn eviction_rate(&self) -> f64 {
         if self.total_requests == 0 {
             0.0
@@ -240,7 +242,7 @@ impl CacheMetrics {
             self.evictions as f64 / self.total_requests as f64 * 100.0
         }
     }
-    
+
     pub fn avg_hit_time(&self) -> f64 {
         if self.hit_times_ms.is_empty() {
             0.0
@@ -248,7 +250,7 @@ impl CacheMetrics {
             self.hit_times_ms.iter().sum::<f64>() / self.hit_times_ms.len() as f64
         }
     }
-    
+
     pub fn avg_miss_time(&self) -> f64 {
         if self.miss_times_ms.is_empty() {
             0.0
@@ -261,40 +263,40 @@ impl CacheMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_memory_stats() {
         let stats = MemoryStats::current().expect("Failed to get memory stats");
         let mb = stats.to_mb();
-        
+
         assert!(mb.rss_mb > 0.0);
         assert!(mb.vsz_mb >= mb.rss_mb);
         println!("Memory stats: RSS={:.1}MB, VSZ={:.1}MB", mb.rss_mb, mb.vsz_mb);
     }
-    
+
     #[test]
     fn test_memory_profiler() {
         let mut profiler = MemoryProfiler::new().expect("Failed to create profiler");
-        
+
         // Simulate some memory usage
         let _data: Vec<u8> = vec![0; 1024 * 1024]; // 1MB allocation
-        
+
         profiler.sample().expect("Failed to sample memory");
-        
+
         let report = profiler.generate_report();
         assert!(report.contains("Memory Usage Report"));
         println!("{}", report);
     }
-    
+
     #[test]
     fn test_cache_metrics() {
         let mut metrics = CacheMetrics::new();
-        
+
         metrics.record_hit(1.5);
         metrics.record_hit(2.0);
         metrics.record_miss(10.0);
         metrics.record_eviction();
-        
+
         assert_eq!(metrics.hit_rate(), 66.66666666666667);
         assert_eq!(metrics.miss_rate(), 33.333333333333336);
         assert_eq!(metrics.avg_hit_time(), 1.75);

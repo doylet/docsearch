@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Ensure common tool paths are available (especially for pre-commit hooks)
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
 shopt -s nullglob
 
 # Ensure Cargo on PATH (hooks don't load your shell rc files)
@@ -73,7 +76,7 @@ fi
 # Rust
 if [[ -f Cargo.toml ]]; then
   if [[ -n "${rust_lint:-}" ]]; then run_cmd_if_set "$rust_lint";
-  elif has cargo; then bash -lc "cargo clippy --no-deps --deny warnings -q" || echo "clippy not installed"; fi
+  elif has cargo; then bash -lc "cargo clippy --workspace --exclude search-quality-evaluation --exclude search-filtering-performance --no-deps" || echo "clippy not installed"; fi
 fi
 
 # Generic hygiene

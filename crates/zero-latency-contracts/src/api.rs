@@ -1,7 +1,6 @@
 /// API Contract Constants
 ///
 /// Shared constants between CLI and server to prevent endpoint mismatches.
-
 /// Default configuration values
 pub mod defaults {
     /// Default server port for doc-indexer service

@@ -5,37 +5,37 @@ use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=../../api/schemas/zero-latency-api.yaml");
-    
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    
+
     let schema_path = Path::new(&manifest_dir)
         .parent()
         .unwrap()
         .parent()
         .unwrap()
         .join("api/schemas/zero-latency-api.yaml");
-    
+
     let generated_dir = Path::new(&out_dir).join("generated");
     fs::create_dir_all(&generated_dir).unwrap();
-    
+
     // Check if openapi-generator-cli is available
     let generator_available = Command::new("openapi-generator-cli")
         .arg("version")
         .output()
         .is_ok();
-    
+
     if !generator_available {
         println!("cargo:warning=openapi-generator-cli not found. Install with: npm install -g @openapitools/openapi-generator-cli");
         println!("cargo:warning=Skipping code generation. Using placeholder types.");
         generate_placeholder_types(&generated_dir);
         return;
     }
-    
+
     // Generate Rust types
     let rust_output = generated_dir.join("rust");
     fs::create_dir_all(&rust_output).unwrap();
-    
+
     let rust_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
@@ -46,11 +46,11 @@ fn main() {
             "packageName=zero_latency_api,supportAsync=true,library=reqwest",
         ])
         .output();
-    
+
     match rust_generation {
         Ok(output) => {
             if !output.status.success() {
-                println!("cargo:warning=Rust code generation failed: {}", 
+                println!("cargo:warning=Rust code generation failed: {}",
                          String::from_utf8_lossy(&output.stderr));
                 generate_placeholder_types(&generated_dir);
             } else {
@@ -63,11 +63,11 @@ fn main() {
             generate_placeholder_types(&generated_dir);
         }
     }
-    
+
     // Generate TypeScript client
     let ts_output = generated_dir.join("typescript");
     fs::create_dir_all(&ts_output).unwrap();
-    
+
     let _ts_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
@@ -78,11 +78,11 @@ fn main() {
             "npmName=zero-latency-api-client,supportsES6=true",
         ])
         .output();
-    
+
     // Generate Python client
     let python_output = generated_dir.join("python");
     fs::create_dir_all(&python_output).unwrap();
-    
+
     let _python_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
@@ -93,10 +93,10 @@ fn main() {
             "packageName=zero_latency_api_client,generateSourceCodeOnly=true",
         ])
         .output();
-    
+
     // Generate API documentation
     generate_docs(&schema_path, &generated_dir);
-    
+
     println!("cargo:rustc-env=GENERATED_CODE_DIR={}", generated_dir.display());
 }
 
@@ -239,7 +239,7 @@ pub struct ApiStatusResponse {
 pub use uuid::Uuid;
 pub use chrono::{DateTime, Utc};
 "#;
-    
+
     fs::write(types_file, placeholder_content).unwrap();
 }
 
@@ -248,17 +248,17 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
     let src_dir = rust_output.join("src");
     if src_dir.exists() {
         let target_file = target_dir.join("types.rs");
-        
+
         // Check for models directory (newer openapi-generator versions)
         let models_dir = src_dir.join("models");
         if models_dir.exists() {
-            if let Ok(entries) = fs::read_dir(&models_dir) {
+            if let Ok(_entries) = fs::read_dir(&models_dir) {
                 let mut combined_content = String::from("// Generated API types from OpenAPI specification\n\nuse serde::{Deserialize, Serialize};\nuse uuid::Uuid;\nuse chrono::{DateTime, Utc};\n\n");
-                
+
                 // Priority files to include (search-related types)
                 let priority_files = [
                     "search_request.rs",
-                    "search_response.rs", 
+                    "search_response.rs",
                     "search_result.rs",
                     "search_filters.rs",
                     "api_error.rs",
@@ -269,7 +269,7 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
                     "health_check_result.rs",
                     "api_status_response.rs"
                 ];
-                
+
                 // First include priority files
                 for priority_file in &priority_files {
                     let file_path = models_dir.join(priority_file);
@@ -283,12 +283,12 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
                         }
                     }
                 }
-                
+
                 let _ = fs::write(target_file, combined_content);
                 return;
             }
         }
-        
+
         // Fallback: Look for single models.rs file (older openapi-generator versions)
         if let Ok(entries) = fs::read_dir(&src_dir) {
             for entry in entries.flatten() {
@@ -315,7 +315,7 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
         .lines()
         .filter_map(|line| {
             let trimmed = line.trim();
-            
+
             // Handle multi-line comments
             if trimmed.starts_with("/*") {
                 in_comment_block = true;
@@ -327,9 +327,9 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
                 }
                 return None;
             }
-            
+
             // Filter out unwanted lines but keep struct/enum definitions
-            if trimmed.starts_with("use ") || 
+            if trimmed.starts_with("use ") ||
                trimmed.starts_with("//") ||
                trimmed.starts_with("*") ||
                (trimmed.is_empty() && !line.starts_with("    ")) {
@@ -381,9 +381,9 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
 /// Generate basic Markdown documentation from OpenAPI spec
 fn generate_markdown_docs(spec: &serde_yaml::Value) -> Result<String, Box<dyn std::error::Error>> {
     let mut content = String::new();
-    
+
     content.push_str("# Zero-Latency API Documentation\n\n");
-    
+
     if let Some(info) = spec.get("info") {
         if let Some(title) = info.get("title") {
             content.push_str(&format!("## {}\n\n", title.as_str().unwrap_or("API")));
@@ -397,31 +397,31 @@ fn generate_markdown_docs(spec: &serde_yaml::Value) -> Result<String, Box<dyn st
     }
 
     content.push_str("## Endpoints\n\n");
-    
+
     if let Some(paths) = spec.get("paths").and_then(|p| p.as_mapping()) {
         for (path, path_obj) in paths {
             let path_str = path.as_str().unwrap_or("");
             content.push_str(&format!("### {}\n\n", path_str));
-            
+
             if let Some(path_mapping) = path_obj.as_mapping() {
                 for (method, method_obj) in path_mapping {
                     let method_str = method.as_str().unwrap_or("").to_uppercase();
                     content.push_str(&format!("#### {} {}\n\n", method_str, path_str));
-                    
+
                     if let Some(summary) = method_obj.get("summary") {
                         content.push_str(&format!("{}\n\n", summary.as_str().unwrap_or("")));
                     }
-                    
+
                     if let Some(description) = method_obj.get("description") {
                         content.push_str(&format!("{}\n\n", description.as_str().unwrap_or("")));
                     }
-                    
+
                     // Add request/response schema information
                     if let Some(request_body) = method_obj.get("requestBody") {
                         content.push_str("**Request Body:**\n");
                         if let Some(content_obj) = request_body.get("content").and_then(|c| c.get("application/json")) {
                             if let Some(schema) = content_obj.get("schema") {
-                                content.push_str(&format!("```json\n{}\n```\n\n", 
+                                content.push_str(&format!("```json\n{}\n```\n\n",
                                     serde_yaml::to_string(schema).unwrap_or_default().trim()));
                             }
                         }

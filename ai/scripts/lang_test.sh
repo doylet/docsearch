@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure common tool paths are available (especially for pre-commit hooks)
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+
 has() { command -v "$1" >/dev/null 2>&1; }
 
 # Python

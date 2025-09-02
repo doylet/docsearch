@@ -179,7 +179,7 @@ pub mod validation {
         }
 
         if let Some(min_score) = req.min_score {
-            if min_score < 0.0 || min_score > 1.0 {
+            if !(0.0..=1.0).contains(&min_score) {
                 return Err(ApiError::new(
                     error_codes::VALIDATION_ERROR,
                     "Minimum score must be between 0.0 and 1.0",
