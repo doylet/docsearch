@@ -176,13 +176,43 @@ pub struct Document {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchFilters {
+    pub collection_name: Option<String>,
+    pub document_type: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+impl Default for SearchFilters {
+    fn default() -> Self {
+        Self {
+            collection_name: None,
+            document_type: None,
+            tags: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchRequest {
     pub query: String,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
-    pub filters: Option<serde_json::Value>,
+    pub filters: Option<Box<SearchFilters>>,
     pub search_type: Option<String>,
     pub include_metadata: Option<bool>,
+}
+
+impl Default for SearchRequest {
+    fn default() -> Self {
+        Self {
+            query: String::new(),
+            limit: None,
+            offset: None,
+            filters: None,
+            search_type: None,
+            include_metadata: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,10 +264,6 @@ pub struct ApiStatusResponse {
     pub uptime_seconds: Option<i32>,
     pub endpoints_count: Option<i32>,
 }
-
-// Re-export commonly used types
-pub use uuid::Uuid;
-pub use chrono::{DateTime, Utc};
 "#;
 
     fs::write(types_file, placeholder_content).unwrap();
