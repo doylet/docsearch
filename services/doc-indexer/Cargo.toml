@@ -91,7 +91,7 @@ num_cpus = "1.16"
 sysinfo = "0.30"
 
 # Local embeddings (embedded feature)
-ort = { version = "1.16", features = ["download-binaries"], optional = true }  # ONNX Runtime with bundled libraries
+ort = { version = "2.0.0-rc.10", features = ["download-binaries"], optional = true }  # ONNX Runtime with bundled libraries
 tokenizers = { version = "0.15", optional = true }
 lru = { version = "0.12", optional = true }
 ndarray = { version = "0.15", optional = true }
