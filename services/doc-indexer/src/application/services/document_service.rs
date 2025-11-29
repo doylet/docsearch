@@ -1,15 +1,12 @@
-use std::collections::HashMap;
 /// Document indexing application service
 ///
 /// This service coordinates document indexing operations using the domain
 /// models and infrastructure services. It implements the use cases for
 /// document processing and indexing.
 use std::sync::Arc;
-use std::time::Duration;
 use zero_latency_core::{
     models::{Document, DocumentChunk},
-    values::SearchQuery,
-    Result, Uuid,
+    Result,
 };
 use zero_latency_search::{
     QueryEnhancer, ResultRanker, SearchOrchestrator, SearchRequest, SearchResponse,

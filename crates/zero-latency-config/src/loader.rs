@@ -1,4 +1,4 @@
-use crate::models::{AppConfig, TestConfigHelper};
+use crate::models::AppConfig;
 use figment::{Figment, providers::{Format, Toml, Env}};
 use std::path::PathBuf;
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::models::SearchResult;
 use crate::fusion::deduplication::{ResultDeduplicator, DeduplicationConfig, DuplicationStrategy, DeduplicationMetrics};
-use zero_latency_core::{error::ZeroLatencyError, DocId};
+use zero_latency_core::error::ZeroLatencyError;
 
 /// Configuration for result merging behavior
 #[derive(Debug, Clone)]
@@ -61,7 +61,7 @@ impl ResultMerger {
             config.deduplication.clone(),
             config.duplication_strategy.clone(),
         );
-        
+
         Self {
             config,
             deduplicator,
@@ -79,7 +79,7 @@ impl ResultMerger {
         variant_results: Vec<QueryVariantResults>,
     ) -> Result<(Vec<SearchResult>, MergeMetrics), ZeroLatencyError> {
         let start_time = std::time::Instant::now();
-        
+
         if variant_results.is_empty() {
             return Ok((Vec::new(), MergeMetrics {
                 query_variants_processed: 0,
@@ -175,7 +175,7 @@ impl ResultMerger {
         // Update deduplicator configuration
         self.deduplicator.update_config(config.deduplication.clone());
         self.deduplicator.update_strategy(config.duplication_strategy.clone());
-        
+
         self.config = config;
     }
 
@@ -221,7 +221,7 @@ mod tests {
             fused: score,
             normalization_method: crate::fusion::score_fusion::NormalizationMethod::MinMax,
         };
-        
+
         SearchResult::new(
             doc_id.clone(),
             format!("uri/{}", doc_id),
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_merge_variant_results() {
         let merger = ResultMerger::with_default();
-        
+
         let variant_results = vec![
             QueryVariantResults {
                 variant_id: "original".to_string(),
@@ -258,7 +258,7 @@ mod tests {
         ];
 
         let (merged_results, metrics) = merger.merge_variant_results(variant_results).unwrap();
-        
+
         assert_eq!(metrics.query_variants_processed, 2);
         assert_eq!(metrics.total_results_before_merge, 4);
         assert!(merged_results.len() <= 3); // After deduplication
@@ -267,22 +267,22 @@ mod tests {
     #[test]
     fn test_merge_two_result_sets() {
         let merger = ResultMerger::with_default();
-        
+
         let results1 = vec![
             create_test_result("doc1", 0.9),
             create_test_result("doc2", 0.7),
         ];
-        
+
         let results2 = vec![
             create_test_result("doc2", 0.8), // duplicate with different score
             create_test_result("doc3", 0.6),
         ];
 
         let (merged, metrics) = merger.merge_two_result_sets(results1, results2).unwrap();
-        
+
         assert_eq!(metrics.query_variants_processed, 2);
         assert!(merged.len() <= 3); // After deduplication
-        
+
         // Check that results are properly ranked
         for i in 1..merged.len() {
             assert!(merged[i-1].scores.fused >= merged[i].scores.fused);

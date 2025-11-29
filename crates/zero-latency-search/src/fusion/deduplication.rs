@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::cmp::Ordering;
 use crate::models::SearchResult;
-use zero_latency_core::{error::ZeroLatencyError, DocId};
+use zero_latency_core::error::ZeroLatencyError;
 
 /// Configuration for result deduplication behavior
 #[derive(Debug, Clone)]
@@ -80,7 +80,7 @@ impl ResultDeduplicator {
     ) -> Result<(Vec<SearchResult>, DeduplicationMetrics), ZeroLatencyError> {
         let start_time = std::time::Instant::now();
         let total_input = results.len();
-        
+
         if results.is_empty() {
             return Ok((results, DeduplicationMetrics {
                 total_input_results: 0,
@@ -100,10 +100,10 @@ impl ResultDeduplicator {
 
         for result in results {
             similarity_comparisons += 1;
-            
+
             // Simple ID-based deduplication
             let key = self.get_deduplication_key(&result);
-            
+
             if !seen_ids.contains(&key) {
                 seen_ids.insert(key);
                 deduplicated.push(result);
@@ -117,7 +117,7 @@ impl ResultDeduplicator {
 
         let processing_time = start_time.elapsed().as_millis() as u64;
         let final_count = deduplicated.len();
-        
+
         let metrics = DeduplicationMetrics {
             total_input_results: total_input,
             duplicates_found: total_input - final_count,
@@ -186,7 +186,7 @@ mod tests {
             fused: score,
             normalization_method: crate::fusion::score_fusion::NormalizationMethod::MinMax,
         };
-        
+
         SearchResult::new(
             doc_id.clone(),
             format!("uri/{}", doc_id),
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn test_deduplication_exact_matches() {
         let deduplicator = ResultDeduplicator::with_default();
-        
+
         let results = vec![
             create_test_result("doc1", 0.9),
             create_test_result("doc1", 0.8), // duplicate
@@ -208,7 +208,7 @@ mod tests {
         ];
 
         let (deduplicated, metrics) = deduplicator.deduplicate(results).unwrap();
-        
+
         assert_eq!(deduplicated.len(), 2);
         assert_eq!(metrics.duplicates_found, 1);
     }
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn test_stable_ranking() {
         let deduplicator = ResultDeduplicator::with_default();
-        
+
         let results = vec![
             create_test_result("doc3", 0.7),
             create_test_result("doc1", 0.9),
@@ -224,7 +224,7 @@ mod tests {
         ];
 
         let (deduplicated, _) = deduplicator.deduplicate(results).unwrap();
-        
+
         // Should be sorted by score (descending)
         assert!(deduplicated[0].scores.fused >= deduplicated[1].scores.fused);
         assert!(deduplicated[1].scores.fused >= deduplicated[2].scores.fused);

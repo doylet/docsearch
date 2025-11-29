@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use zero_latency_core::{DocId, Result};
 
 use crate::evaluation::dataset::{EvaluationDataset, RelevanceRating};
-use crate::models::{SearchRequest, SearchResponse, SearchResult};
+use crate::models::SearchResult;
 
 /// Individual search quality metrics for a single query
 #[derive(Debug, Clone, Serialize, Deserialize)]

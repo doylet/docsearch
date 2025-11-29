@@ -45,7 +45,7 @@ impl ServerCommand {
     pub async fn execute(&self, container: &CliServiceContainer) -> ZeroLatencyResult<()> {
         // Load configuration with CLI argument overrides
         let config = self.load_effective_config()?;
-        
+
         // Handle direct server startup first
         if self.start || self.start_local {
             return self.start_server_directly(&config).await;
@@ -114,8 +114,8 @@ impl ServerCommand {
 
     /// Load effective configuration with CLI argument overrides
     fn load_effective_config(&self) -> ZeroLatencyResult<AppConfig> {
-        use zero_latency_config::{ConfigResolver, load_config_from_file};
-        
+        use zero_latency_config::load_config_from_file;
+
         // Load base configuration
         let mut config = if let Some(config_file) = &self.config_file {
             load_config_from_file(config_file).map_err(|e| ZeroLatencyError::Configuration {
@@ -126,16 +126,16 @@ impl ServerCommand {
                 message: format!("Failed to load configuration: {}", e),
             })?
         };
-        
+
         // Apply CLI argument overrides
         if let Some(port) = self.port {
             config.server.port = port;
         }
-        
+
         if let Some(docs_path) = &self.docs {
             config.server.docs_path = Some(docs_path.clone());
         }
-        
+
         Ok(config)
     }
 
