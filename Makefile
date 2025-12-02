@@ -3,13 +3,25 @@
 # This Makefile provides commands for generating API types, clients, and documentation
 # from the OpenAPI 3.1 specification.
 
-.PHONY: help install-deps validate-schemas generate-schemas generate-rust generate-clients generate-docs clean test-schemas
+.PHONY: help install-deps validate-schemas generate-schemas generate-rust generate-clients generate-docs clean test-schemas docker-build docker-up docker-down docker-logs
 
 # Default target
 help:
-	@echo "Zero-Latency Schema-First Build System"
+	@echo "Zero-Latency Document Search - Build System"
 	@echo ""
-	@echo "Available targets:"
+	@echo "Docker Commands (Production-Ready):"
+	@echo "  docker-build          Build all Docker images"
+	@echo "  docker-up             Start all services with Docker Compose"
+	@echo "  docker-down           Stop all services"
+	@echo "  docker-logs           View logs from all services"
+	@echo "  docker-clean          Remove all containers, images, and volumes"
+	@echo ""
+	@echo "Development Commands:"
+	@echo "  dev-backend           Run backend in development mode"
+	@echo "  dev-frontend          Run frontend in development mode"
+	@echo "  dev                   Run both backend and frontend"
+	@echo ""
+	@echo "Schema Generation:"
 	@echo "  install-deps          Install required dependencies"
 	@echo "  validate-schemas      Validate OpenAPI schemas"
 	@echo "  generate-schemas      Generate all artifacts from schemas"
@@ -19,6 +31,56 @@ help:
 	@echo "  test-schemas          Test generated code compilation"
 	@echo "  clean                 Clean generated artifacts"
 	@echo ""
+
+# Docker Commands
+docker-build:
+	@echo "Building Docker images..."
+	docker-compose build
+	@echo "✅ Docker images built successfully"
+
+docker-up:
+	@echo "Starting services with Docker Compose..."
+	docker-compose up -d
+	@echo "✅ Services started"
+	@echo ""
+	@echo "Frontend: http://localhost:3000"
+	@echo "Backend API: http://localhost:8081"
+	@echo ""
+	@echo "Run 'make docker-logs' to view logs"
+
+docker-down:
+	@echo "Stopping services..."
+	docker-compose down
+	@echo "✅ Services stopped"
+
+docker-logs:
+	docker-compose logs -f
+
+docker-clean:
+	@echo "Removing all containers, images, and volumes..."
+	docker-compose down -v --rmi all
+	@echo "✅ Docker environment cleaned"
+
+docker-restart:
+	@echo "Restarting services..."
+	docker-compose restart
+	@echo "✅ Services restarted"
+
+# Development Commands
+dev-backend:
+	@echo "Starting backend in development mode..."
+	cd services/doc-indexer && cargo run --bin doc-indexer -- --port 8081
+
+dev-frontend:
+	@echo "Starting frontend in development mode..."
+	cd frontend && npm run dev
+
+dev:
+	@echo "Starting both services in development mode..."
+	@echo "Note: Run in separate terminals or use a process manager like concurrently"
+	@echo ""
+	@echo "Terminal 1: make dev-backend"
+	@echo "Terminal 2: make dev-frontend"
 
 # Variables
 SCHEMA_FILE := api/public/openapi.yaml

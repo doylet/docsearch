@@ -1,11 +1,13 @@
 # Multi-stage Dockerfile for docsearch production deployment
-FROM rust:1.75-slim as builder
+FROM rust:1.90-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     ca-certificates \
+    build-essential \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -16,18 +18,34 @@ WORKDIR /app
 
 # Copy manifests first for better layer caching
 COPY Cargo.toml Cargo.lock ./
-COPY crates/*/Cargo.toml ./crates/*/
-COPY services/*/Cargo.toml ./services/*/
-COPY test/*/Cargo.toml ./test/*/
+
+# Copy all crate manifests (preserving directory structure)
+COPY crates/zero-latency-api/Cargo.toml ./crates/zero-latency-api/
+COPY crates/zero-latency-observability/Cargo.toml ./crates/zero-latency-observability/
+COPY crates/zero-latency-contracts/Cargo.toml ./crates/zero-latency-contracts/
+COPY crates/zero-latency-search/Cargo.toml ./crates/zero-latency-search/
+COPY crates/zero-latency-vector/Cargo.toml ./crates/zero-latency-vector/
+COPY crates/cli/Cargo.toml ./crates/cli/
+COPY crates/zero-latency-core/Cargo.toml ./crates/zero-latency-core/
+COPY crates/zero-latency-config/Cargo.toml ./crates/zero-latency-config/
+
+# Copy service manifests
+COPY services/doc-indexer/Cargo.toml ./services/doc-indexer/
 
 # Create dummy source files to build dependencies
-RUN find crates services test -name "Cargo.toml" -exec dirname {} \; | xargs -I {} mkdir -p {}/src
-RUN find crates services test -name "Cargo.toml" -exec dirname {} \; | xargs -I {} touch {}/src/lib.rs
-RUN find services -name "Cargo.toml" -exec dirname {} \; | xargs -I {} touch {}/src/main.rs
+RUN mkdir -p crates/zero-latency-api/src && echo "fn main() {}" > crates/zero-latency-api/src/lib.rs
+RUN mkdir -p crates/zero-latency-observability/src && echo "fn main() {}" > crates/zero-latency-observability/src/lib.rs
+RUN mkdir -p crates/zero-latency-contracts/src && echo "fn main() {}" > crates/zero-latency-contracts/src/lib.rs
+RUN mkdir -p crates/zero-latency-search/src && echo "fn main() {}" > crates/zero-latency-search/src/lib.rs
+RUN mkdir -p crates/zero-latency-vector/src && echo "fn main() {}" > crates/zero-latency-vector/src/lib.rs
+RUN mkdir -p crates/cli/src && echo "fn main() {}" > crates/cli/src/main.rs
+RUN mkdir -p crates/zero-latency-core/src && echo "fn main() {}" > crates/zero-latency-core/src/lib.rs
+RUN mkdir -p crates/zero-latency-config/src && echo "fn main() {}" > crates/zero-latency-config/src/lib.rs
+RUN mkdir -p services/doc-indexer/src && echo "fn main() {}" > services/doc-indexer/src/lib.rs && echo "fn main() {}" > services/doc-indexer/src/main.rs
 
 # Build dependencies only
 RUN cargo build --release --workspace
-RUN rm -rf crates/*/src services/*/src test/*/src
+RUN rm -rf crates/*/src services/*/src
 
 # Copy actual source code
 COPY . .
