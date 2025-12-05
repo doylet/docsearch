@@ -6,7 +6,7 @@
  */
 export interface Document {
   /** Unique identifier for the document */
-  id: string;
+  document_id: string;
 
   /** Human-readable title of the document */
   title: string;
@@ -33,7 +33,7 @@ export interface Document {
 export function isDocument(obj: unknown): obj is Document {
   const doc = obj as Document;
   return (
-    typeof doc?.id === 'string' &&
+    typeof doc?.document_id === 'string' &&
     typeof doc?.title === 'string' &&
     typeof doc?.path === 'string' &&
     typeof doc?.content === 'string' &&

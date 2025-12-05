@@ -43,7 +43,7 @@ export class RestApiSearchRepository implements SearchRepository {
    */
   private mapApiDocumentToDomain(apiDoc: ApiDocument): Document {
     return {
-      id: apiDoc.id,
+      document_id: apiDoc.document_id,
       title: apiDoc.title,
       path: apiDoc.path,
       content: apiDoc.content || '',
@@ -61,7 +61,7 @@ export class RestApiSearchRepository implements SearchRepository {
  */
 
 interface ApiDocument {
-  id: string;
+  document_id: string;
   title: string;
   path: string;
   content?: string;
