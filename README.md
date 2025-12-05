@@ -4,28 +4,93 @@ A high-performance semantic search system for documentation using local embeddin
 
 ## 🎯 **Current Status - Production Ready**
 
-**Build Status**: ✅ All feature variants building successfully  
-**Architecture Validation**: ✅ Clean architecture with SOLID principles  
-**MCP Compliance**: ✅ Full JSON-RPC 2.0 transport validation  
-**Performance Optimization**: ✅ <1s startup, <100ms response times  
-**Production Readiness**: ✅ Multi-variant deployment validation complete  
+**Build Status**: ✅ All feature variants building successfully
+**Architecture Validation**: ✅ Clean architecture with SOLID principles
+**MCP Compliance**: ✅ Full JSON-RPC 2.0 transport validation
+**Performance Optimization**: ✅ <1s startup, <100ms response times
+**Production Readiness**: ✅ Multi-variant deployment validation complete
 **Documentation**: [Phase 4D Complete Summary](./docs/milestones/PHASE_4D_SERVICE_EXTENSION_COMPLETE.md)
 
 ### 🎯 Phase 4D Achievement Summary (August 23, 2025)
 
 **ALL OBJECTIVES ACHIEVED** - Zero-Latency system now production-ready with:
 
-✅ **Task 3**: MCP transport validation with JSON-RPC 2.0 compliance  
-✅ **Task 4**: Advanced feature flag architecture with conditional compilation  
-✅ **Task 5**: Comprehensive search pipeline validation and performance benchmarking  
+✅ **Task 3**: MCP transport validation with JSON-RPC 2.0 compliance
+✅ **Task 4**: Advanced feature flag architecture with conditional compilation
+✅ **Task 5**: Comprehensive search pipeline validation and performance benchmarking
 
 **Ready for Next Phase**: Enterprise deployment and scaling optimization.
 
 ## 🚀 Quick Start
 
+### Docker (Recommended)
+
+The fastest way to get started is using Docker Compose:
+
+```bash
+# Start all services (frontend + backend)
+make docker-up
+
+# View logs
+make docker-logs
+
+# Stop services
+make docker-down
+```
+
+**Access Points:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8081
+- Health Check: http://localhost:8081/health
+
+### Development Mode (Hot Reload)
+
+For active development with automatic reload:
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+See [DOCKER.md](./DOCKER.md) for detailed Docker usage and troubleshooting.
+
+### Monorepo Build (Turborepo)
+
+The project uses Turborepo for fast, cached builds:
+
+```bash
+# Install dependencies (first time only)
+npm install
+
+# Build all apps and packages
+make turbo-build
+# or: npm run build
+
+# Development mode (parallel)
+make turbo-dev
+# or: npm run dev
+
+# Run tests
+make turbo-test
+
+# Lint all code
+make turbo-lint
+```
+
+**Benefits:**
+- ⚡ Cached builds: <5 seconds on subsequent runs
+- 🚀 Parallel execution: Frontend + backend simultaneously
+- 📦 Incremental: Only rebuilds what changed
+
+See [MONOREPO.md](./MONOREPO.md) for detailed monorepo usage.
+
 ### Prerequisites
 
-**Nothing!** Zero-Latency now includes an embedded vector database. No need for external services.
+**Docker**: Docker Desktop 24.0+ with 8GB RAM allocated
+
+**Or for local development:**
+- Rust 1.90+
+- Node.js 20+
+- No external services needed (embedded vector database)
 
 ### Using the CLI
 
@@ -38,7 +103,7 @@ cargo build --release
 # Index documents from a directory
 mdx index /path/to/docs
 
-# Search for documents  
+# Search for documents
 mdx search "embedding model"
 
 # Check system status
@@ -120,7 +185,7 @@ mdx reindex
 # Start background indexing server
 mdx server --start
 
-# Stop indexing server  
+# Stop indexing server
 mdx server --stop
 ```
 
@@ -129,7 +194,7 @@ mdx server --stop
 Comprehensive documentation is organized in the [`docs/`](docs/) directory:
 
 - **[Architecture](docs/architecture/)** - Clean architecture implementation details
-- **[Implementation](docs/implementation/)** - Technical implementation guides  
+- **[Implementation](docs/implementation/)** - Technical implementation guides
 - **[Milestones](docs/milestones/)** - Project milestone documentation
 - **[Services](docs/services/)** - Service-specific documentation
 - **[Testing](test/integration/)** - Integration test documentation
@@ -160,7 +225,7 @@ For a complete overview, see the [Documentation Index](docs/README.md).
 
 - **Feature Flag Architecture**: Conditional compilation for optimized deployments
   - `embedded`: Local SQLite + ONNX models (edge deployment)
-  - `cloud`: Qdrant + OpenAI integration (server deployment)  
+  - `cloud`: Qdrant + OpenAI integration (server deployment)
   - `full`: Complete feature set (development/testing)
 
 - **Deployment Flexibility**: Tailored builds for specific environments
@@ -172,7 +237,7 @@ For a complete overview, see the [Documentation Index](docs/README.md).
 
 - **5 Shared Domain Crates**: Comprehensive foundation providing reusable models, traits, and abstractions
   - `zero-latency-core`: Foundation models, error handling, health monitoring
-  - `zero-latency-vector`: Vector storage and embedding abstractions  
+  - `zero-latency-vector`: Vector storage and embedding abstractions
   - `zero-latency-search`: Search orchestration and query processing
   - `zero-latency-observability`: Metrics and monitoring frameworks
   - `zero-latency-config`: Type-safe configuration management
@@ -212,11 +277,11 @@ For a complete overview, see the [Documentation Index](docs/README.md).
   - `scripts/build-dmg.sh`: Packages into distributable DMG
   - `scripts/install.sh`: Command-line installation script
 
-**Build Status**: ✅ Successful release build with feature flags  
-**Architecture Validation**: ✅ All SOLID principles implemented  
-**MCP Integration**: ✅ JSON-RPC 2.0 transport validation complete  
-**Build Optimization**: ✅ Feature flag system for deployment flexibility  
-**Distribution**: ✅ Professional macOS packaging complete  
+**Build Status**: ✅ Successful release build with feature flags
+**Architecture Validation**: ✅ All SOLID principles implemented
+**MCP Integration**: ✅ JSON-RPC 2.0 transport validation complete
+**Build Optimization**: ✅ Feature flag system for deployment flexibility
+**Distribution**: ✅ Professional macOS packaging complete
 **Documentation**: [Phase 4D Implementation Details](./docs/milestones/TASK_4_BUILD_OPTIMIZATION_COMPLETE.md)
 
 ### � Current Focus: Enhanced Search Pipeline Validation (August 23, 2025)
@@ -245,7 +310,7 @@ mdx CLI ──HTTP──> API Server ──SQLite──> Embedded Vector DB
 ### Technology Stack
 
 - **CLI**: Rust with `clap` framework
-- **HTTP API**: Axum web framework  
+- **HTTP API**: Axum web framework
 - **Embeddings**: Local ONNX model (gte-small, 384 dimensions)
 - **Vector DB**: Embedded SQLite with binary blob storage
 - **File Monitoring**: Real-time document change detection
@@ -335,7 +400,7 @@ docker run -d \
   -p 6334:6334 \
   qdrant/qdrant
 
-# Configure to use external Qdrant  
+# Configure to use external Qdrant
 export DOC_INDEXER_VECTOR_BACKEND=qdrant
 export DOC_INDEXER_QDRANT_URL=http://localhost:6333
 ```
@@ -389,7 +454,7 @@ Choose the optimal build for your deployment:
 # Embedded deployment (default) - Single binary, no external dependencies
 cargo build --release --features embedded --no-default-features
 
-# Cloud deployment - External services integration  
+# Cloud deployment - External services integration
 cargo build --release --features cloud --no-default-features
 
 # Development build - All features available
@@ -582,7 +647,7 @@ Enable verbose logging for troubleshooting:
 # API server debug mode
 RUST_LOG=debug cargo run --bin doc-indexer
 
-# CLI debug mode  
+# CLI debug mode
 RUST_LOG=debug mdx search "query"
 ```
 
@@ -629,5 +694,5 @@ This project is licensed under the MIT License. See LICENSE file for details.
 
 ---
 
-**Status**: Phase 2 CLI Interface Complete ✅  
+**Status**: Phase 2 CLI Interface Complete ✅
 **Next**: API Extensions & Web Interface

@@ -1,0 +1,15 @@
+{
+  "name": "@docsearch/backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DocSearch Backend (Rust)",
+  "scripts": {
+    "build": "cargo build --release --bin doc-indexer",
+    "dev": "cargo watch -x 'run --bin doc-indexer -- --port 8081'",
+    "test": "cargo test --workspace",
+    "lint": "cargo clippy --workspace -- -D warnings",
+    "format": "cargo fmt --all -- --check",
+    "clean": "cargo clean"
+  },
+  "devDependencies": {}
+}

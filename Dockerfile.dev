@@ -1,0 +1,37 @@
+# Development Dockerfile with hot reload support
+FROM rust:1.90-slim
+
+# Install system dependencies and cargo-watch for hot reload
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    build-essential \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch for file watching
+RUN cargo install cargo-watch
+
+# Set working directory
+WORKDIR /app
+
+# Copy manifests and lock file
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+COPY services/ ./services/
+
+# Build dependencies (cached layer)
+RUN cargo build
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Set environment
+ENV RUST_LOG=debug
+ENV RUST_BACKTRACE=1
+
+# Use cargo-watch for hot reload
+# Watches for changes and automatically rebuilds and restarts
+CMD ["cargo", "watch", "-x", "run --bin doc-indexer -- --port 8081"]

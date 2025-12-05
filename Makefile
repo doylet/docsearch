@@ -3,7 +3,7 @@
 # This Makefile provides commands for generating API types, clients, and documentation
 # from the OpenAPI 3.1 specification.
 
-.PHONY: help install-deps validate-schemas generate-schemas generate-rust generate-clients generate-docs clean test-schemas docker-build docker-up docker-down docker-logs
+.PHONY: help install-deps validate-schemas generate-schemas generate-rust generate-clients generate-docs clean test-schemas docker-build docker-up docker-down docker-logs docker-restart docker-rebuild docker-clean
 
 # Default target
 help:
@@ -14,7 +14,16 @@ help:
 	@echo "  docker-up             Start all services with Docker Compose"
 	@echo "  docker-down           Stop all services"
 	@echo "  docker-logs           View logs from all services"
+	@echo "  docker-restart        Restart all services"
+	@echo "  docker-rebuild        Rebuild images and restart services (no cache)"
 	@echo "  docker-clean          Remove all containers, images, and volumes"
+	@echo ""
+	@echo "Monorepo Commands (Turborepo):"
+	@echo "  turbo-build           Build all apps and packages"
+	@echo "  turbo-dev             Run all apps in development mode"
+	@echo "  turbo-test            Test all packages"
+	@echo "  turbo-lint            Lint all packages"
+	@echo "  turbo-clean           Clean all build artifacts"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  dev-backend           Run backend in development mode"
@@ -65,6 +74,13 @@ docker-restart:
 	@echo "Restarting services..."
 	docker-compose restart
 	@echo "✅ Services restarted"
+
+docker-rebuild:
+	@echo "Rebuilding and restarting services..."
+	docker-compose down
+	docker-compose build --no-cache
+	docker-compose up -d
+	@echo "✅ Services rebuilt and restarted"
 
 # Development Commands
 dev-backend:
@@ -302,3 +318,31 @@ release: clean validate-schemas lint-schemas generate-schemas test-schemas packa
 	@echo "  - TypeScript client: $(TS_OUTPUT)"
 	@echo "  - Python client: $(PYTHON_OUTPUT)"
 	@echo "  - Documentation: $(DOCS_OUTPUT)"
+
+# Turborepo / Monorepo Commands
+.PHONY: turbo-build turbo-dev turbo-test turbo-lint turbo-clean
+
+turbo-build:
+	@echo "Building all apps and packages with Turborepo..."
+	npm run build
+	@echo "✅ Build complete"
+
+turbo-dev:
+	@echo "Starting all apps in development mode..."
+	npm run dev
+
+turbo-test:
+	@echo "Testing all packages..."
+	npm run test
+	@echo "✅ Tests complete"
+
+turbo-lint:
+	@echo "Linting all packages..."
+	npm run lint
+	@echo "✅ Lint complete"
+
+turbo-clean:
+	@echo "Cleaning all build artifacts..."
+	npm run clean
+	rm -rf .turbo
+	@echo "✅ Clean complete"
