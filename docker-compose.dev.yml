@@ -1,0 +1,43 @@
+# Docker Compose override for development mode
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+    volumes:
+      # Mount source code for hot reload
+      - ./crates:/app/crates
+      - ./services:/app/services
+      - ./Cargo.toml:/app/Cargo.toml
+      - ./Cargo.lock:/app/Cargo.lock
+      # Preserve cargo target directory (build artifacts)
+      - backend_target:/app/target
+    healthcheck:
+      start_period: 60s  # Longer start period for dev builds
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Mount frontend source for hot reload
+      - ./frontend:/app
+      # Preserve node_modules
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev
+    healthcheck:
+      start_period: 45s
+
+volumes:
+  backend_target:
+    driver: local
+  frontend_node_modules:
+    driver: local

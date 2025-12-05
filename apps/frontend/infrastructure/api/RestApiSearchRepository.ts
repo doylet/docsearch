@@ -15,19 +15,22 @@ export class RestApiSearchRepository implements SearchRepository {
   constructor(private readonly apiClient: RestApiClient) {}
 
   async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
-    // Build request body
-    const body: Record<string, string | number> = {
-      query: query,
-      collection: options?.collection || 'zero_latency_docs',
+    // Build query parameters
+    const params: Record<string, string | number> = {
+      q: query,
     };
 
+    if (options?.collection) {
+      params.collection = options.collection;
+    }
+
     if (options?.limit) {
-      body.limit = options.limit;
+      params.limit = options.limit;
     }
 
     // Make API request
     const url = buildApiUrl(API_ENDPOINTS.search);
-    const response = await this.apiClient.post<ApiSearchResponse>(url, body);
+    const response = await this.apiClient.get<ApiSearchResponse>(url, params);
 
     // Transform API response to domain entities
     return response.results.map((apiResult, index) => ({

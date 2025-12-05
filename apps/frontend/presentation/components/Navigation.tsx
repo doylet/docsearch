@@ -21,10 +21,10 @@ export function Navigation() {
       active: pathname === '/',
     },
     {
-      href: '/indexing',
+      href: '/index',
       label: 'Index',
       icon: FolderPlus,
-      active: pathname === '/indexing',
+      active: pathname === '/index',
     },
   ];
 

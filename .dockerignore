@@ -50,6 +50,14 @@ backups/
 # Cache directories
 .cache/
 node_modules/
+.turbo/
+.next/
+
+# Monorepo build artifacts
+apps/*/node_modules/
+apps/*/.next/
+packages/*/node_modules/
+packages/*/dist/
 
 # OS generated files
 Thumbs.db

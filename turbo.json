@@ -1,0 +1,54 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "**/.env.*local",
+    "Cargo.toml",
+    "Cargo.lock"
+  ],
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        "target/release/**"
+      ],
+      "env": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_API_URL",
+        "RUST_LOG"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "env": [
+        "NODE_ENV"
+      ]
+    },
+    "clean": {
+      "cache": false
+    },
+    "cargo:build": {
+      "outputs": ["target/release/**"],
+      "cache": true
+    },
+    "cargo:test": {
+      "dependsOn": ["cargo:build"],
+      "cache": false
+    },
+    "cargo:clippy": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    }
+  }
+}
