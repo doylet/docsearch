@@ -89,7 +89,7 @@ dev-backend:
 
 dev-frontend:
 	@echo "Starting frontend in development mode..."
-	cd frontend && npm run dev
+	cd apps/frontend && npm run dev
 
 dev:
 	@echo "Starting both services in development mode..."

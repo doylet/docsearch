@@ -298,31 +298,30 @@ turbo build --filter=@docsearch/backend --force
 
 **Solution**:
 ```bash
-# Recreate symlinks
-cd apps/frontend && ln -sf ../../frontend/* .
-cd apps/backend && ln -sf ../../services/doc-indexer/* .
+# Note: Symlinks have been removed - all source is now in apps/frontend/
+# No action needed - this is the intended final state
 ```
 
 ## Migration Status
 
-### Current State
+### ✅ Migration Complete (Dec 2025)
 
 - ✅ Root package.json with workspaces
 - ✅ turbo.json with pipeline configuration
 - ✅ apps/backend/ wrapper created
-- ✅ apps/frontend/ structure created
-- ⏳ Symbolic links for backward compatibility
-- ⏳ Docker compose updates pending
-- ⏳ Full migration to apps/ structure
+- ✅ apps/frontend/ contains all frontend source code
+- ✅ All symlinks resolved to real files
+- ✅ Docker compose updated to use apps/frontend/
+- ✅ Single source of truth established
 
-### Backward Compatibility
+### Previous State (Removed)
 
-During migration, the old structure is maintained via symbolic links:
-- `frontend/` → `apps/frontend/`
-- `services/doc-indexer/` → `apps/backend/`
-- `crates/` → `packages/rust-crates/`
+The old duplicate structure has been removed:
+- `/frontend/` → **DELETED** (all source moved to apps/frontend/)
+- All symlinks have been resolved to real files
+- Docker now builds directly from apps/frontend/
 
-This allows existing tools (Make, Docker, IDEs) to continue working during the transition.
+This completes the monorepo consolidation - no backward compatibility symlinks needed.
 
 ## Next Steps
 

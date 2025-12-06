@@ -10,6 +10,7 @@ pub mod persistence;
 pub mod protocols;
 
 // Core infrastructure components
+pub mod concurrent_search;
 pub mod load_testing;
 pub mod memory;
 pub mod search_enhancement;

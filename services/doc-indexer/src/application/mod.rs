@@ -3,6 +3,7 @@
 /// This layer contains the use case implementations and application services.
 /// It coordinates between the domain layer and infrastructure layer.
 pub mod container;
+pub mod concurrent_container;
 pub mod content_processing;
 pub mod content_processor;
 pub mod services;
@@ -19,6 +20,7 @@ pub use content_processing::ContentProcessor;
 
 // Re-export all services and container for easy access
 pub use container::ServiceContainer;
+pub use concurrent_container::ConcurrentServiceContainer;
 pub use services::{
     collection_service::CollectionService, document_service::DocumentIndexingService,
     health_service::HealthService,

@@ -1,5 +1,6 @@
 use crate::infrastructure::memory::{CacheConfig, MemoryEfficientCache, StringInterner};
 use async_trait::async_trait;
+use dashmap::DashMap;
 use lru::LruCache;
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// storage for vectors and provides efficient similarity search.
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Semaphore};
 use zero_latency_core::{models::HealthStatus, values::Score, Result, Uuid, ZeroLatencyError};
 use zero_latency_vector::{
     SimilarityCalculator, SimilarityMetric, SimilarityResult, VectorDocument, VectorMetadata,
@@ -50,9 +51,11 @@ pub struct EmbeddedVectorStore {
     db_path: PathBuf,
     connection: Arc<Mutex<Connection>>,
     config: EmbeddedConfig,
-    cache: Arc<Mutex<LruCache<String, Vec<f32>>>>,
+    cache: Arc<DashMap<String, Vec<f32>>>,
     string_interner: Option<Arc<StringInterner>>,
     smart_cache: Option<Arc<MemoryEfficientCache<String, Vec<f32>>>>,
+    read_semaphore: Arc<Semaphore>,
+    write_semaphore: Arc<Semaphore>,
 }
 impl EmbeddedVectorStore {
     /// Create a new embedded vector store
@@ -93,11 +96,11 @@ impl EmbeddedVectorStore {
             db_path: config.db_path.clone(),
             connection: Arc::new(Mutex::new(connection)),
             config: config.clone(),
-            cache: Arc::new(Mutex::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(config.cache_size).unwrap(),
-            ))),
+            cache: Arc::new(DashMap::new()),
             string_interner,
             smart_cache,
+            read_semaphore: Arc::new(Semaphore::new(100)), // Allow 100 concurrent reads
+            write_semaphore: Arc::new(Semaphore::new(10)), // Allow 10 concurrent writes
         };
 
         // Initialize database schema
@@ -149,12 +152,11 @@ impl EmbeddedVectorStore {
 
     /// Get vector from cache or database
     async fn get_vector(&self, document_id: &str) -> Result<Option<Vec<f32>>> {
+        let _permit = self.read_semaphore.acquire().await.unwrap();
+
         // Check cache first
-        {
-            let mut cache = self.cache.lock().await;
-            if let Some(vector) = cache.get(document_id) {
-                return Ok(Some(vector.clone()));
-            }
+        if let Some(vector) = self.cache.get(document_id) {
+            return Ok(Some(vector.clone()));
         }
 
         // Load from database
@@ -170,11 +172,8 @@ impl EmbeddedVectorStore {
             Ok(blob) => {
                 let vector = self.deserialize_vector(&blob)?;
 
-                // Cache the vector
-                {
-                    let mut cache = self.cache.lock().await;
-                    cache.put(document_id.to_string(), vector.clone());
-                }
+                // Cache the vector with concurrent access
+                self.cache.insert(document_id.to_string(), vector.clone());
 
                 Ok(Some(vector))
             }
@@ -201,7 +200,7 @@ impl EmbeddedVectorStore {
         Ok(EmbeddedStats {
             document_count: document_count as usize,
             db_size_bytes: db_size,
-            cache_size: self.cache.lock().await.len(),
+            cache_size: self.cache.len(),
             db_path: self.config.db_path.clone(),
         })
     }
@@ -219,6 +218,8 @@ impl EmbeddedVectorStore {
 #[async_trait]
 impl VectorRepository for EmbeddedVectorStore {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
+        let _permit = self.write_semaphore.acquire().await.unwrap();
+
         for document in vectors {
             let embedding_blob = self.serialize_vector(&document.embedding)?;
             let metadata_json = serde_json::to_string(&document.metadata).map_err(|e| {
@@ -245,17 +246,16 @@ impl VectorRepository for EmbeddedVectorStore {
                 })?;
             }
 
-            // Update cache
-            {
-                let mut cache = self.cache.lock().await;
-                cache.put(document.id.to_string(), document.embedding);
-            }
+            // Update cache with concurrent access
+            self.cache.insert(document.id.to_string(), document.embedding);
         }
 
         Ok(())
     }
 
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
+        let _permit = self.read_semaphore.acquire().await.unwrap();
+
         let conn = self.connection.lock().await;
         let mut stmt = conn
             .prepare("SELECT id, embedding, metadata FROM vectors")
@@ -313,6 +313,8 @@ impl VectorRepository for EmbeddedVectorStore {
         query_vector: Vec<f32>,
         k: usize,
     ) -> Result<Vec<SimilarityResult>> {
+        let _permit = self.read_semaphore.acquire().await.unwrap();
+
         let conn = self.connection.lock().await;
         let mut stmt = conn
             .prepare("SELECT id, embedding, metadata FROM vectors")
@@ -409,27 +411,28 @@ impl VectorRepository for EmbeddedVectorStore {
         // Limit results
         results.truncate(k);
 
-        tracing::debug!("EmbeddedVectorStore: Collection-specific search in '{}' - processed {} vectors, {} matches, {} mismatches, returned {} results", 
+        tracing::debug!("EmbeddedVectorStore: Collection-specific search in '{}' - processed {} vectors, {} matches, {} mismatches, returned {} results",
                        collection_name, total_processed, collection_matches, collection_mismatches, results.len());
         Ok(results)
     }
 
     async fn delete(&self, document_id: &str) -> Result<bool> {
+        let _permit = self.write_semaphore.acquire().await.unwrap();
+
         let conn = self.connection.lock().await;
         let changes = conn
             .execute("DELETE FROM vectors WHERE id = ?", params![document_id])
             .map_err(|e| ZeroLatencyError::database(format!("Failed to delete document: {}", e)))?;
 
-        // Remove from cache
-        {
-            let mut cache = self.cache.lock().await;
-            cache.pop(document_id);
-        }
+        // Remove from cache with concurrent access
+        self.cache.remove(document_id);
 
         Ok(changes > 0)
     }
 
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
+        let _permit = self.write_semaphore.acquire().await.unwrap();
+
         let embedding_blob = self.serialize_vector(&vector)?;
 
         let conn = self.connection.lock().await;
@@ -441,9 +444,8 @@ impl VectorRepository for EmbeddedVectorStore {
             .map_err(|e| ZeroLatencyError::database(format!("Failed to update document: {}", e)))?;
 
         if changes > 0 {
-            // Update cache
-            let mut cache = self.cache.lock().await;
-            cache.put(document_id.to_string(), vector);
+            // Update cache with concurrent access
+            self.cache.insert(document_id.to_string(), vector);
             Ok(true)
         } else {
             Ok(false)

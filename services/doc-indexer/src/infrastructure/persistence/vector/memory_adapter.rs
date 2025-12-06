@@ -4,17 +4,17 @@ use async_trait::async_trait;
 /// This adapter provides an in-memory implementation of VectorRepository
 /// for testing and development purposes. It's not suitable for production
 /// but useful for integration tests and local development.
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
 use zero_latency_core::{models::HealthStatus, values::Score, Result};
 use zero_latency_vector::{
     SimilarityCalculator, SimilarityResult, VectorDocument, VectorRepository,
 };
 
-/// In-memory vector store
+/// In-memory vector store with concurrent-safe operations
 pub struct InMemoryVectorStore {
-    documents: Arc<RwLock<HashMap<String, VectorDocument>>>,
+    // Use DashMap for lock-free concurrent operations
+    documents: Arc<DashMap<String, VectorDocument>>,
     similarity_calculator: Arc<dyn SimilarityCalculator>,
 }
 
@@ -22,7 +22,7 @@ impl InMemoryVectorStore {
     /// Create a new in-memory vector store
     pub fn new() -> Self {
         Self {
-            documents: Arc::new(RwLock::new(HashMap::new())),
+            documents: Arc::new(DashMap::new()),
             similarity_calculator: Arc::new(CosineCalculator),
         }
     }
@@ -30,43 +30,44 @@ impl InMemoryVectorStore {
     /// Create with a custom similarity calculator
     pub fn with_similarity_calculator(calculator: Arc<dyn SimilarityCalculator>) -> Self {
         Self {
-            documents: Arc::new(RwLock::new(HashMap::new())),
+            documents: Arc::new(DashMap::new()),
             similarity_calculator: calculator,
         }
     }
 
     /// Get the number of stored documents (for testing)
     pub async fn len(&self) -> usize {
-        self.documents.read().await.len()
+        self.documents.len()
     }
 
     /// Check if the store is empty (for testing)
     pub async fn is_empty(&self) -> bool {
-        self.documents.read().await.is_empty()
+        self.documents.is_empty()
     }
 
     /// Clear all documents (for testing)
     pub async fn clear(&self) {
-        self.documents.write().await.clear();
+        self.documents.clear();
     }
 }
 
 #[async_trait]
 impl VectorRepository for InMemoryVectorStore {
     async fn insert(&self, vectors: Vec<VectorDocument>) -> Result<()> {
-        let mut docs = self.documents.write().await;
+        // Use lock-free operations for non-blocking indexing
         for document in vectors {
-            docs.insert(document.id.to_string(), document);
+            let id = document.id.to_string();
+            self.documents.insert(id, document);
         }
         Ok(())
     }
 
     async fn search(&self, query_vector: Vec<f32>, k: usize) -> Result<Vec<SimilarityResult>> {
-        let docs = self.documents.read().await;
         let mut results = Vec::new();
 
-        // Calculate similarity for each document
-        for document in docs.values() {
+        // Use lock-free iteration over DashMap for non-blocking search
+        for entry in self.documents.iter() {
+            let document = entry.value();
             let similarity = self
                 .similarity_calculator
                 .calculate_similarity(&query_vector, &document.embedding);
@@ -99,11 +100,12 @@ impl VectorRepository for InMemoryVectorStore {
         k: usize,
     ) -> Result<Vec<SimilarityResult>> {
         // For memory adapter, we'll filter by collection name in metadata
-        let docs = self.documents.read().await;
         let mut results = Vec::new();
 
         // Calculate similarity for each document in the specified collection
-        for document in docs.values() {
+        for entry in self.documents.iter() {
+            let document = entry.value();
+
             // Check if document belongs to the specified collection
             if let Some(doc_collection) = document.metadata.collection.as_ref() {
                 if doc_collection != collection_name {
@@ -144,14 +146,12 @@ impl VectorRepository for InMemoryVectorStore {
     }
 
     async fn delete(&self, document_id: &str) -> Result<bool> {
-        let mut docs = self.documents.write().await;
-        Ok(docs.remove(document_id).is_some())
+        Ok(self.documents.remove(document_id).is_some())
     }
 
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
-        let mut docs = self.documents.write().await;
-        if let Some(doc) = docs.get_mut(document_id) {
-            doc.embedding = vector;
+        if let Some(mut doc_ref) = self.documents.get_mut(document_id) {
+            doc_ref.embedding = vector;
             Ok(true)
         } else {
             Ok(false)
@@ -163,7 +163,7 @@ impl VectorRepository for InMemoryVectorStore {
     }
 
     async fn count(&self) -> Result<usize> {
-        Ok(self.documents.read().await.len())
+        Ok(self.documents.len())
     }
 }
 

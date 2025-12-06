@@ -18,7 +18,7 @@ export function SearchResults({ results }: SearchResultsProps) {
     <div className="space-y-4">
       {results.map((result) => (
         <div
-          key={result.document.id}
+          key={result.document.document_id}
           className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-start gap-3">
