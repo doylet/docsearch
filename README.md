@@ -202,7 +202,7 @@ Comprehensive documentation is organized in the [`docs/`](docs/) directory:
 - **[Implementation](docs/implementation/)** - Technical implementation guides
 - **[Milestones](docs/milestones/)** - Project milestone documentation
 - **[Services](docs/services/)** - Service-specific documentation
-- **[Testing](test/integration/)** - Integration test documentation
+- **[Testing](services/doc-indexer/tests/)** - Rust integration tests (`cargo test --workspace`; server tests run with `-- --ignored`)
 
 ## 📊 Project Status
 
