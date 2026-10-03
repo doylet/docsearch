@@ -11,6 +11,7 @@ const BASE_URL: &str = "http://localhost:8081";
 const TIMEOUT_DURATION: Duration = Duration::from_secs(30);
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_rest_api_collection_filtering() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -48,6 +49,7 @@ async fn test_rest_api_collection_filtering() -> Result<(), Box<dyn std::error::
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_rest_api_default_search() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -74,6 +76,7 @@ async fn test_rest_api_default_search() -> Result<(), Box<dyn std::error::Error>
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_jsonrpc_collection_filtering() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -125,6 +128,7 @@ async fn test_jsonrpc_collection_filtering() -> Result<(), Box<dyn std::error::E
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_jsonrpc_default_search() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -163,6 +167,7 @@ async fn test_jsonrpc_default_search() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_invalid_collection_handling() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -195,6 +200,7 @@ async fn test_invalid_collection_handling() -> Result<(), Box<dyn std::error::Er
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_empty_query_handling() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -220,6 +226,7 @@ async fn test_empty_query_handling() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -290,6 +297,7 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
 }
 
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_collection_parameter_validation() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
@@ -373,6 +381,7 @@ mod test_helpers {
 
 /// Integration test runner that ensures service is running first
 #[tokio::test]
+#[ignore = "requires a doc-indexer server already running on localhost:8081"]
 async fn test_service_availability() -> Result<(), Box<dyn std::error::Error>> {
     use test_helpers::*;
 

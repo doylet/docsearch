@@ -7,13 +7,13 @@ use uuid::Uuid;
 pub struct AppConfig {
     /// Server configuration
     pub server: ServerConfig,
-    
+
     /// Client configuration
     pub client: ClientConfig,
-    
+
     /// Test configuration
     pub test: TestConfig,
-    
+
     /// Global application settings
     pub app: GlobalConfig,
 }
@@ -23,16 +23,16 @@ pub struct AppConfig {
 pub struct ServerConfig {
     /// Server host (default: localhost)
     pub host: String,
-    
+
     /// Server port (default: 8081)
     pub port: u16,
-    
+
     /// Documents path for indexing
     pub docs_path: Option<String>,
-    
+
     /// Collection name for vector storage
     pub collection_name: String,
-    
+
     /// Server timeout in milliseconds
     pub timeout_ms: u64,
 }
@@ -42,13 +42,13 @@ pub struct ServerConfig {
 pub struct ClientConfig {
     /// Base server URL (constructed from server config by default)
     pub server_url: Option<String>,
-    
+
     /// Request timeout in milliseconds
     pub timeout_ms: u64,
-    
+
     /// Maximum number of retries for failed requests
     pub max_retries: u32,
-    
+
     /// Connection timeout in milliseconds
     pub connect_timeout_ms: u64,
 }
@@ -58,16 +58,16 @@ pub struct ClientConfig {
 pub struct TestConfig {
     /// Base port for test servers (incremented for each test)
     pub port_base: u16,
-    
+
     /// Test fixture path
     pub fixture_path: String,
-    
+
     /// Binary path for doc-indexer executable
     pub binary_path: Option<String>,
-    
+
     /// Test collection name prefix (appended with timestamp)
     pub collection_prefix: String,
-    
+
     /// Test timeout in milliseconds
     pub timeout_ms: u64,
 }
@@ -77,10 +77,10 @@ pub struct TestConfig {
 pub struct GlobalConfig {
     /// Logging level (error, warn, info, debug, trace)
     pub log_level: String,
-    
+
     /// Default output format (table, json, simple)
     pub output_format: String,
-    
+
     /// Enable debug mode
     pub debug: bool,
 }
@@ -157,9 +157,11 @@ impl ClientConfig {
     }
 }
 
+/// Process-wide port offset, shared so separate helper instances never hand out the same port
+static NEXT_PORT_OFFSET: AtomicU16 = AtomicU16::new(0);
+
 /// Test configuration helper for unique port allocation and collection names
 pub struct TestConfigHelper {
-    port_counter: AtomicU16,
     base_config: TestConfig,
 }
 
@@ -167,31 +169,36 @@ impl TestConfigHelper {
     /// Create a new test configuration helper
     pub fn new() -> Self {
         Self {
-            port_counter: AtomicU16::new(0),
             base_config: TestConfig::default(),
         }
     }
-    
+
     /// Create with custom base configuration
     pub fn with_config(config: TestConfig) -> Self {
         Self {
-            port_counter: AtomicU16::new(0),
             base_config: config,
         }
     }
-    
+
     /// Get a unique port for testing
     pub fn get_unique_port(&self) -> u16 {
-        let increment = self.port_counter.fetch_add(1, Ordering::SeqCst);
-        self.base_config.port_base + increment
+        // Skip ports still held by another process, e.g. a server leaked by an earlier run
+        for _ in 0..1000 {
+            let offset = NEXT_PORT_OFFSET.fetch_add(1, Ordering::SeqCst);
+            let port = self.base_config.port_base.wrapping_add(offset);
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                return port;
+            }
+        }
+        panic!("no free test port found above {}", self.base_config.port_base);
     }
-    
+
     /// Get a unique collection name for testing
     pub fn get_unique_collection_name(&self) -> String {
         let uuid = Uuid::new_v4();
         format!("{}_{}", self.base_config.collection_prefix, uuid.simple())
     }
-    
+
     /// Resolve binary path with multiple fallback locations
     pub fn resolve_binary_path(&self) -> Option<String> {
         if let Some(path) = &self.base_config.binary_path {
@@ -199,25 +206,25 @@ impl TestConfigHelper {
                 return Some(path.clone());
             }
         }
-        
+
         // Fallback paths to search for doc-indexer binary
         let fallback_paths = [
             "./target/debug/doc-indexer",
-            "./target/release/doc-indexer", 
+            "./target/release/doc-indexer",
             "./services/doc-indexer/target/debug/doc-indexer",
             "./services/doc-indexer/target/release/doc-indexer",
             "doc-indexer", // In PATH
         ];
-        
+
         for path in &fallback_paths {
             if std::path::Path::new(path).exists() {
                 return Some(path.to_string());
             }
         }
-        
+
         None
     }
-    
+
     /// Create a complete test configuration with unique values
     pub fn create_test_config(&self) -> TestConfig {
         TestConfig {
