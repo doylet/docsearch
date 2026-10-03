@@ -29,6 +29,7 @@ impl ContentTypeDetector {
                 "js" | "ts" | "jsx" | "tsx" => return ContentType::JavaScript,
                 "py" => return ContentType::Python,
                 "sh" | "bash" | "zsh" | "fish" => return ContentType::Shell,
+                "pdf" => return ContentType::Pdf,
                 "conf" | "config" | "cfg" | "ini" => return ContentType::Config,
                 // Binary and unknown extensions
                 "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => {

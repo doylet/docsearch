@@ -121,6 +121,20 @@ impl StandardFileSystemService {
 impl FileSystemService for StandardFileSystemService {
     async fn read_file_content(&self, path: &Path) -> Result<String> {
         use tokio::fs;
+
+        // Check if this is a binary file that needs special handling
+        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
+            match extension.to_lowercase().as_str() {
+                "pdf" => {
+                    // For PDF files, return the file path as content
+                    // The PDF handler will process the actual file
+                    return Ok(path.to_string_lossy().to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // For text files, read as string
         fs::read_to_string(path).await.map_err(|e| {
             zero_latency_core::ZeroLatencyError::internal(format!("Failed to read file: {}", e))
         })

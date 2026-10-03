@@ -255,6 +255,44 @@ impl ContentHandler for PlainTextHandler {
     }
 }
 
+/// PDF content handler
+pub struct PdfHandler;
+
+impl ContentHandler for PdfHandler {
+    fn content_type(&self) -> ContentType {
+        ContentType::Pdf
+    }
+
+    fn process(&self, content: &str) -> Result<String> {
+        // For PDF processing, content should be the file path, not file content
+        // This is because PDF files are binary and need special processing
+        use std::path::Path;
+
+        let path = Path::new(content);
+        if !path.exists() {
+            return Err(zero_latency_core::ZeroLatencyError::internal("PDF file not found"));
+        }
+
+        // Extract text from PDF
+        match pdf_extract::extract_text(path) {
+            Ok(text) => {
+                // Clean up the extracted text
+                let cleaned = text
+                    .lines()
+                    .map(|line| line.trim())
+                    .filter(|line| !line.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                Ok(cleaned)
+            }
+            Err(e) => {
+                Err(zero_latency_core::ZeroLatencyError::internal(&format!("Failed to extract PDF text: {}", e)))
+            }
+        }
+    }
+}
+
 /// Default handler for unknown content types
 pub struct DefaultHandler;
 

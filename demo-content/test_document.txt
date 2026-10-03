@@ -1,0 +1,11 @@
+This is a test PDF document for the document indexing system.
+
+It contains sample text that should be extracted and made searchable.
+
+This PDF contains technical information about:
+- Machine learning algorithms
+- Document processing pipelines
+- Search and indexing strategies
+- Vector embeddings and similarity search
+
+The document indexer should be able to extract this text and make it searchable through the API.

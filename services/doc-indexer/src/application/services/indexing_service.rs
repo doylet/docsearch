@@ -5,6 +5,7 @@ use std::path::Path;
 /// This service provides a clean, testable interface for document indexing
 /// with proper separation of concerns and dependency injection patterns.
 use std::sync::Arc;
+use chrono;
 use zero_latency_core::{
     models::{Document, DocumentMetadata},
     Result, Uuid,
@@ -139,6 +140,27 @@ impl IndexingService {
             .to_string();
 
         // Create document
+        let mut custom_metadata = HashMap::new();
+
+        // Add file metadata
+        custom_metadata.insert("file_size".to_string(), file_metadata.size.to_string());
+        custom_metadata.insert("last_modified".to_string(), file_metadata.modified.to_rfc3339());
+        custom_metadata.insert("file_type".to_string(), content_type.clone());
+        custom_metadata.insert("indexed_at".to_string(), chrono::Utc::now().to_rfc3339());
+
+        // Add file extension if available
+        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+            custom_metadata.insert("file_extension".to_string(), extension.to_string());
+        }
+
+        // Add file name without extension
+        if let Some(file_stem) = path.file_stem().and_then(|stem| stem.to_str()) {
+            custom_metadata.insert("file_name".to_string(), file_stem.to_string());
+        }
+
+        // Add path information
+        custom_metadata.insert("file_path".to_string(), path.to_string_lossy().to_string());
+
         let document = Document {
             id: Uuid::new_v4(),
             title,
@@ -148,7 +170,7 @@ impl IndexingService {
             size: file_metadata.size,
             metadata: DocumentMetadata {
                 content_type: Some(content_type),
-                custom: HashMap::new(),
+                custom: custom_metadata,
                 ..Default::default()
             },
         };

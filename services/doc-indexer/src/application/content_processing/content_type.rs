@@ -31,6 +31,8 @@ pub enum ContentType {
     Python,
     /// Shell scripts (.sh, .bash)
     Shell,
+    /// PDF files (.pdf)
+    Pdf,
     /// Configuration files
     Config,
     /// Unknown or unsupported file type
@@ -57,6 +59,7 @@ impl ContentType {
                 | ContentType::JavaScript
                 | ContentType::Python
                 | ContentType::Shell
+                | ContentType::Pdf
                 | ContentType::Config
         )
     }

@@ -22,6 +22,7 @@ pub mod endpoints {
     // Indexing endpoints
     pub const INDEX: &str = "/api/index";
     pub const REINDEX: &str = "/api/reindex";
+    pub const BROWSE: &str = "/api/browse";
 
     // Collection management endpoints
     pub const COLLECTIONS: &str = "/api/collections";
