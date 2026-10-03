@@ -342,6 +342,10 @@ mod tests {
         cache.insert("key1".to_string(), "value1".to_string());
         cache.insert("key2".to_string(), "value2".to_string());
 
+        // Let entries age so recency dominates the score; at microsecond ages the
+        // insert-order gap can outweigh the access and evict key1 instead
+        std::thread::sleep(Duration::from_millis(20));
+
         // Access key1 to make it more likely to be kept
         cache.get(&"key1".to_string());
 
