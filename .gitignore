@@ -44,3 +44,6 @@ DerivedData/
 .vscode/
 .idea/
 .ai/envelope.json
+
+# Runtime directories
+collections/

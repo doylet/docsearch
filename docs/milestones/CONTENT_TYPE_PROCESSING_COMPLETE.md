@@ -11,7 +11,7 @@ Successfully implemented comprehensive content type detection and processing for
 - **Solution**: Created ContentProcessor module with HTML tag stripping and text extraction
 - **Result**: HTML files now have clean, searchable text content without markup
 
-### ✅ 30-Second Timeout Issue  
+### ✅ 30-Second Timeout Issue
 - **Problem**: Large directory indexing was timing out at 30 seconds
 - **Solution**: Increased HTTP timeout from 30s to 300s (5 minutes) for large operations
 - **Result**: Successfully processed Downloads directory (789 files) in 97 seconds without timeout
@@ -115,7 +115,7 @@ DOC_INDEXER_TIMEOUT=300  # 5 minutes default (was 30s)
 
 ## Git History
 
-- Branch: `investigate-indexing-content-types` 
+- Branch: `investigate-indexing-content-types`
 - Merged to: `main`
 - Commit: `abf5b83` - "feat: Add content type detection and HTML processing"
 - Follow-up: `1625b85` - "fix: Remove unused ContentType import"

@@ -51,7 +51,7 @@ For active development with automatic reload:
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
-See [DOCKER.md](./DOCKER.md) for detailed Docker usage and troubleshooting.
+See [DOCKER.md](docs/guides/DOCKER.md) for detailed Docker usage and troubleshooting.
 
 ### Monorepo Build (Turborepo)
 
@@ -81,7 +81,7 @@ make turbo-lint
 - 🚀 Parallel execution: Frontend + backend simultaneously
 - 📦 Incremental: Only rebuilds what changed
 
-See [MONOREPO.md](./MONOREPO.md) for detailed monorepo usage.
+See [MONOREPO.md](docs/guides/MONOREPO.md) for detailed monorepo usage.
 
 ### Prerequisites
 
@@ -193,13 +193,16 @@ mdx server --stop
 
 Comprehensive documentation is organized in the [`docs/`](docs/) directory:
 
+- **[Documentation Index](docs/README.md)** - Complete documentation overview
+- **[Docker Guide](docs/guides/DOCKER.md)** - Docker setup and deployment
+- **[Monorepo Guide](docs/guides/MONOREPO.md)** - Turborepo structure and workflows
+- **[Project Overview](docs/guides/PROJECT_OVERVIEW.md)** - Comprehensive project overview
+- **[Release Notes](docs/guides/RELEASE_NOTES.md)** - Version history and release notes
 - **[Architecture](docs/architecture/)** - Clean architecture implementation details
 - **[Implementation](docs/implementation/)** - Technical implementation guides
 - **[Milestones](docs/milestones/)** - Project milestone documentation
 - **[Services](docs/services/)** - Service-specific documentation
 - **[Testing](test/integration/)** - Integration test documentation
-
-For a complete overview, see the [Documentation Index](docs/README.md).
 
 ## 📊 Project Status
 
@@ -319,7 +322,7 @@ mdx CLI ──HTTP──> API Server ──SQLite──> Embedded Vector DB
 
 ### macOS App Bundle (Recommended)
 
-**Download the latest release**: [Zero-Latency-v1.0.0.dmg](releases/Zero-Latency-v1.0.0.dmg)
+**Build the DMG locally**: `Zero-Latency-v1.0.0.dmg` is not checked in; see [Building Distribution Packages](#building-distribution-packages)
 
 1. **Download and mount** the DMG file
 2. **Drag Zero-Latency.app** to your Applications folder
