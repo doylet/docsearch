@@ -1,7 +1,6 @@
 use crate::infrastructure::memory::{CacheConfig, MemoryEfficientCache, StringInterner};
 use async_trait::async_trait;
 use dashmap::DashMap;
-use lru::LruCache;
 use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 /// Embedded vector store adapter using SQLite

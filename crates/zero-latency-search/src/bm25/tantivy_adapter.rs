@@ -368,8 +368,8 @@ impl SearchStep for BM25SearchStep {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tempfile::TempDir;
+
+
 
     #[tokio::test]
     #[cfg(feature = "tantivy")]

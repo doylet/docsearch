@@ -426,11 +426,11 @@ impl RegressionCheckResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluation::dataset::{EvaluationDataset, LabeledExample};
+
     use zero_latency_core::DocId;
     use zero_latency_core::{Uuid, values::Score};
     use crate::{ScoreBreakdown, FromSignals};
-    use crate::fusion::NormalizationMethod;
+
 
     #[test]
     fn test_ndcg_calculation() {
