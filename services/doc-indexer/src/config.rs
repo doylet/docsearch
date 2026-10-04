@@ -276,9 +276,17 @@ pub struct ServiceConfig {
     #[serde(default = "default_max_binary_file_size")]
     pub max_binary_file_size: u64,
 
+    /// Directories `/api/browse` may list. Empty disables browsing.
+    #[serde(default)]
+    pub browse_roots: Vec<std::path::PathBuf>,
+
+    /// Maximum number of items returned by one `/api/browse` response
+    #[serde(default = "default_browse_max_entries")]
+    pub browse_max_entries: usize,
 }
 
 const DEFAULT_MAX_BINARY_FILE_SIZE: u64 = 50 * 1024 * 1024;
+const DEFAULT_BROWSE_MAX_ENTRIES: usize = 1000;
 
 fn default_max_binary_file_size() -> u64 {
     std::env::var("DOC_INDEXER_MAX_BINARY_FILE_SIZE")
@@ -287,7 +295,28 @@ fn default_max_binary_file_size() -> u64 {
         .unwrap_or(DEFAULT_MAX_BINARY_FILE_SIZE)
 }
 
+fn default_browse_max_entries() -> usize {
+    std::env::var("DOC_INDEXER_BROWSE_MAX_ENTRIES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_BROWSE_MAX_ENTRIES)
+}
 
+/// Read `DOC_INDEXER_BROWSE_ROOTS` (`:`-separated). Unset means browsing is disabled.
+fn default_browse_roots() -> Vec<std::path::PathBuf> {
+    std::env::var("DOC_INDEXER_BROWSE_ROOTS")
+        .map(|v| parse_browse_roots(&v))
+        .unwrap_or_default()
+}
+
+fn parse_browse_roots(value: &str) -> Vec<std::path::PathBuf> {
+    value
+        .split(':')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
+        .collect()
+}
 
 /// Vector storage backend types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -508,6 +537,8 @@ impl Config {
                         }
                     }),
                 max_binary_file_size: default_max_binary_file_size(),
+                browse_roots: default_browse_roots(),
+                browse_max_entries: default_browse_max_entries(),
             },
 
             load_testing: LoadTestingConfig::default(),
@@ -736,6 +767,8 @@ impl Default for Config {
                     std::path::PathBuf::from("~/Documents")
                 },
                 max_binary_file_size: default_max_binary_file_size(),
+                browse_roots: default_browse_roots(),
+                browse_max_entries: default_browse_max_entries(),
             },
 
             load_testing: LoadTestingConfig::default(),

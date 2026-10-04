@@ -21,6 +21,7 @@ use zero_latency_api::endpoints::endpoints;
 use zero_latency_core::ZeroLatencyError;
 use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 
+use super::browse::{browse_directory, BrowseConfig};
 use crate::application::{
     CollectionService, DocumentIndexingService, HealthService, ServiceContainer,
 };
@@ -36,6 +37,7 @@ pub struct AppState {
     pub analytics_service:
         Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     pub start_time: Instant,
+    pub browse: BrowseConfig,
 }
 
 impl AppState {
@@ -101,6 +103,11 @@ impl AppState {
         // Initialize collection stats from actual vector repository
         collection_service.initialize().await?;
 
+        let browse = BrowseConfig::new(
+            &config.service.browse_roots,
+            config.service.browse_max_entries,
+        );
+
         // Use the analytics service from the container (shared with search pipeline)
         let analytics_service = container.analytics();
 
@@ -111,6 +118,7 @@ impl AppState {
             collection_service,
             analytics_service,
             start_time: Instant::now(),
+            browse,
         })
     }
 }
@@ -1029,97 +1037,4 @@ async fn get_search_trends(State(state): State<AppState>) -> Result<Json<SearchT
 #[derive(Debug, Deserialize)]
 pub struct AnalyticsQuery {
     pub limit: Option<usize>,
-}
-
-/// Query parameters for browse endpoint
-#[derive(Debug, Deserialize)]
-pub struct BrowseQuery {
-    pub path: Option<String>,
-}
-
-/// Browse directory contents for path selection UX
-async fn browse_directory(
-    State(_state): State<AppState>,
-    Query(params): Query<BrowseQuery>,
-) -> Result<Json<BrowseResponse>, AppError> {
-    let path = params.path.unwrap_or_else(|| "/Users/thomasdoyle".to_string());
-
-    // Use tokio::fs to list directory contents
-    match tokio::fs::read_dir(&path).await {
-        Ok(mut entries) => {
-            let mut directories = Vec::new();
-            let mut files = Vec::new();
-
-            while let Ok(Some(entry)) = entries.next_entry().await {
-                if let Some(name) = entry.file_name().to_str() {
-                    if name.starts_with('.') {
-                        continue; // Skip hidden files
-                    }
-
-                    let entry_path = entry.path();
-                    let path_str = entry_path.to_string_lossy().to_string();
-                    let is_dir = entry_path.is_dir();
-
-                    let item = BrowseItem {
-                        name: name.to_string(),
-                        path: path_str,
-                        is_directory: is_dir,
-                        size: None,
-                    };
-
-                    if is_dir {
-                        directories.push(item);
-                    } else {
-                        files.push(item);
-                    }
-                }
-            }
-
-            // Sort directories and files alphabetically
-            directories.sort_by(|a, b| a.name.cmp(&b.name));
-            files.sort_by(|a, b| a.name.cmp(&b.name));
-
-            Ok(Json(BrowseResponse {
-                path: path.clone(),
-                parent_path: std::path::Path::new(&path).parent().map(|p| p.to_string_lossy().to_string()),
-                items: {
-                    let mut items = directories;
-                    items.extend(files);
-                    items
-                },
-                common_paths: if path == "/Users/thomasdoyle" {
-                    Some(vec![
-                        "/Users/thomasdoyle/Documents".to_string(),
-                        "/Users/thomasdoyle/Downloads".to_string(),
-                        "/Users/thomasdoyle/Desktop".to_string(),
-                        "/Users/thomasdoyle/Daintree".to_string(),
-                        "/Users/thomasdoyle/Wilcannia".to_string(),
-                    ])
-                } else {
-                    None
-                },
-            }))
-        },
-        Err(e) => {
-            Err(AppError(ZeroLatencyError::internal(format!("Directory not found or not accessible: {}", e))))
-        }
-    }
-}
-
-/// Response for browse endpoint
-#[derive(Debug, Serialize)]
-pub struct BrowseResponse {
-    pub path: String,
-    pub parent_path: Option<String>,
-    pub items: Vec<BrowseItem>,
-    pub common_paths: Option<Vec<String>>,
-}
-
-/// Directory item in browse response
-#[derive(Debug, Serialize)]
-pub struct BrowseItem {
-    pub name: String,
-    pub path: String,
-    pub is_directory: bool,
-    pub size: Option<u64>,
 }

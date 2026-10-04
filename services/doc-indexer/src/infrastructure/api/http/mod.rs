@@ -2,6 +2,7 @@
 ///
 /// This module contains the HTTP server implementation using Axum,
 /// including route handlers, middleware, and server configuration.
+pub mod browse;
 pub mod handlers;
 pub mod server;
 
