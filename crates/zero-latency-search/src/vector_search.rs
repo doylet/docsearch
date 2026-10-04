@@ -29,25 +29,10 @@ impl SearchStep for VectorSearchStep {
     }
 
     async fn execute(&self, context: &mut SearchContext) -> Result<()> {
-        // Use enhanced query if available, otherwise fall back to original query
-        let query_text = if let Some(ref enhanced) = context.enhanced_query {
-            println!(
-                "🔍 VectorSearchStep: Using enhanced query: '{}'",
-                enhanced.enhanced
-            );
-            &enhanced.enhanced
-        } else {
-            println!(
-                "🔍 VectorSearchStep: Using original query: '{}'",
-                context.request.query.raw
-            );
-            &context.request.query.raw
-        };
-
-        println!(
-            "🔍 VectorSearchStep: Generating embedding for query: '{}'",
-            query_text
-        );
+        // Embed the query as the user wrote it. Expansion terms help keyword
+        // search, but appended to an embedding input they dilute its meaning.
+        let query_text = &context.request.query.raw;
+        tracing::debug!("VectorSearchStep: embedding query '{}'", query_text);
         let query_embedding = self
             .embedding_service
             .generate_embedding(query_text)
@@ -180,4 +165,77 @@ impl SearchStep for VectorSearchStep {
 #[async_trait]
 pub trait EmbeddingService: Send + Sync {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use zero_latency_core::models::HealthStatus;
+    use zero_latency_vector::{SimilarityResult, VectorDocument};
+
+    /// Records the text it is asked to embed
+    #[derive(Default)]
+    struct RecordingEmbedder(Mutex<Vec<String>>);
+
+    #[async_trait]
+    impl EmbeddingService for RecordingEmbedder {
+        async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
+            self.0.lock().unwrap().push(text.to_string());
+            Ok(vec![1.0, 0.0])
+        }
+    }
+
+    struct EmptyRepo;
+
+    #[async_trait]
+    impl VectorRepository for EmptyRepo {
+        async fn insert(&self, _: Vec<VectorDocument>) -> Result<()> {
+            Ok(())
+        }
+        async fn search(&self, _: Vec<f32>, _: usize) -> Result<Vec<SimilarityResult>> {
+            Ok(Vec::new())
+        }
+        async fn search_in_collection(
+            &self,
+            _: &str,
+            _: Vec<f32>,
+            _: usize,
+        ) -> Result<Vec<SimilarityResult>> {
+            Ok(Vec::new())
+        }
+        async fn delete(&self, _: &str) -> Result<bool> {
+            Ok(false)
+        }
+        async fn delete_collection(&self, _: &str) -> Result<usize> {
+            Ok(0)
+        }
+        async fn update(&self, _: &str, _: Vec<f32>) -> Result<bool> {
+            Ok(false)
+        }
+        async fn health_check(&self) -> Result<HealthStatus> {
+            Ok(HealthStatus::Healthy)
+        }
+        async fn count(&self) -> Result<usize> {
+            Ok(0)
+        }
+    }
+
+    #[tokio::test]
+    async fn embeds_the_original_query_not_the_expansion() {
+        let embedder = Arc::new(RecordingEmbedder::default());
+        let step = VectorSearchStep::new(Arc::new(EmptyRepo), embedder.clone());
+        let mut context = SearchContext::new(SearchRequest::new("run it in docker"));
+        context.set_enhanced_query(EnhancedQuery {
+            original: "run it in docker".to_string(),
+            enhanced: "run it in docker execute invoke launch start".to_string(),
+            synonyms_added: vec![],
+            technical_terms: vec![],
+            expansion_strategy: "test".to_string(),
+        });
+
+        step.execute(&mut context).await.unwrap();
+
+        assert_eq!(*embedder.0.lock().unwrap(), vec!["run it in docker"]);
+    }
 }
