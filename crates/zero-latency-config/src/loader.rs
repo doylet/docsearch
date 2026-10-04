@@ -249,7 +249,9 @@ pub fn load_config_from_env() -> Result<AppConfig, ConfigError> {
     ConfigResolver::env_only().load()
 }
 
+// figment's `Jail::expect_with` fixes the closure's error type to `figment::Error`
 #[cfg(test)]
+#[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
     use crate::validation::validate_config;
