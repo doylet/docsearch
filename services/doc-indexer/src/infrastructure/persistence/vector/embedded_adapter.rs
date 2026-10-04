@@ -485,6 +485,31 @@ impl VectorRepository for EmbeddedVectorStore {
         Ok(changes > 0)
     }
 
+    async fn delete_collection(&self, collection_name: &str) -> Result<usize> {
+        let _permit = self.write_semaphore.acquire().await.unwrap();
+
+        let conn = self.connection.lock().await;
+        let mut stmt = conn
+            .prepare(
+                "DELETE FROM vectors WHERE json_extract(metadata, '$.collection') = ? RETURNING id",
+            )
+            .map_err(|e| {
+                ZeroLatencyError::database(format!("Failed to prepare collection delete: {}", e))
+            })?;
+        let ids = stmt
+            .query_map(params![collection_name], |row| row.get::<_, String>(0))
+            .and_then(|rows| rows.collect::<std::result::Result<Vec<_>, _>>())
+            .map_err(|e| {
+                ZeroLatencyError::database(format!("Failed to delete collection: {}", e))
+            })?;
+
+        for id in &ids {
+            self.cache.remove(id);
+        }
+
+        Ok(ids.len())
+    }
+
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
         let _permit = self.write_semaphore.acquire().await.unwrap();
 
@@ -823,5 +848,47 @@ mod tests {
             store.index_meta().await.unwrap().unwrap().embedding_model,
             "model-b"
         );
+    }
+
+    fn doc_in(collection: Option<&str>) -> VectorDocument {
+        let mut d = doc();
+        d.metadata.collection = collection.map(str::to_string);
+        d
+    }
+
+    #[tokio::test]
+    async fn test_delete_collection_removes_only_its_vectors() {
+        let temp_dir = tempdir().unwrap();
+        let store = EmbeddedVectorStore::new(store_config(temp_dir.path()))
+            .await
+            .unwrap();
+        store
+            .insert(vec![
+                doc_in(Some("a")),
+                doc_in(Some("a")),
+                doc_in(Some("b")),
+                doc_in(None),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(store.delete_collection("a").await.unwrap(), 2);
+
+        assert_eq!(store.count().await.unwrap(), 2);
+        let query = vec![1.0, 0.0, 0.0];
+        assert!(store
+            .search_in_collection("a", query.clone(), 10)
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            store
+                .search_in_collection("b", query, 10)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(store.delete_collection("a").await.unwrap(), 0);
     }
 }

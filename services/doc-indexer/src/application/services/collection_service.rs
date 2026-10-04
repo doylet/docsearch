@@ -182,11 +182,22 @@ impl CollectionService {
         Ok(collection)
     }
 
-    /// Delete a collection
+    /// Delete a collection and its vectors. Returns false when there was neither
+    /// a registered collection nor any vectors by that name.
     pub async fn delete_collection(&self, name: &str) -> Result<bool> {
-        let mut collections_guard = self.collections.write().await;
-        if collections_guard.remove(name).is_some() {
-            println!("🗑️ Deleted collection: {}", name);
+        let removed_vectors = self
+            .container
+            .vector_repository()
+            .delete_collection(name)
+            .await?;
+        let registered = self.collections.write().await.remove(name).is_some();
+
+        if registered || removed_vectors > 0 {
+            tracing::info!(
+                "Deleted collection '{}' ({} vectors)",
+                name,
+                removed_vectors
+            );
             Ok(true)
         } else {
             Ok(false)

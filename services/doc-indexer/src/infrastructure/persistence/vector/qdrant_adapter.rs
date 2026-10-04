@@ -359,6 +359,39 @@ impl VectorRepository for QdrantAdapter {
         Ok(true)
     }
 
+    async fn delete_collection(&self, collection_name: &str) -> Result<usize> {
+        let filter =
+            json!({ "must": [{ "key": "collection", "match": { "value": collection_name } }] });
+
+        let path = self.collection_path(&self.config.collection_name, "/points/count");
+        let body = json!({ "filter": filter, "exact": true });
+        let (status, text) = self.send(Method::POST, &path, Some(&body)).await?;
+        if status == StatusCode::NOT_FOUND {
+            // Nothing has been indexed yet, so there is nothing to delete
+            return Ok(0);
+        }
+        if !status.is_success() {
+            return Err(http_error(status, &text));
+        }
+        let count = serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|v| v["result"]["count"].as_u64())
+            .ok_or_else(|| {
+                ZeroLatencyError::external_service(
+                    "qdrant",
+                    format!("Unexpected count response: {}", text),
+                )
+            })? as usize;
+        if count == 0 {
+            return Ok(0);
+        }
+
+        let path = self.collection_path(&self.config.collection_name, "/points/delete?wait=true");
+        self.send_ok(Method::POST, &path, Some(&json!({ "filter": filter })))
+            .await?;
+        Ok(count)
+    }
+
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
         if !self.point_exists(document_id).await? {
             return Ok(false);
@@ -740,5 +773,37 @@ mod tests {
                 request.path
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_delete_collection_filters_on_collection_payload() {
+        let server = MockServer::start(|req: &RecordedRequest, _| match req.route() {
+            "/collections/docs/points/count" => (
+                StatusCode::OK,
+                json!({ "result": { "count": 3 }, "status": "ok" }),
+            ),
+            "/collections/docs/points/delete" => ok(),
+            _ => not_found(),
+        })
+        .await;
+        let adapter = adapter_for(&server, None).await;
+
+        assert_eq!(adapter.delete_collection("guides").await.unwrap(), 3);
+
+        let filter = json!({ "must": [{ "key": "collection", "match": { "value": "guides" } }] });
+        let deletes = server.requests_to(Method::POST, "/collections/docs/points/delete");
+        assert_eq!(deletes.len(), 1);
+        assert_eq!(deletes[0].body, json!({ "filter": filter }));
+    }
+
+    #[tokio::test]
+    async fn test_delete_collection_before_anything_is_indexed() {
+        let server = MockServer::start(|_, _| not_found()).await;
+        let adapter = adapter_for(&server, None).await;
+
+        assert_eq!(adapter.delete_collection("guides").await.unwrap(), 0);
+        assert!(server
+            .requests_to(Method::POST, "/collections/docs/points/delete")
+            .is_empty());
     }
 }
