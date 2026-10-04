@@ -1,0 +1,5 @@
+# Bulk formatting commits, skipped by `git blame`.
+# Use with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply cargo fmt to the whole workspace
+585b2b159db604836c1ae41432c45d282950812f
