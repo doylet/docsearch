@@ -15,11 +15,13 @@ export class RestApiSearchRepository implements SearchRepository {
   constructor(private readonly apiClient: RestApiClient) {}
 
   async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
-    // Build request body
-    const body: Record<string, string | number> = {
-      query: query,
-      collection: options?.collection || 'zero_latency_docs',
-    };
+    // Build request body. The API reads the collection from
+    // `filters.collection_name`; without one it searches every collection.
+    const body: ApiSearchRequest = { query };
+
+    if (options?.collection) {
+      body.filters = { collection_name: options.collection };
+    }
 
     if (options?.limit) {
       body.limit = options.limit;
@@ -115,6 +117,13 @@ interface ApiSearchResult {
     indexed_at?: string;
     [key: string]: string | undefined;
   };
+}
+
+/** Body of POST /api/search (`zero_latency_api::SearchRequest`) */
+interface ApiSearchRequest {
+  query: string;
+  limit?: number;
+  filters?: { collection_name: string };
 }
 
 interface ApiSearchResponse {

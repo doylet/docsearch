@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `reindex_required` on `GET /api/status` and in `mdx status`
 
 ### Fixed
+- **Web UI collection picker**: searches now honour the selected collection (the frontend sent a `collection` field the API ignored), and "All Collections" searches every collection. `POST /api/search` without `filters.collection_name` now searches all collections, as JSON-RPC `document.search` already did; previously it searched only `zero_latency_docs`
 - **`tantivy` feature builds**: the Tantivy BM25 adapter is ported to tantivy 0.22, opens or creates its index in an empty directory, and makes documents searchable as soon as indexing returns
 - **`cloud` feature builds**: the OpenAI embedding provider now calls the OpenAI API (previously it returned placeholder vectors), and the Qdrant backend now stores, updates, deletes and counts vectors (previously only search worked), creating its collection on first insert
 - **Vector backend and embedding provider are configurable**: `doc-indexer` read neither, so Qdrant and OpenAI could never be selected. Set them with `ZL_VECTOR_*` / `ZL_EMBEDDING_*` or `[vector]` / `[embedding]` in `zero-latency.toml`. `OPENAI_API_KEY` is honoured. The `DOC_INDEXER_*` names for these settings were documented but never read, and are removed from the docs
