@@ -149,6 +149,18 @@ impl VectorRepository for InMemoryVectorStore {
         Ok(self.documents.remove(document_id).is_some())
     }
 
+    async fn delete_collection(&self, collection_name: &str) -> Result<usize> {
+        let mut removed = 0;
+        self.documents.retain(|_, doc| {
+            let keep = doc.metadata.collection.as_deref() != Some(collection_name);
+            if !keep {
+                removed += 1;
+            }
+            keep
+        });
+        Ok(removed)
+    }
+
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool> {
         if let Some(mut doc_ref) = self.documents.get_mut(document_id) {
             doc_ref.embedding = vector;
@@ -212,5 +224,53 @@ impl SimilarityCalculator for CosineCalculator {
 impl Default for InMemoryVectorStore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zero_latency_core::Uuid;
+    use zero_latency_vector::VectorMetadata;
+
+    fn doc_in(collection: Option<&str>) -> VectorDocument {
+        VectorDocument {
+            id: Uuid::new_v4(),
+            embedding: vec![1.0, 0.0, 0.0],
+            metadata: VectorMetadata {
+                document_id: Uuid::new_v4(),
+                chunk_index: 0,
+                content: "content".to_string(),
+                title: "doc".to_string(),
+                heading_path: vec![],
+                url: None,
+                custom: std::collections::HashMap::new(),
+                collection: collection.map(str::to_string),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delete_collection_removes_only_its_vectors() {
+        let store = InMemoryVectorStore::new();
+        store
+            .insert(vec![
+                doc_in(Some("a")),
+                doc_in(Some("a")),
+                doc_in(Some("b")),
+                doc_in(None),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(store.delete_collection("a").await.unwrap(), 2);
+
+        assert_eq!(store.count().await.unwrap(), 2);
+        assert!(store
+            .search_in_collection("a", vec![1.0, 0.0, 0.0], 10)
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(store.delete_collection("a").await.unwrap(), 0);
     }
 }

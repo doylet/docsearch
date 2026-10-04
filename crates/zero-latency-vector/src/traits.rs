@@ -14,6 +14,9 @@ pub trait VectorRepository: Send + Sync {
         k: usize,
     ) -> Result<Vec<SimilarityResult>>;
     async fn delete(&self, document_id: &str) -> Result<bool>;
+    /// Delete every vector tagged with this collection, returning how many were
+    /// removed. Vectors without a collection tag are left alone.
+    async fn delete_collection(&self, collection_name: &str) -> Result<usize>;
     async fn update(&self, document_id: &str, vector: Vec<f32>) -> Result<bool>;
     async fn health_check(&self) -> Result<HealthStatus>;
     async fn count(&self) -> Result<usize>;

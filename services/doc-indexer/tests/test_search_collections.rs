@@ -1,5 +1,6 @@
 //! `POST /api/search` collection scoping: `filters.collection_name` limits the
-//! search to one collection; without it every collection is searched.
+//! search to one collection; without it every collection is searched. Deleting
+//! a collection removes its documents from search.
 #![cfg(feature = "embedded")]
 
 use axum::body::Body;
@@ -84,6 +85,31 @@ async fn collection_name_filter_scopes_the_search() {
         json!({ "query": "searching documents", "filters": { "collection_name": "beta" } }),
     )
     .await;
+
+    assert_eq!(titles, BTreeSet::from(["beta.md".to_string()]));
+}
+
+#[tokio::test]
+async fn deleted_collection_drops_out_of_search() {
+    let (router, _temp) = router_with_two_collections().await;
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::delete("/api/collections/alpha")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let response: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(response["success"], true);
+
+    let titles = search_titles(router, json!({ "query": "searching documents" })).await;
 
     assert_eq!(titles, BTreeSet::from(["beta.md".to_string()]));
 }
