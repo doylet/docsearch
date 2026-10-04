@@ -289,24 +289,29 @@ async fn search_documents(
     State(state): State<AppState>,
     Json(request): Json<zero_latency_api::SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
-    let default_collection = &state.container.config().service.default_collection;
-
-    // Extract collection from filters or use default
-    let collection_name = if let Some(filters) = &request.filters {
-        filters
-            .collection_name
-            .as_deref()
-            .unwrap_or(default_collection)
-    } else {
-        default_collection
-    };
-
     let limit = request.limit.unwrap_or(10) as usize;
 
-    let search_response = state
-        .document_service
-        .search_documents_in_collection(&request.query, collection_name, limit)
-        .await?;
+    // `filters.collection_name` scopes the search; without it every collection
+    // is searched (as JSON-RPC `document.search` does)
+    let collection_name = request
+        .filters
+        .as_ref()
+        .and_then(|filters| filters.collection_name.as_deref());
+
+    let search_response = match collection_name {
+        Some(collection_name) => {
+            state
+                .document_service
+                .search_documents_in_collection(&request.query, collection_name, limit)
+                .await?
+        }
+        None => {
+            state
+                .document_service
+                .search_documents(&request.query, limit)
+                .await?
+        }
+    };
 
     Ok(Json(search_response))
 }
