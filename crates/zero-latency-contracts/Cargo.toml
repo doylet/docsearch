@@ -2,6 +2,7 @@
 name = "zero-latency-contracts"
 version = "0.1.0"
 edition = "2021"
+publish = false
 description = "Shared contract definitions for Zero Latency system"
 authors = ["Zero Latency Team"]
 
