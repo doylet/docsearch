@@ -161,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_jsonrpc_version() {
-        let request = json!({
+        let _request = json!({
             "jsonrpc": "1.0",
             "method": "service.info",
             "id": 1

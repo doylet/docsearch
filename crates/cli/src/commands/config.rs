@@ -52,7 +52,7 @@ impl ConfigCommand {
         } else {
             // Fallback to loading from default location
             CliConfig::load().map_err(|e| {
-                zero_latency_core::ZeroLatencyError::configuration(&format!(
+                zero_latency_core::ZeroLatencyError::configuration(format!(
                     "Failed to load config: {}",
                     e
                 ))
@@ -60,7 +60,7 @@ impl ConfigCommand {
         };
 
         let config_file = CliConfig::config_file().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to get config file path: {}",
                 e
             ))
@@ -90,7 +90,7 @@ impl ConfigCommand {
 
         // Check if file exists
         if !path.exists() {
-            return Err(zero_latency_core::ZeroLatencyError::not_found(&format!(
+            return Err(zero_latency_core::ZeroLatencyError::not_found(format!(
                 "Config file not found: {}",
                 path.display()
             )));
@@ -98,14 +98,14 @@ impl ConfigCommand {
 
         // Load config from file
         let content = std::fs::read_to_string(path).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to read config file: {}",
                 e
             ))
         })?;
 
         let new_config: CliConfig = toml::from_str(&content).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Invalid config format: {}",
                 e
             ))
@@ -113,7 +113,7 @@ impl ConfigCommand {
 
         // Save the new config
         new_config.save().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to save config: {}",
                 e
             ))
@@ -136,21 +136,21 @@ impl ConfigCommand {
         );
 
         let config = CliConfig::load().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to load config: {}",
                 e
             ))
         })?;
 
         let content = toml::to_string_pretty(&config).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to serialize config: {}",
                 e
             ))
         })?;
 
         std::fs::write(path, content).map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to write config file: {}",
                 e
             ))
@@ -167,7 +167,7 @@ impl ConfigCommand {
 
         let default_config = CliConfig::default();
         default_config.save().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::configuration(&format!(
+            zero_latency_core::ZeroLatencyError::configuration(format!(
                 "Failed to save config: {}",
                 e
             ))

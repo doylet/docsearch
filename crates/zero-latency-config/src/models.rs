@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use uuid::Uuid;
 
 /// Main configuration structure for Zero-Latency applications
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     /// Server configuration
     pub server: ServerConfig,
@@ -83,17 +83,6 @@ pub struct GlobalConfig {
 
     /// Enable debug mode
     pub debug: bool,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            client: ClientConfig::default(),
-            test: TestConfig::default(),
-            app: GlobalConfig::default(),
-        }
-    }
 }
 
 impl Default for ServerConfig {

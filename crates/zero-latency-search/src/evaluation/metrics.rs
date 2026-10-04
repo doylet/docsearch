@@ -98,8 +98,8 @@ impl MetricsCalculator {
 
         // Calculate DCG@K
         let mut dcg = 0.0;
-        for i in 0..k {
-            let relevance = f64::from(ground_truth[i]);
+        for (i, &rating) in ground_truth.iter().enumerate().take(k) {
+            let relevance = f64::from(rating);
             if i == 0 {
                 dcg += relevance;
             } else {
@@ -112,8 +112,7 @@ impl MetricsCalculator {
         sorted_relevance.sort_by(|a, b| b.partial_cmp(a).unwrap());
 
         let mut idcg = 0.0;
-        for i in 0..k.min(sorted_relevance.len()) {
-            let relevance = sorted_relevance[i];
+        for (i, &relevance) in sorted_relevance.iter().enumerate().take(k) {
             if i == 0 {
                 idcg += relevance;
             } else {
@@ -136,12 +135,15 @@ impl MetricsCalculator {
 
         let k = k.min(ground_truth.len());
 
-        for i in 0..k {
-            if ground_truth[i] != RelevanceRating::NotRelevant {
-                return 1.0;
-            }
+        if ground_truth
+            .iter()
+            .take(k)
+            .any(|&rating| rating != RelevanceRating::NotRelevant)
+        {
+            1.0
+        } else {
+            0.0
         }
-        0.0
     }
 
     /// Calculate Precision@K

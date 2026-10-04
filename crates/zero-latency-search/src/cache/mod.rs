@@ -294,6 +294,12 @@ pub struct CacheStatistics {
     pub last_updated: u64,
 }
 
+impl Default for CacheStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CacheStatistics {
     pub fn new() -> Self {
         Self {

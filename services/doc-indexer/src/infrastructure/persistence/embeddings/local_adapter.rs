@@ -153,6 +153,8 @@ impl LocalEmbeddingAdapter {
     }
 
     /// Calculate similarity between two texts (for testing)
+    // max/min maps NaN to 0.0; clamp would propagate NaN, so keep the manual form.
+    #[allow(clippy::manual_clamp)]
     pub async fn text_similarity(&self, text1: &str, text2: &str) -> Result<f32> {
         let embedding1 = self.generate_embedding(text1).await?;
         let embedding2 = self.generate_embedding(text2).await?;

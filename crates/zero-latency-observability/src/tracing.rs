@@ -361,7 +361,7 @@ macro_rules! log_info {
         {
             let mut fields = std::collections::HashMap::new();
             $(fields.insert($key.to_string(), serde_json::json!($value));)*
-            $logger.log_with_fields(crate::tracing::LogLevel::Info, $message, fields)
+            $logger.log_with_fields($crate::tracing::LogLevel::Info, $message, fields)
         }
     };
 }
@@ -375,7 +375,7 @@ macro_rules! log_error {
         {
             let mut fields = std::collections::HashMap::new();
             $(fields.insert($key.to_string(), serde_json::json!($value));)*
-            $logger.log_with_fields(crate::tracing::LogLevel::Error, $message, fields)
+            $logger.log_with_fields($crate::tracing::LogLevel::Error, $message, fields)
         }
     };
 }

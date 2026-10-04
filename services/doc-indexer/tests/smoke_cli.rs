@@ -43,7 +43,7 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         "collection": config.collection_name
     });
     let resp = rt
-        .block_on(client.post(&config.index_url()).json(&index_body).send())
+        .block_on(client.post(config.index_url()).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     TestAssertions::assert_success_response(&resp, "Indexing");
 
@@ -56,7 +56,7 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         "limit": 5
     });
     let resp = rt
-        .block_on(client.post(&config.search_url()).json(&search_body).send())
+        .block_on(client.post(config.search_url()).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     TestAssertions::assert_success_response(&resp, "Search");
 
@@ -70,9 +70,9 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
         .and_then(|r| r.as_array())
         .expect("No results array in search response");
     let found = results.iter().any(|res| {
-        res.get("content").map_or(false, |c| {
+        res.get("content").is_some_and(|c| {
             c.as_str()
-                .map_or(false, |s| s.contains("Zero-Latency doc-indexer smoke test"))
+                .is_some_and(|s| s.contains("Zero-Latency doc-indexer smoke test"))
         })
     });
     assert!(
@@ -120,7 +120,7 @@ fn smoke_test_end_to_end_index_and_search() {
         "collection": config.collection_name
     });
     let resp = rt
-        .block_on(client.post(&config.index_url()).json(&index_body).send())
+        .block_on(client.post(config.index_url()).json(&index_body).send())
         .expect("Failed to POST to /api/index");
     TestAssertions::assert_success_response(&resp, "Indexing");
 
@@ -134,7 +134,7 @@ fn smoke_test_end_to_end_index_and_search() {
         "limit": 10
     });
     let resp = rt
-        .block_on(client.post(&config.search_url()).json(&search_body).send())
+        .block_on(client.post(config.search_url()).json(&search_body).send())
         .expect("Failed to POST to /api/search");
     TestAssertions::assert_success_response(&resp, "Search");
 
@@ -152,7 +152,7 @@ fn smoke_test_end_to_end_index_and_search() {
     let resp = rt
         .block_on(
             client
-                .post(&config.search_url())
+                .post(config.search_url())
                 .json(&semantic_search_body)
                 .send(),
         )
@@ -200,7 +200,7 @@ fn smoke_test_cli_runs_with_docs_path() {
 
     // Verify health endpoint responds
     let resp = rt
-        .block_on(client.get(&config.health_url()).send())
+        .block_on(client.get(config.health_url()).send())
         .expect("Failed to GET health endpoint");
     TestAssertions::assert_success_response(&resp, "Health check");
 
@@ -210,7 +210,7 @@ fn smoke_test_cli_runs_with_docs_path() {
         "collection": config.collection_name
     });
     let resp = rt
-        .block_on(client.post(&config.index_url()).json(&index_body).send())
+        .block_on(client.post(config.index_url()).json(&index_body).send())
         .expect("Failed to POST to index endpoint");
     TestAssertions::assert_success_response(&resp, "Index endpoint");
 

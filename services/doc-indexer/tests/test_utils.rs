@@ -168,12 +168,9 @@ impl TestAssertions {
     pub fn assert_search_results_not_empty(response_body: &serde_json::Value, context: &str) {
         let results = response_body
             .get("results")
-            .expect(&format!(
-                "{}: Response should have 'results' field",
-                context
-            ))
+            .unwrap_or_else(|| panic!("{}: Response should have 'results' field", context))
             .as_array()
-            .expect(&format!("{}: 'results' should be an array", context));
+            .unwrap_or_else(|| panic!("{}: 'results' should be an array", context));
 
         assert!(
             !results.is_empty(),
@@ -186,22 +183,16 @@ impl TestAssertions {
     pub fn assert_search_quality(response_body: &serde_json::Value, min_score: f64, context: &str) {
         let results = response_body
             .get("results")
-            .expect(&format!(
-                "{}: Response should have 'results' field",
-                context
-            ))
+            .unwrap_or_else(|| panic!("{}: Response should have 'results' field", context))
             .as_array()
-            .expect(&format!("{}: 'results' should be an array", context));
+            .unwrap_or_else(|| panic!("{}: 'results' should be an array", context));
 
         for (i, result) in results.iter().enumerate() {
             let score = result
                 .get("score")
-                .expect(&format!(
-                    "{}: Result {} should have 'score' field",
-                    context, i
-                ))
+                .unwrap_or_else(|| panic!("{}: Result {} should have 'score' field", context, i))
                 .as_f64()
-                .expect(&format!("{}: Score should be a number", context));
+                .unwrap_or_else(|| panic!("{}: Score should be a number", context));
 
             assert!(
                 score >= min_score,
@@ -218,6 +209,12 @@ impl TestAssertions {
 /// Lifecycle management for test servers
 pub struct TestServerManager {
     servers: Vec<Child>,
+}
+
+impl Default for TestServerManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TestServerManager {

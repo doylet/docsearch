@@ -211,6 +211,12 @@ struct ScenarioData {
     memory_usage: Vec<f64>,
 }
 
+impl Default for MetricsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsCollector {
     pub fn new() -> Self {
         Self {

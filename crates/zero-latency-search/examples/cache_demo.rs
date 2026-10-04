@@ -3,7 +3,6 @@
 //! This binary demonstrates the comprehensive caching system for hybrid search.
 
 use std::sync::Arc;
-use tokio;
 
 use zero_latency_core::Result;
 use zero_latency_search::cache::{CacheConfig, HybridSearchCacheManager};

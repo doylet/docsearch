@@ -51,6 +51,8 @@ impl ScoreNormalizer {
     }
 
     /// Normalize scores using z-score method with clamping
+    // max/min maps NaN to 0.0; clamp would propagate NaN, so keep the manual form.
+    #[allow(clippy::manual_clamp)]
     pub fn z_score_normalize(scores: &[f32]) -> Vec<f32> {
         if scores.is_empty() {
             return Vec::new();
@@ -140,13 +142,6 @@ impl ScoreFusion {
         Ok(Self { config })
     }
 
-    /// Create with default configuration
-    pub fn default() -> Self {
-        Self {
-            config: FusionConfig::default(),
-        }
-    }
-
     /// Fuse BM25 and vector scores according to configuration
     pub fn fuse_scores(
         &self,
@@ -227,10 +222,7 @@ impl ScoreFusion {
 
         for result in results {
             let doc_key = result.doc_id.to_index_key();
-            doc_groups
-                .entry(doc_key)
-                .or_insert_with(Vec::new)
-                .push(result);
+            doc_groups.entry(doc_key).or_default().push(result);
         }
 
         let mut fused_results = Vec::new();
@@ -304,6 +296,15 @@ impl ScoreFusion {
     }
 }
 
+impl Default for ScoreFusion {
+    /// Create with default configuration
+    fn default() -> Self {
+        Self {
+            config: FusionConfig::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,7 +326,7 @@ mod tests {
 
         // All normalized values should be in [0,1]
         for &score in &normalized {
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
     }
 

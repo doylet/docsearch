@@ -202,11 +202,9 @@ impl ProductionMonitor {
 
     /// Check if any alert thresholds are exceeded
     pub fn check_alerts(&self) -> Vec<AlertTriggered> {
-        let alerts = Vec::new();
-
         // PENDING: Alert system requires external alerting service integration (Phase 5)
 
-        alerts
+        Vec::new()
     }
 }
 

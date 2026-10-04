@@ -349,16 +349,16 @@ impl Config {
                 embedded: EmbeddedConfig {
                     db_path: std::env::var("DOC_INDEXER_EMBEDDED_DB_PATH")
                         .map(|p| {
-                            if p.starts_with("~/") {
+                            if let Some(rest) = p.strip_prefix("~/") {
                                 #[cfg(feature = "embedded")]
                                 {
                                     dirs::home_dir()
                                         .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                        .join(&p[2..])
+                                        .join(rest)
                                 }
                                 #[cfg(not(feature = "embedded"))]
                                 {
-                                    std::path::PathBuf::from(&p[2..])
+                                    std::path::PathBuf::from(rest)
                                 }
                             } else {
                                 std::path::PathBuf::from(p)

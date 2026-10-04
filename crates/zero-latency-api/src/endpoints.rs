@@ -4,6 +4,8 @@
 //! and replaces the manual constants from zero-latency-contracts.
 
 /// API endpoint constants
+// Renaming would change the public path `zero_latency_api::endpoints::endpoints`.
+#[allow(clippy::module_inception)]
 pub mod endpoints {
     // Health endpoints
     pub const HEALTH: &str = "/health";

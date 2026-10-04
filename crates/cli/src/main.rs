@@ -128,18 +128,18 @@ async fn load_config(cli: &Cli) -> ZeroLatencyResult<CliConfig> {
     let mut config = if let Some(config_path) = &cli.config {
         // Load from specified config file
         if !config_path.exists() {
-            return Err(ZeroLatencyError::not_found(&format!(
+            return Err(ZeroLatencyError::not_found(format!(
                 "Config file not found: {}",
                 config_path.display()
             )));
         }
 
         let content = std::fs::read_to_string(config_path).map_err(|e| {
-            ZeroLatencyError::configuration(&format!("Failed to read config file: {}", e))
+            ZeroLatencyError::configuration(format!("Failed to read config file: {}", e))
         })?;
 
         toml::from_str::<CliConfig>(&content).map_err(|e| {
-            ZeroLatencyError::configuration(&format!(
+            ZeroLatencyError::configuration(format!(
                 "Invalid config format in {}: {}",
                 config_path.display(),
                 e
@@ -148,7 +148,7 @@ async fn load_config(cli: &Cli) -> ZeroLatencyResult<CliConfig> {
     } else {
         // Load from default config location or use defaults
         CliConfig::load().map_err(|e| {
-            ZeroLatencyError::configuration(&format!("Failed to load default config: {}", e))
+            ZeroLatencyError::configuration(format!("Failed to load default config: {}", e))
         })?
     };
 

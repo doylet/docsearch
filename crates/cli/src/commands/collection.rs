@@ -172,7 +172,7 @@ impl CollectionCommand {
             }
             _ => {
                 // Table format
-                println!("{:<20} {}", "Property", "Value");
+                println!("{:<20} Value", "Property");
                 println!("{:-<40}", "");
 
                 println!("{:<20} {}", "Name", collection.name);
@@ -326,7 +326,7 @@ impl CollectionCommand {
             }
             _ => {
                 // Table format
-                println!("{:<20} {}", "Metric", "Value");
+                println!("{:<20} Value", "Metric");
                 println!("{:-<40}", "");
 
                 println!("{:<20} {}", "Collection", stats.name);

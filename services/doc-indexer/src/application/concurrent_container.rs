@@ -140,11 +140,9 @@ impl ConcurrentServiceContainer {
                 ));
             }
             #[cfg(not(feature = "cloud"))]
-            VectorBackend::Qdrant => {
-                return Err(ZeroLatencyError::configuration(
-                    "Qdrant vector backend not available in this build",
-                ));
-            }
+            VectorBackend::Qdrant => Err(ZeroLatencyError::configuration(
+                "Qdrant vector backend not available in this build",
+            )),
         }
     }
 
@@ -178,9 +176,9 @@ impl ConcurrentServiceContainer {
                 }
                 #[cfg(not(feature = "cloud"))]
                 {
-                    return Err(ZeroLatencyError::configuration(
+                    Err(ZeroLatencyError::configuration(
                         "OpenAI embedding provider not available in this build",
-                    ));
+                    ))
                 }
             }
         }

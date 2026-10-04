@@ -65,7 +65,8 @@ impl TableFormatter {
                     }
                 }
             }
-            "table" | _ => {
+            // "table" and any unrecognised format
+            _ => {
                 if response.results.is_empty() {
                     println!("{}", "No results found.".yellow());
                 } else {
@@ -159,7 +160,8 @@ impl TableFormatter {
                     response.total_count, response.index_size_bytes
                 );
             }
-            "table" | _ => {
+            // "table" and any unrecognised format
+            _ => {
                 println!(
                     "{}",
                     format!(
@@ -246,7 +248,8 @@ impl TableFormatter {
                     println!("{}", "No metadata available".yellow());
                 }
             }
-            "content" | _ => {
+            // "content" and any unrecognised format
+            _ => {
                 println!("{}", format!("Document {}", response.id).green().bold());
                 if let Some(content) = &response.content {
                     println!("{}", content);

@@ -40,6 +40,12 @@ pub struct DictionarySynonymExpansion {
     synonym_dict: HashMap<String, Vec<String>>,
 }
 
+impl Default for DictionarySynonymExpansion {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DictionarySynonymExpansion {
     /// Create a new dictionary-based synonym expansion with a predefined dictionary
     pub fn new() -> Self {
@@ -185,7 +191,7 @@ impl SynonymExpansion for DictionarySynonymExpansion {
 
                     // Create expanded query by replacing the term with its synonym
                     let mut expanded_query_terms = query_terms.clone();
-                    for (_i, query_term) in expanded_query_terms.iter_mut().enumerate() {
+                    for query_term in expanded_query_terms.iter_mut() {
                         if query_term.to_lowercase() == term_lower {
                             *query_term = synonym;
                             break; // Only replace first occurrence
@@ -260,7 +266,7 @@ impl RuleMorphologicalExpansion {
             // Try plural forms
             if word_lower.ends_with('y') && word_lower.len() > 1 {
                 variants.push(format!("{}ies", &word_lower[..word_lower.len() - 1]));
-            } else if word_lower.ends_with(&['s', 'x', 'z'])
+            } else if word_lower.ends_with(['s', 'x', 'z'])
                 || word_lower.ends_with("ch")
                 || word_lower.ends_with("sh")
             {
@@ -382,7 +388,7 @@ impl MorphologicalExpansion for RuleMorphologicalExpansion {
 
                 // Create expanded query by replacing the term with its variant
                 let mut expanded_query_terms = query_terms.clone();
-                for (_i, query_term) in expanded_query_terms.iter_mut().enumerate() {
+                for query_term in expanded_query_terms.iter_mut() {
                     if query_term.to_lowercase() == term.to_lowercase() {
                         *query_term = variant;
                         break; // Only replace first occurrence
@@ -417,15 +423,10 @@ impl MorphologicalExpansion for RuleMorphologicalExpansion {
 
 /// Placeholder for corpus-based contextual expansion
 /// This would require access to the document corpus or external NLP services
+#[derive(Default)]
 pub struct CorpusContextualExpansion {
     /// Whether this expansion is enabled (placeholder)
     enabled: bool,
-}
-
-impl Default for CorpusContextualExpansion {
-    fn default() -> Self {
-        Self { enabled: false }
-    }
 }
 
 impl CorpusContextualExpansion {

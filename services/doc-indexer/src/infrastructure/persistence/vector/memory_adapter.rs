@@ -171,6 +171,8 @@ impl VectorRepository for InMemoryVectorStore {
 struct CosineCalculator;
 
 impl SimilarityCalculator for CosineCalculator {
+    // max/min maps NaN to 0.0; clamp would propagate NaN, so keep the manual form.
+    #[allow(clippy::manual_clamp)]
     fn calculate_similarity(&self, a: &[f32], b: &[f32]) -> f32 {
         if a.len() != b.len() || a.is_empty() {
             return 0.0;

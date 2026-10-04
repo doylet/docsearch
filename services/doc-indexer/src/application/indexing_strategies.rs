@@ -50,6 +50,12 @@ pub struct StandardIndexingStrategy {
     config: StrategyConfig,
 }
 
+impl Default for StandardIndexingStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StandardIndexingStrategy {
     pub fn new() -> Self {
         Self {
@@ -199,6 +205,12 @@ impl IndexingStrategy for StandardIndexingStrategy {
 /// This strategy is optimized for speed over granularity
 pub struct FastIndexingStrategy {
     config: StrategyConfig,
+}
+
+impl Default for FastIndexingStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FastIndexingStrategy {
@@ -356,6 +368,12 @@ pub struct PrecisionIndexingStrategy {
     config: StrategyConfig,
 }
 
+impl Default for PrecisionIndexingStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrecisionIndexingStrategy {
     pub fn new() -> Self {
         Self {
@@ -385,7 +403,7 @@ impl IndexingStrategy for PrecisionIndexingStrategy {
 
         let sentences: Vec<&str> = document
             .content
-            .split(|c| c == '.' || c == '!' || c == '?')
+            .split(['.', '!', '?'])
             .filter(|s| !s.trim().is_empty())
             .collect();
 

@@ -259,11 +259,9 @@ impl ProductionDeployment {
 
     /// Get current system metrics
     pub async fn get_metrics(&self) -> Option<SystemMetrics> {
-        if let Some(monitor) = &self.monitor {
-            Some(monitor.get_system_metrics())
-        } else {
-            None
-        }
+        self.monitor
+            .as_ref()
+            .map(|monitor| monitor.get_system_metrics())
     }
 
     /// Initiate graceful shutdown

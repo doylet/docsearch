@@ -297,6 +297,8 @@ impl MemoryEfficientCache<String, Vec<f32>> {
     }
 
     /// Estimate size of a vector (specialized implementation)
+    // Changing this would alter a public signature.
+    #[allow(clippy::ptr_arg)]
     pub fn estimate_vector_size(&self, value: &Vec<f32>) -> usize {
         value.len() * std::mem::size_of::<f32>() + std::mem::size_of::<Vec<f32>>()
     }

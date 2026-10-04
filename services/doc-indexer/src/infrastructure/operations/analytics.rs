@@ -220,7 +220,7 @@ impl SearchAnalytics for ProductionSearchAnalytics {
         let timestamp = chrono::Utc::now();
 
         // Determine if search was successful
-        let success = response.results.len() > 0;
+        let success = !response.results.is_empty();
         let response_time_ms = 0.0; // Would be calculated from request timing in real scenario
 
         // Extract analytics data
@@ -333,7 +333,7 @@ impl SearchAnalytics for ProductionSearchAnalytics {
         }
 
         // Cleanup old data periodically
-        if start_time.elapsed().as_millis() % 100 == 0 {
+        if start_time.elapsed().as_millis().is_multiple_of(100) {
             tokio::spawn({
                 let analytics = Arc::new(self.clone());
                 async move {

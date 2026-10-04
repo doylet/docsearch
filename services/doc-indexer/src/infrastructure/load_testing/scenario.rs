@@ -74,6 +74,12 @@ pub struct EmbeddingIntensiveScenario {
     document_pool: Vec<String>,
 }
 
+impl Default for EmbeddingIntensiveScenario {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EmbeddingIntensiveScenario {
     pub fn new() -> Self {
         Self {
@@ -158,6 +164,12 @@ pub struct SearchIntensiveScenario {
     query_pool: Vec<String>,
 }
 
+impl Default for SearchIntensiveScenario {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchIntensiveScenario {
     pub fn new() -> Self {
         Self {
@@ -233,6 +245,12 @@ pub struct MixedWorkloadScenario {
     config: ScenarioConfig,
     embedding_scenario: EmbeddingIntensiveScenario,
     search_scenario: SearchIntensiveScenario,
+}
+
+impl Default for MixedWorkloadScenario {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MixedWorkloadScenario {

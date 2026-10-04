@@ -190,7 +190,7 @@ impl FilterService {
         );
 
         // Check ignore list first - if matched, always skip
-        if self.matches_patterns(&path_str, &file_name, &self.filters.ignore_list) {
+        if self.matches_patterns(&path_str, file_name, &self.filters.ignore_list) {
             tracing::debug!("Skipping (ignored): {}", path.display());
             return false;
         }
@@ -202,7 +202,7 @@ impl FilterService {
         }
 
         // If safe list is not empty, only allow if it matches
-        if self.matches_patterns(&path_str, &file_name, &self.filters.safe_list) {
+        if self.matches_patterns(&path_str, file_name, &self.filters.safe_list) {
             tracing::debug!("Allowing (safe listed): {}", path.display());
             true
         } else {
@@ -351,7 +351,7 @@ fn match_recursive(text: &str, pattern: &str) -> bool {
                 false
             }
             '?' => {
-                if text.len() == 0 {
+                if text.is_empty() {
                     false
                 } else {
                     let mut text_chars = text.chars();

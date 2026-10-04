@@ -27,7 +27,7 @@ async fn test_rest_api_collection_filtering() -> Result<(), Box<dyn std::error::
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/api/search", BASE_URL))
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -66,7 +66,7 @@ async fn test_rest_api_default_search() -> Result<(), Box<dyn std::error::Error>
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/api/search", BASE_URL))
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -105,7 +105,7 @@ async fn test_jsonrpc_collection_filtering() -> Result<(), Box<dyn std::error::E
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/jsonrpc", BASE_URL))
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -159,7 +159,7 @@ async fn test_jsonrpc_default_search() -> Result<(), Box<dyn std::error::Error>>
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/jsonrpc", BASE_URL))
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -202,7 +202,7 @@ async fn test_invalid_collection_handling() -> Result<(), Box<dyn std::error::Er
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/api/search", BASE_URL))
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -236,7 +236,7 @@ async fn test_empty_query_handling() -> Result<(), Box<dyn std::error::Error>> {
     let response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/api/search", BASE_URL))
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
             .send(),
     )
@@ -271,7 +271,7 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
     let rest_response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/api/search", BASE_URL))
+            .post(format!("{}/api/search", BASE_URL))
             .json(&rest_payload)
             .send(),
     )
@@ -299,7 +299,7 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
     let jsonrpc_response = timeout(
         TIMEOUT_DURATION,
         client
-            .post(&format!("{}/jsonrpc", BASE_URL))
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&jsonrpc_payload)
             .send(),
     )
@@ -319,11 +319,7 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
     let rest_count = rest_results.len();
     let jsonrpc_count = jsonrpc_results.len();
 
-    let diff = if rest_count > jsonrpc_count {
-        rest_count - jsonrpc_count
-    } else {
-        jsonrpc_count - rest_count
-    };
+    let diff = rest_count.abs_diff(jsonrpc_count);
 
     assert!(
         diff <= 2,
@@ -363,7 +359,7 @@ async fn test_collection_parameter_validation() -> Result<(), Box<dyn std::error
         let response = timeout(
             TIMEOUT_DURATION,
             client
-                .post(&format!("{}/api/search", BASE_URL))
+                .post(format!("{}/api/search", BASE_URL))
                 .json(&payload)
                 .send(),
         )
@@ -404,7 +400,7 @@ mod test_helpers {
 
         match timeout(
             Duration::from_secs(5),
-            client.get(&format!("{}/health", BASE_URL)).send(),
+            client.get(format!("{}/health", BASE_URL)).send(),
         )
         .await
         {

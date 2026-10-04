@@ -104,7 +104,7 @@ impl SearchStep for VectorSearchStep {
                 // Create a DocId from the result
                 let doc_id = DocId::new(
                     result.metadata.collection.as_deref().unwrap_or("default"),
-                    &result.document_id.to_string(),
+                    result.document_id.to_string(),
                     1,
                 );
 

@@ -12,6 +12,8 @@ use super::{CacheConfig, LRUCache, QueryCacheKey};
 use crate::models::{SearchRequest, SearchResult};
 use zero_latency_core::Result;
 
+type FusionCache = Arc<RwLock<LRUCache<String, Vec<(String, f64)>>>>;
+
 /// Multi-layer cache manager for hybrid search
 pub struct HybridSearchCacheManager {
     /// Query result cache
@@ -21,7 +23,7 @@ pub struct HybridSearchCacheManager {
     /// BM25 score cache
     bm25_cache: Arc<RwLock<LRUCache<String, HashMap<String, f64>>>>,
     /// Fusion result cache
-    fusion_cache: Arc<RwLock<LRUCache<String, Vec<(String, f64)>>>>,
+    fusion_cache: FusionCache,
     /// Cache configuration
     config: CacheConfig,
     /// Global cache statistics

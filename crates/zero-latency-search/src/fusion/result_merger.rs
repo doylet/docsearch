@@ -5,6 +5,9 @@ use crate::models::SearchResult;
 use std::collections::HashMap;
 use zero_latency_core::error::ZeroLatencyError;
 
+/// All results, per-variant contribution counts, and the total result count.
+type CollectedResults = (Vec<SearchResult>, HashMap<String, usize>, usize);
+
 /// Configuration for result merging behavior
 #[derive(Debug, Clone)]
 pub struct MergerConfig {
@@ -132,7 +135,7 @@ impl ResultMerger {
     fn collect_all_results(
         &self,
         variant_results: &[QueryVariantResults],
-    ) -> Result<(Vec<SearchResult>, HashMap<String, usize>, usize), ZeroLatencyError> {
+    ) -> Result<CollectedResults, ZeroLatencyError> {
         let mut all_results = Vec::new();
         let mut variant_contributions = HashMap::new();
         let mut total_count = 0;
