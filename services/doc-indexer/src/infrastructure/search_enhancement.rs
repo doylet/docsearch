@@ -547,6 +547,7 @@ pub struct MultiFactorResultRanker {
     title_boost_weight: f32,
     recency_weight: f32,
     metadata_relevance_weight: f32,
+    exact_match_weight: f32,
 
     // Boost factors
     title_boost_factor: f32,
@@ -567,12 +568,16 @@ impl Default for MultiFactorResultRanker {
 impl MultiFactorResultRanker {
     pub fn new() -> Self {
         Self {
-            // Scoring weights (must sum to ~1.0 for balanced scoring)
-            vector_similarity_weight: 0.4,  // Base vector similarity
-            content_relevance_weight: 0.25, // Content analysis score
-            title_boost_weight: 0.15,       // Title/heading boost
-            recency_weight: 0.1,            // Document freshness
-            metadata_relevance_weight: 0.1, // Metadata matching
+            // Scoring weights (sum to 1.0; every signal is scaled to [0, 1]).
+            // Vector similarity dominates: with a semantic model it is the only
+            // signal that sees the query, while the others work from terms
+            // derived from the results, so together they only break near-ties.
+            vector_similarity_weight: 0.8,   // Base vector similarity
+            content_relevance_weight: 0.06,  // Content analysis score
+            title_boost_weight: 0.04,        // Title/heading boost
+            recency_weight: 0.02,            // Document freshness
+            metadata_relevance_weight: 0.04, // Metadata matching
+            exact_match_weight: 0.04,        // Exact term/phrase matches
 
             // Boost factors
             title_boost_factor: 2.0,   // Strong boost for titles
@@ -744,13 +749,17 @@ impl MultiFactorResultRanker {
         let keyword_density = self.calculate_keyword_density(result, query_terms);
         let exact_match_bonus = self.calculate_exact_match_bonus(result, query_terms);
 
-        // 7. Combine all scores with weights
+        // 7. Combine all scores with weights. Title boost (1.0..=3.0) and the
+        // exact match bonus (0.0..=0.2) are scaled to [0, 1] first, so no signal
+        // can contribute more than its weight.
+        let title_boost_unit = ((title_boost_score - 1.0) / 2.0).clamp(0.0, 1.0);
+        let exact_match_unit = (exact_match_bonus / 0.2).clamp(0.0, 1.0);
         let final_combined_score = (vector_similarity_score * self.vector_similarity_weight)
             + (content_relevance_score * self.content_relevance_weight)
-            + (title_boost_score * self.title_boost_weight)
+            + (title_boost_unit * self.title_boost_weight)
             + (recency_score * self.recency_weight)
             + (metadata_relevance_score * self.metadata_relevance_weight)
-            + exact_match_bonus; // Bonus is additive
+            + (exact_match_unit * self.exact_match_weight);
 
         EnhancedScoringSignals {
             vector_similarity_score,
@@ -1007,13 +1016,102 @@ impl MultiFactorResultRanker {
             }
         }
 
-        // Return words that appear in multiple results
+        // Return words that appear in multiple results, most frequent first
+        // (ties alphabetical) so ranking doesn't depend on HashMap order
         let min_appearances = (results.len() / 2).max(1);
-        word_counts
+        let mut terms: Vec<(String, usize)> = word_counts
             .into_iter()
             .filter(|(_, count)| *count >= min_appearances)
-            .map(|(word, _)| word)
-            .take(5) // Limit to 5 terms
-            .collect()
+            .collect();
+        terms.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        terms.into_iter().map(|(word, _)| word).take(5).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zero_latency_core::DocId;
+    use zero_latency_search::{FromSignals, NormalizationMethod, ScoreBreakdown};
+
+    fn result(title: &str, content: &str, similarity: f32) -> SearchResult {
+        SearchResult::new(
+            DocId::new("docs", title, 1),
+            format!("doc:{}", title),
+            title.to_string(),
+            content.to_string(),
+            ScoreBreakdown {
+                bm25_raw: None,
+                vector_raw: Some(similarity),
+                bm25_normalized: None,
+                vector_normalized: Some(similarity),
+                fused: similarity,
+                normalization_method: NormalizationMethod::MinMax,
+            },
+            FromSignals::vector_only(),
+        )
+    }
+
+    fn titles(results: &[SearchResult]) -> Vec<&str> {
+        results.iter().map(|r| r.title.as_str()).collect()
+    }
+
+    /// A short, heading-like chunk that matches every derived term (title
+    /// boost, exact match, keyword density all maxed out) must not outrank a
+    /// passage that is clearly closer to the query. The old weights put the
+    /// heading first.
+    #[tokio::test]
+    async fn semantic_match_beats_heading_like_chunk_with_every_heuristic() {
+        let ranked = MultiFactorResultRanker::new()
+            .rank(vec![
+                result("heading.md", "# SHARED TERMS HERE", 0.55),
+                result("other1.md", "shared terms here as well, in a longer passage", 0.45),
+                result("other2.md", "shared terms here again, in another passage", 0.45),
+                result(
+                    "deploy.md",
+                    "Kubernetes Deployments support rolling updates: new pods start and old pods terminate gradually.",
+                    0.77,
+                ),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(titles(&ranked)[0], "deploy.md", "{:?}", titles(&ranked));
+    }
+
+    /// Heuristics can move a result by at most 20% of the score
+    #[tokio::test]
+    async fn final_score_stays_close_to_similarity() {
+        let ranked = MultiFactorResultRanker::new()
+            .rank(vec![
+                result("heading.md", "# SHARED TERMS HERE", 0.5),
+                result("other.md", "shared terms here too", 0.5),
+            ])
+            .await
+            .unwrap();
+        for r in &ranked {
+            let score = r.final_score.value();
+            assert!((0.4..=0.6).contains(&score), "{}: {}", r.title, score);
+        }
+    }
+
+    #[tokio::test]
+    async fn ranking_is_deterministic() {
+        let results = || {
+            vec![
+                result("a.md", "alpha beta gamma delta shared words here", 0.60),
+                result("b.md", "beta gamma epsilon shared words there", 0.60),
+                result("c.md", "gamma delta zeta shared words everywhere", 0.60),
+            ]
+        };
+        let ranker = MultiFactorResultRanker::new();
+        let first = titles(&ranker.rank(results()).await.unwrap())
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        for _ in 0..20 {
+            let again = ranker.rank(results()).await.unwrap();
+            assert_eq!(titles(&again), first);
+        }
     }
 }

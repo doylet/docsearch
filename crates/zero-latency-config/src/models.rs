@@ -16,6 +16,14 @@ pub struct AppConfig {
 
     /// Global application settings
     pub app: GlobalConfig,
+
+    /// Vector storage backend settings
+    #[serde(default)]
+    pub vector: VectorSettings,
+
+    /// Embedding provider settings
+    #[serde(default)]
+    pub embedding: EmbeddingSettings,
 }
 
 /// Server configuration for doc-indexer and other services
@@ -83,6 +91,101 @@ pub struct GlobalConfig {
 
     /// Enable debug mode
     pub debug: bool,
+}
+
+/// Vector storage settings. Fields are flat so each maps to one env var,
+/// e.g. `ZL_VECTOR_QDRANT_URL` → `vector.qdrant_url`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VectorSettings {
+    /// Backend: `embedded`, `memory` or `qdrant` (default: embedded)
+    pub backend: String,
+
+    /// Qdrant REST URL
+    pub qdrant_url: String,
+
+    /// Qdrant collection name
+    pub qdrant_collection: String,
+
+    /// Qdrant API key, sent as the `api-key` header
+    pub qdrant_api_key: Option<String>,
+
+    /// Qdrant request timeout in seconds
+    pub qdrant_timeout_seconds: u64,
+
+    /// Embedded store database path (default: ~/.zero-latency/vectors.db)
+    pub embedded_db_path: Option<String>,
+
+    /// Embedded store vector dimension
+    pub embedded_dimension: usize,
+
+    /// Embedded store cache size, in documents
+    pub embedded_cache_size: usize,
+}
+
+/// Embedding provider settings, e.g. `ZL_EMBEDDING_OPENAI_MODEL` → `embedding.openai_model`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EmbeddingSettings {
+    /// Provider: `local` (bge-small-en-v1.5), `openai`, or `hash` (testing only,
+    /// not semantic). Default: local
+    pub provider: String,
+
+    /// OpenAI API key; falls back to the `OPENAI_API_KEY` environment variable
+    pub openai_api_key: Option<String>,
+
+    /// OpenAI embedding model
+    pub openai_model: String,
+
+    /// OpenAI-compatible API base URL (default: https://api.openai.com/v1)
+    pub openai_base_url: Option<String>,
+
+    /// OpenAI request timeout in seconds
+    pub openai_timeout_seconds: u64,
+
+    /// Retries on rate limits and server errors
+    pub openai_max_retries: u32,
+
+    /// Local embedding dimension. Fixed by the model: must be 384
+    pub local_dimension: usize,
+
+    /// Directory holding pre-supplied `model.onnx` and `tokenizer.json`.
+    /// When set, nothing is downloaded. Default: `~/.zero-latency/models/bge-small-en-v1.5`
+    pub local_model_path: Option<String>,
+
+    /// Base URL to download the local model from (default: https://huggingface.co/BAAI/bge-small-en-v1.5)
+    pub local_model_url: Option<String>,
+}
+
+impl Default for VectorSettings {
+    fn default() -> Self {
+        Self {
+            backend: "embedded".to_string(),
+            qdrant_url: "http://localhost:6333".to_string(),
+            qdrant_collection: "zero_latency_docs".to_string(),
+            qdrant_api_key: None,
+            qdrant_timeout_seconds: 30,
+            embedded_db_path: None,
+            embedded_dimension: 384,
+            embedded_cache_size: 10000,
+        }
+    }
+}
+
+impl Default for EmbeddingSettings {
+    fn default() -> Self {
+        Self {
+            provider: "local".to_string(),
+            openai_api_key: None,
+            openai_model: "text-embedding-3-small".to_string(),
+            openai_base_url: None,
+            openai_timeout_seconds: 30,
+            openai_max_retries: 3,
+            local_dimension: 384,
+            local_model_path: None,
+            local_model_url: None,
+        }
+    }
 }
 
 impl Default for ServerConfig {

@@ -19,9 +19,11 @@ pub use models::{
     AppConfig,
     ClientConfig,
     Config, // Legacy compatibility
+    EmbeddingSettings,
     GlobalConfig,
     ServerConfig,
     TestConfig,
     TestConfigHelper,
+    VectorSettings,
 };
 pub use validation::*;

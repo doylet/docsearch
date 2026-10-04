@@ -17,11 +17,8 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
 
-    # Features excluded from CI because they don't compile (tracked as follow-up
-    # OpenSpec changes). CI builds and tests default features only, never
-    # --all-features:
-    #   - zero-latency-search/tantivy: out of date with the current tantivy API
-    #   - doc-indexer/cloud: out of date with the Qdrant and OpenAI adapters
+    # Clippy and tests run with --all-features so feature-gated code can't rot;
+    # the release build uses default features, which is what ships.
     #
     # Clippy allows dead_code until the dead-code cleanup change removes the
     # unused items; every other warning is an error.
@@ -42,13 +39,52 @@ jobs:
       run: cargo fmt --all -- --check
 
     - name: Run clippy
-      run: cargo clippy --workspace --all-targets -- -D warnings -A dead_code
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings -A dead_code
 
     - name: Run tests
-      run: cargo test --workspace
+      run: cargo test --workspace --all-features
 
     - name: Check documentation
       run: cargo doc --workspace --no-deps
+
+  # The main test job never touches the network or the model. This job runs the
+  # ignored ONNX tests against the real bge-small-en-v1.5, cached per revision.
+  model-tests:
+    name: Embedding Model Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Read pinned model revision
+      id: model
+      run: |
+        revision=$(sed -n 's/^pub const BGE_REVISION: &str = "\(.*\)";/\1/p' \
+          services/doc-indexer/src/infrastructure/persistence/embeddings/model_files.rs)
+        test -n "$revision"
+        echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+    - name: Cache model files
+      uses: actions/cache@v4
+      with:
+        path: ~/.zero-latency/models
+        key: bge-small-en-v1.5-${{ steps.model.outputs.revision }}
+
+    # Verifies cached files; downloads only on a cache miss
+    - name: Fetch model
+      run: cargo run --release -p doc-indexer -- --fetch-model
+
+    - name: Run ONNX tests
+      run: |
+        export ZL_EMBEDDING_LOCAL_MODEL_PATH="$HOME/.zero-latency/models/bge-small-en-v1.5"
+        cargo test --release -p doc-indexer -- --ignored onnx
 
   security:
     name: Security Audit

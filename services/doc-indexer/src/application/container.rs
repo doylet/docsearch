@@ -4,13 +4,18 @@
 /// a centralized container that manages the creation and lifecycle of all
 /// service dependencies.
 use std::sync::Arc;
-use zero_latency_core::{Result, ZeroLatencyError};
+use zero_latency_core::Result;
 use zero_latency_search::{
     QueryEnhancementStep, ResultRankingStep, SearchOrchestrator, SearchPipeline,
     SimpleSearchOrchestrator,
 };
 use zero_latency_vector::{EmbeddingGenerator, VectorRepository};
 
+#[cfg(feature = "embedded")]
+use crate::application::embedding_setup::reconcile_embedded_store;
+use crate::application::embedding_setup::{
+    create_embedding_generator, IndexState, QueryEmbeddingService,
+};
 use crate::config::Config;
 use crate::infrastructure::search_enhancement::{MultiFactorResultRanker, SimpleQueryEnhancer};
 
@@ -23,6 +28,7 @@ pub struct ServiceContainer {
     // Infrastructure services
     vector_repository: Arc<dyn VectorRepository>,
     embedding_generator: Arc<dyn EmbeddingGenerator>,
+    index_state: Arc<IndexState>,
 
     // Configuration
     #[allow(dead_code)]
@@ -34,9 +40,13 @@ impl ServiceContainer {
     pub async fn new(config: Config) -> Result<Self> {
         let config = Arc::new(config);
 
-        // Create infrastructure services based on configuration
-        let vector_repository = Self::create_vector_repository(&config).await?;
-        let embedding_generator = Self::create_embedding_generator(&config).await?;
+        // Create infrastructure services based on configuration. The generator
+        // comes first so an embedded store can be checked against its model.
+        let embedding_generator = create_embedding_generator(&config).await?;
+        let index_state = Arc::new(IndexState::default());
+        let vector_repository =
+            Self::create_vector_repository(&config, embedding_generator.as_ref(), &index_state)
+                .await?;
 
         // Create analytics service first so it can be shared
         let analytics = Arc::new(
@@ -58,6 +68,7 @@ impl ServiceContainer {
             analytics,
             vector_repository,
             embedding_generator,
+            index_state,
             config,
         })
     }
@@ -84,6 +95,11 @@ impl ServiceContainer {
         self.embedding_generator.clone()
     }
 
+    /// Get the shared index state (`reindex_required`)
+    pub fn index_state(&self) -> Arc<IndexState> {
+        self.index_state.clone()
+    }
+
     /// Get the configuration
     #[allow(dead_code)]
     pub fn config(&self) -> Arc<Config> {
@@ -91,7 +107,12 @@ impl ServiceContainer {
     }
 
     /// Create vector repository based on configuration
-    async fn create_vector_repository(config: &Config) -> Result<Arc<dyn VectorRepository>> {
+    async fn create_vector_repository(
+        config: &Config,
+        #[cfg_attr(not(feature = "embedded"), allow(unused_variables))]
+        embedding_generator: &dyn EmbeddingGenerator,
+        #[cfg_attr(not(feature = "embedded"), allow(unused_variables))] index_state: &IndexState,
+    ) -> Result<Arc<dyn VectorRepository>> {
         use crate::config::VectorBackend;
         use crate::infrastructure::InMemoryVectorStore;
 
@@ -109,51 +130,20 @@ impl ServiceContainer {
                 Ok(Arc::new(adapter))
             }
             #[cfg(not(feature = "cloud"))]
-            VectorBackend::Qdrant => Err(ZeroLatencyError::Configuration {
+            VectorBackend::Qdrant => Err(zero_latency_core::ZeroLatencyError::Configuration {
                 message: "Qdrant backend requires 'cloud' feature to be enabled".to_string(),
             }),
             #[cfg(feature = "embedded")]
             VectorBackend::Embedded => {
                 let adapter = EmbeddedVectorStore::new(config.vector.embedded.clone()).await?;
+                if reconcile_embedded_store(&adapter, embedding_generator).await? {
+                    index_state.set_reindex_required(true);
+                }
                 Ok(Arc::new(adapter))
             }
             #[cfg(not(feature = "embedded"))]
-            VectorBackend::Embedded => Err(ZeroLatencyError::Configuration {
+            VectorBackend::Embedded => Err(zero_latency_core::ZeroLatencyError::Configuration {
                 message: "Embedded backend requires 'embedded' feature to be enabled".to_string(),
-            }),
-        }
-    }
-
-    /// Create embedding generator based on configuration
-    async fn create_embedding_generator(config: &Config) -> Result<Arc<dyn EmbeddingGenerator>> {
-        use crate::config::EmbeddingProvider;
-
-        #[cfg(feature = "embedded")]
-        use crate::infrastructure::LocalEmbeddingAdapter;
-
-        #[cfg(feature = "cloud")]
-        use crate::infrastructure::OpenAIAdapter;
-
-        match config.embedding.provider {
-            #[cfg(feature = "embedded")]
-            EmbeddingProvider::Local => {
-                let adapter = LocalEmbeddingAdapter::new(config.embedding.local.clone())?;
-                Ok(Arc::new(adapter))
-            }
-            #[cfg(not(feature = "embedded"))]
-            EmbeddingProvider::Local => Err(ZeroLatencyError::Configuration {
-                message: "Local embedding provider requires 'embedded' feature to be enabled"
-                    .to_string(),
-            }),
-            #[cfg(feature = "cloud")]
-            EmbeddingProvider::OpenAI => {
-                let adapter = OpenAIAdapter::new(config.embedding.openai.clone()).await?;
-                Ok(Arc::new(adapter))
-            }
-            #[cfg(not(feature = "cloud"))]
-            EmbeddingProvider::OpenAI => Err(ZeroLatencyError::Configuration {
-                message: "OpenAI embedding provider requires 'cloud' feature to be enabled"
-                    .to_string(),
             }),
         }
     }
@@ -164,21 +154,8 @@ impl ServiceContainer {
         embedding_generator: Arc<dyn EmbeddingGenerator>,
         analytics: Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     ) -> Result<SearchPipeline> {
-        // Create a simple embedding service adapter
-        struct EmbeddingServiceAdapter {
-            generator: Arc<dyn EmbeddingGenerator>,
-        }
-
-        #[async_trait::async_trait]
-        impl zero_latency_search::EmbeddingService for EmbeddingServiceAdapter {
-            async fn generate_embedding(&self, text: &str) -> zero_latency_core::Result<Vec<f32>> {
-                self.generator.generate_embedding(text).await
-            }
-        }
-
-        let embedding_service = Arc::new(EmbeddingServiceAdapter {
-            generator: embedding_generator,
-        });
+        // Queries go through generate_query_embedding (e.g. bge's query prefix)
+        let embedding_service = Arc::new(QueryEmbeddingService::new(embedding_generator));
 
         // Create enhanced search components
         let query_enhancer = Arc::new(SimpleQueryEnhancer::new());

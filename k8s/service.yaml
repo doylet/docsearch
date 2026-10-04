@@ -17,10 +17,6 @@ spec:
     port: 80
     targetPort: http
     protocol: TCP
-  - name: indexer
-    port: 8081
-    targetPort: indexer
-    protocol: TCP
   selector:
     app: docsearch
     component: api
@@ -40,10 +36,6 @@ spec:
   - name: http
     port: 8080
     targetPort: http
-    protocol: TCP
-  - name: indexer
-    port: 8081
-    targetPort: indexer
     protocol: TCP
   selector:
     app: docsearch

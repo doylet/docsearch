@@ -6,6 +6,7 @@ pub mod concurrent_container;
 pub mod container;
 pub mod content_processing;
 pub mod content_processor;
+pub mod embedding_setup;
 pub mod services;
 
 // SOLID-compliant modules (Phase 2)

@@ -134,7 +134,62 @@ impl EmbeddedVectorStore {
         )
         .map_err(|e| ZeroLatencyError::database(format!("Failed to create index: {}", e)))?;
 
+        // Which embedding model wrote the vectors
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .map_err(|e| {
+            ZeroLatencyError::database(format!("Failed to create index_meta table: {}", e))
+        })?;
+
         Ok(())
+    }
+
+    /// The embedding model and dimension recorded for this store, if any
+    pub async fn index_meta(&self) -> Result<Option<IndexMeta>> {
+        let conn = self.connection.lock().await;
+        read_index_meta(&conn)
+    }
+
+    /// Make sure the store's vectors came from `model`. Vectors written by a
+    /// different model, or with no model recorded (legacy hash vectors), are
+    /// deleted and the new model recorded, in one transaction.
+    pub async fn reconcile_model(&self, model: &str, dimension: usize) -> Result<ModelCheck> {
+        let mut conn = self.connection.lock().await;
+        let db_err = |e: rusqlite::Error| {
+            ZeroLatencyError::database(format!("Failed to check index model: {}", e))
+        };
+
+        let recorded = read_index_meta(&conn)?;
+        if let Some(meta) = &recorded {
+            if meta.embedding_model == model && meta.embedding_dimension == dimension {
+                return Ok(ModelCheck::default());
+            }
+        }
+
+        let tx = conn.transaction().map_err(db_err)?;
+        let count: i64 = tx
+            .query_row("SELECT COUNT(*) FROM vectors", [], |row| row.get(0))
+            .map_err(db_err)?;
+        tx.execute("DELETE FROM vectors", []).map_err(db_err)?;
+        for (key, value) in [
+            (META_EMBEDDING_MODEL, model.to_string()),
+            (META_EMBEDDING_DIMENSION, dimension.to_string()),
+        ] {
+            tx.execute(
+                "INSERT OR REPLACE INTO index_meta (key, value) VALUES (?, ?)",
+                params![key, value],
+            )
+            .map_err(db_err)?;
+        }
+        tx.commit().map_err(db_err)?;
+        self.cache.clear();
+
+        Ok(ModelCheck {
+            previous_model: recorded.map(|m| m.embedding_model),
+            removed: count as usize,
+        })
     }
 
     /// Serialize vector to binary format
@@ -471,6 +526,51 @@ impl VectorRepository for EmbeddedVectorStore {
     }
 }
 
+const META_EMBEDDING_MODEL: &str = "embedding_model";
+const META_EMBEDDING_DIMENSION: &str = "embedding_dimension";
+
+/// What the store records about how its vectors were made
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexMeta {
+    pub embedding_model: String,
+    pub embedding_dimension: usize,
+}
+
+/// Outcome of `reconcile_model`
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModelCheck {
+    /// Recorded model before the check; `None` for a new or legacy store
+    pub previous_model: Option<String>,
+    /// Vectors deleted because another model wrote them
+    pub removed: usize,
+}
+
+fn read_index_meta(conn: &Connection) -> Result<Option<IndexMeta>> {
+    let get = |key: &str| -> Result<Option<String>> {
+        match conn.query_row(
+            "SELECT value FROM index_meta WHERE key = ?",
+            params![key],
+            |row| row.get(0),
+        ) {
+            Ok(value) => Ok(Some(value)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(ZeroLatencyError::database(format!(
+                "Failed to read index_meta: {}",
+                e
+            ))),
+        }
+    };
+    Ok(
+        match (get(META_EMBEDDING_MODEL)?, get(META_EMBEDDING_DIMENSION)?) {
+            (Some(embedding_model), Some(dimension)) => Some(IndexMeta {
+                embedding_model,
+                embedding_dimension: dimension.parse().unwrap_or(0),
+            }),
+            _ => None,
+        },
+    )
+}
+
 /// Statistics for embedded vector store
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddedStats {
@@ -621,5 +721,107 @@ mod tests {
             assert_eq!(results.len(), 1);
             assert_eq!(results[0].metadata.title, "persist1");
         }
+    }
+
+    fn store_config(dir: &std::path::Path) -> EmbeddedConfig {
+        EmbeddedConfig {
+            db_path: dir.join("vectors.db"),
+            dimension: 3,
+            cache_size: 100,
+            enable_string_interning: false,
+            enable_smart_caching: false,
+        }
+    }
+
+    fn doc() -> VectorDocument {
+        VectorDocument {
+            id: Uuid::new_v4(),
+            embedding: vec![1.0, 0.0, 0.0],
+            metadata: VectorMetadata {
+                document_id: Uuid::new_v4(),
+                chunk_index: 0,
+                content: "content".to_string(),
+                title: "doc".to_string(),
+                heading_path: vec![],
+                url: None,
+                custom: std::collections::HashMap::new(),
+                collection: Some("default".to_string()),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_new_store_records_model() {
+        let temp_dir = tempdir().unwrap();
+        let store = EmbeddedVectorStore::new(store_config(temp_dir.path()))
+            .await
+            .unwrap();
+
+        let check = store.reconcile_model("model-a", 3).await.unwrap();
+
+        assert_eq!(check, ModelCheck::default());
+        assert_eq!(
+            store.index_meta().await.unwrap(),
+            Some(IndexMeta {
+                embedding_model: "model-a".to_string(),
+                embedding_dimension: 3
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_legacy_vectors_are_removed() {
+        let temp_dir = tempdir().unwrap();
+        let store = EmbeddedVectorStore::new(store_config(temp_dir.path()))
+            .await
+            .unwrap();
+        store.insert(vec![doc(), doc()]).await.unwrap();
+
+        let check = store.reconcile_model("model-a", 3).await.unwrap();
+
+        assert_eq!(check.removed, 2);
+        assert_eq!(check.previous_model, None);
+        assert_eq!(store.count().await.unwrap(), 0);
+        assert!(store
+            .search(vec![1.0, 0.0, 0.0], 10)
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_same_model_keeps_vectors() {
+        let temp_dir = tempdir().unwrap();
+        let config = store_config(temp_dir.path());
+        {
+            let store = EmbeddedVectorStore::new(config.clone()).await.unwrap();
+            store.reconcile_model("model-a", 3).await.unwrap();
+            store.insert(vec![doc()]).await.unwrap();
+        }
+
+        let store = EmbeddedVectorStore::new(config).await.unwrap();
+        let check = store.reconcile_model("model-a", 3).await.unwrap();
+
+        assert_eq!(check.removed, 0);
+        assert_eq!(store.count().await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_different_model_removes_vectors() {
+        let temp_dir = tempdir().unwrap();
+        let store = EmbeddedVectorStore::new(store_config(temp_dir.path()))
+            .await
+            .unwrap();
+        store.reconcile_model("model-a", 3).await.unwrap();
+        store.insert(vec![doc()]).await.unwrap();
+
+        let check = store.reconcile_model("model-b", 3).await.unwrap();
+
+        assert_eq!(check.removed, 1);
+        assert_eq!(check.previous_model.as_deref(), Some("model-a"));
+        assert_eq!(
+            store.index_meta().await.unwrap().unwrap().embedding_model,
+            "model-b"
+        );
     }
 }

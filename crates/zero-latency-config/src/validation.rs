@@ -1,5 +1,8 @@
 use crate::loader::ConfigError;
-use crate::models::{AppConfig, ClientConfig, GlobalConfig, ServerConfig, TestConfig};
+use crate::models::{
+    AppConfig, ClientConfig, EmbeddingSettings, GlobalConfig, ServerConfig, TestConfig,
+    VectorSettings,
+};
 
 /// Configuration validation trait
 pub trait ConfigValidator<T> {
@@ -16,6 +19,8 @@ impl ConfigValidator<AppConfig> for DefaultValidator {
         ClientConfigValidator.validate(&config.client)?;
         TestConfigValidator.validate(&config.test)?;
         GlobalConfigValidator.validate(&config.app)?;
+        VectorSettingsValidator.validate(&config.vector)?;
+        EmbeddingSettingsValidator.validate(&config.embedding)?;
         Ok(())
     }
 }
@@ -187,6 +192,77 @@ impl ConfigValidator<GlobalConfig> for GlobalConfigValidator {
 }
 
 /// Convenience function to validate configuration
+/// Vector settings validator
+pub struct VectorSettingsValidator;
+
+impl ConfigValidator<VectorSettings> for VectorSettingsValidator {
+    fn validate(&self, config: &VectorSettings) -> Result<(), ConfigError> {
+        const BACKENDS: [&str; 3] = ["embedded", "memory", "qdrant"];
+        if !BACKENDS.contains(&config.backend.to_lowercase().as_str()) {
+            return Err(ConfigError::ValidationError(format!(
+                "Unknown vector backend: {}. Must be one of: {}",
+                config.backend,
+                BACKENDS.join(", ")
+            )));
+        }
+
+        if config.backend.eq_ignore_ascii_case("qdrant") {
+            if config.qdrant_url.is_empty() {
+                return Err(ConfigError::ValidationError(
+                    "Qdrant URL cannot be empty when the vector backend is qdrant".to_string(),
+                ));
+            }
+            if config.qdrant_collection.is_empty() {
+                return Err(ConfigError::ValidationError(
+                    "Qdrant collection cannot be empty when the vector backend is qdrant"
+                        .to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Embedding settings validator
+pub struct EmbeddingSettingsValidator;
+
+impl ConfigValidator<EmbeddingSettings> for EmbeddingSettingsValidator {
+    fn validate(&self, config: &EmbeddingSettings) -> Result<(), ConfigError> {
+        const PROVIDERS: [&str; 3] = ["local", "openai", "hash"];
+        if !PROVIDERS.contains(&config.provider.to_lowercase().as_str()) {
+            return Err(ConfigError::ValidationError(format!(
+                "Unknown embedding provider: {}. Must be one of: {}",
+                config.provider,
+                PROVIDERS.join(", ")
+            )));
+        }
+
+        if config.provider.eq_ignore_ascii_case("openai")
+            && config.openai_api_key.as_deref().unwrap_or("").is_empty()
+        {
+            return Err(ConfigError::ValidationError(
+                "OpenAI embedding provider needs an API key: set ZL_EMBEDDING_OPENAI_API_KEY or OPENAI_API_KEY".to_string(),
+            ));
+        }
+
+        if config.provider.eq_ignore_ascii_case("local") && config.local_dimension != 384 {
+            return Err(ConfigError::ValidationError(format!(
+                "Local embedding dimension is fixed at 384 by the bge-small-en-v1.5 model, got {}",
+                config.local_dimension
+            )));
+        }
+
+        if config.local_dimension == 0 {
+            return Err(ConfigError::ValidationError(
+                "Local embedding dimension must be greater than 0".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+}
+
 pub fn validate_config(config: &AppConfig) -> Result<(), ConfigError> {
     DefaultValidator.validate(config)
 }
@@ -248,5 +324,22 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("must start with http"));
+    }
+
+    #[test]
+    fn test_hash_provider_is_accepted() {
+        let mut config = AppConfig::default();
+        config.embedding.provider = "hash".to_string();
+        config.embedding.local_dimension = 128;
+        assert!(validate_config(&config).is_ok());
+    }
+
+    #[test]
+    fn test_local_dimension_is_fixed() {
+        let mut config = AppConfig::default();
+        config.embedding.local_dimension = 768;
+
+        let result = validate_config(&config);
+        assert!(result.unwrap_err().to_string().contains("fixed at 384"));
     }
 }

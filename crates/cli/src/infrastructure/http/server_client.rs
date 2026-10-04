@@ -12,6 +12,9 @@ pub struct StatusResponse {
     pub index_size_bytes: u64,
     pub last_index_update: Option<String>,
     pub docs_path: Option<String>,
+    /// Absent from servers older than the local-embeddings change
+    #[serde(default)]
+    pub reindex_required: bool,
 }
 
 /// Server information response

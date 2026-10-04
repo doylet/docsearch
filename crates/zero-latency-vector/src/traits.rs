@@ -24,8 +24,21 @@ pub trait VectorRepository: Send + Sync {
 pub trait EmbeddingGenerator: Send + Sync {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>>;
     async fn generate_batch_embeddings(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>>;
+
+    /// Embed a search query. Models trained with a query instruction override this;
+    /// by default queries and documents are embedded the same way.
+    async fn generate_query_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        self.generate_embedding(text).await
+    }
+
     fn dimension(&self) -> usize;
     fn model_name(&self) -> &str;
+
+    /// Identifies which model wrote a set of vectors, so a store can detect
+    /// vectors from a different model. Defaults to `<model_name>@<dimension>`.
+    fn model_id(&self) -> String {
+        format!("{}@{}", self.model_name(), self.dimension())
+    }
 }
 
 /// Similarity calculations

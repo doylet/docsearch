@@ -344,6 +344,7 @@ async fn api_status(State(state): State<AppState>) -> Json<ApiStatusResponse> {
                 .display()
                 .to_string(),
         ),
+        reindex_required: state.container.index_state().reindex_required(),
     })
 }
 
@@ -748,6 +749,9 @@ pub struct ApiStatusResponse {
     pub index_size_bytes: u64,
     pub last_index_update: Option<String>,
     pub docs_path: Option<String>,
+    /// The store's vectors were written by a different embedding model and
+    /// were removed at startup; search returns nothing until a re-index
+    pub reindex_required: bool,
 }
 
 #[derive(Debug, Serialize)]

@@ -33,21 +33,33 @@ CI SHALL run clippy on all workspace targets with warnings treated as errors, al
 - **THEN** the clippy step passes
 
 ### Requirement: Tests run on supported features
-CI SHALL build and test the workspace with its default features. Feature flags that do not compile SHALL be listed, with the reason, in the workflow file, and SHALL NOT be enabled in CI.
+CI SHALL lint and test the workspace with every Cargo feature enabled (`--all-features`). Every feature declared in a workspace crate SHALL compile, pass clippy with the CI lint set, and pass its tests. The workflow file SHALL NOT list features excluded from CI. The release build MAY use default features, because that is what ships.
 
-#### Scenario: Default-feature test run
+#### Scenario: All-features test run
 - **WHEN** the Rust test job runs
-- **THEN** it executes `cargo test --workspace` with default features and passes
+- **THEN** it executes `cargo test --workspace --all-features` and passes
 
-#### Scenario: Broken features are documented
+#### Scenario: All-features lint run
+- **WHEN** the Rust test job runs clippy
+- **THEN** it executes `cargo clippy --workspace --all-targets --all-features -- -D warnings -A dead_code` and passes
+
+#### Scenario: Feature-only breakage is caught
+- **WHEN** a pull request breaks code that compiles only with a non-default feature, for example under `#[cfg(feature = "cloud")]`
+- **THEN** the Rust test job fails
+
+#### Scenario: No excluded features
 - **WHEN** someone reads `ci-cd.yml`
-- **THEN** it names each feature excluded from CI and why
+- **THEN** it does not name any feature as excluded from CI
 
 ### Requirement: Dependencies are audited
-CI SHALL check Rust dependencies for known advisories and license policy using a checked-in `deny.toml`, and SHALL check the frontend's production dependencies for critical or high advisories.
+CI SHALL check Rust dependencies for known advisories and license policy using a checked-in `deny.toml`, over the dependency graph with all features enabled, and SHALL check the frontend's production dependencies for critical or high advisories.
 
 #### Scenario: Rust advisory found
 - **WHEN** a dependency with an unignored RustSec advisory is added
+- **THEN** the security job fails
+
+#### Scenario: Advisory in an optional dependency
+- **WHEN** a dependency enabled only by a non-default feature has an unignored RustSec advisory
 - **THEN** the security job fails
 
 #### Scenario: Disallowed license
@@ -83,3 +95,18 @@ The build job SHALL upload the release binaries the workspace actually produces.
 #### Scenario: Release build
 - **WHEN** the build job completes
 - **THEN** the uploaded artifact contains the `doc-indexer` and `mdx` binaries
+
+### Requirement: Real embedding model is tested
+CI SHALL run the ONNX embedding tests against the real bge-small-en-v1.5 model in a separate job. That job SHALL restore the model directory from a cache keyed on the pinned model revision, fetch it with `doc-indexer --fetch-model` on a cache miss, and run the ignored ONNX tests. The main test job SHALL NOT need network access or model files.
+
+#### Scenario: Cache hit
+- **WHEN** the model-tests job runs and the cache holds the pinned revision
+- **THEN** no model download happens, and the ONNX tests run and must pass
+
+#### Scenario: Main job stays offline
+- **WHEN** the main Rust test job runs `cargo test --workspace --all-features`
+- **THEN** no test downloads model files or contacts `huggingface.co`
+
+#### Scenario: Model behaviour regresses
+- **WHEN** a change makes the related-text ranking scenario fail
+- **THEN** the model-tests job fails

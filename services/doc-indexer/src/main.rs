@@ -55,6 +55,12 @@ struct Cli {
     /// Path to documentation directory to index (overrides config)
     #[arg(long)]
     docs_path: Option<std::path::PathBuf>,
+
+    /// Download and verify the local embedding model, print its directory and
+    /// exit. Into DIR if given, otherwise ZL_EMBEDDING_LOCAL_MODEL_PATH (verify
+    /// only) or ~/.zero-latency/models/bge-small-en-v1.5
+    #[arg(long, value_name = "DIR")]
+    fetch_model: Option<Option<std::path::PathBuf>>,
 }
 
 #[tokio::main]
@@ -82,6 +88,10 @@ async fn main() -> Result<()> {
     let app_config = load_effective_config(&cli).await?;
     info!("Configuration loaded successfully");
 
+    if let Some(target) = &cli.fetch_model {
+        return fetch_model(app_config, target.clone()).await;
+    }
+
     // Validate configuration
     if let Err(e) = validate_config(&app_config) {
         error!("Configuration validation failed: {}", e);
@@ -89,7 +99,13 @@ async fn main() -> Result<()> {
     }
 
     // Convert to service-specific config (compatibility layer)
-    let config = Config::from_app_config(app_config);
+    let config = match Config::from_app_config(app_config) {
+        Ok(config) => config,
+        Err(e) => {
+            error!("Configuration validation failed: {}", e);
+            return Err(e.into());
+        }
+    };
 
     // Create service container with all dependencies
     let container = match ServiceContainer::new(config.clone()).await {
@@ -149,6 +165,28 @@ async fn main() -> Result<()> {
 
     info!("Doc-indexer service stopped");
     Ok(())
+}
+
+/// `--fetch-model`: make the model present and verified, print where it is
+#[cfg(feature = "embedded")]
+async fn fetch_model(app_config: AppConfig, target: Option<std::path::PathBuf>) -> Result<()> {
+    use infrastructure::{ModelSpec, ModelStore};
+
+    let embedding = app_config.embedding;
+    let store = ModelStore::for_fetch(
+        ModelSpec::bge_small_en_v1_5(),
+        target,
+        embedding.local_model_path.map(|p| config::expand_home(&p)),
+        embedding.local_model_url,
+    )?;
+    let dir = store.ensure().await?;
+    println!("{}", dir.display());
+    Ok(())
+}
+
+#[cfg(not(feature = "embedded"))]
+async fn fetch_model(_: AppConfig, _: Option<std::path::PathBuf>) -> Result<()> {
+    anyhow::bail!("--fetch-model needs the 'embedded' feature")
 }
 
 /// Initialize logging and tracing based on configuration

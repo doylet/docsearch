@@ -21,6 +21,30 @@ pub enum ConfigError {
     ValidationError(String),
 }
 
+/// `ZL_*` environment provider. Splits each key at its first `_` only, so
+/// `ZL_SERVER_DOCS_PATH` sets `server.docs_path` and `ZL_VECTOR_QDRANT_URL`
+/// sets `vector.qdrant_url`.
+fn env_provider(prefix: &str) -> Env {
+    Env::prefixed(prefix).map(|key| key.as_str().replacen('_', ".", 1).into())
+}
+
+/// Apply settings that come from outside the `ZL_` namespace: an unset
+/// `embedding.openai_api_key` falls back to `OPENAI_API_KEY`.
+fn apply_env_fallbacks(mut config: AppConfig) -> AppConfig {
+    if config
+        .embedding
+        .openai_api_key
+        .as_deref()
+        .unwrap_or("")
+        .is_empty()
+    {
+        config.embedding.openai_api_key = std::env::var("OPENAI_API_KEY")
+            .ok()
+            .filter(|key| !key.is_empty());
+    }
+    config
+}
+
 /// Trait for configuration loaders
 pub trait ConfigLoader<T> {
     /// Load configuration from the source
@@ -56,10 +80,14 @@ impl Default for EnvConfigLoader {
 
 impl ConfigLoader<AppConfig> for EnvConfigLoader {
     fn load(&self) -> Result<AppConfig, ConfigError> {
-        let figment = Figment::new().merge(Env::prefixed(&self.prefix).split("_"));
+        let figment = Figment::from(figment::providers::Serialized::defaults(
+            AppConfig::default(),
+        ))
+        .merge(env_provider(&self.prefix));
 
         figment
             .extract()
+            .map(apply_env_fallbacks)
             .map_err(|e| ConfigError::EnvError(e.to_string()))
     }
 }
@@ -159,18 +187,21 @@ impl ConfigResolver {
         ));
 
         // Layer 1: File configuration (if available)
+        // Merged as TOML rather than a full AppConfig, so a file that sets only
+        // some sections (e.g. just [vector]) still applies
         if let Some(file_loader) = &self.file_loader {
-            if let Ok(file_config) = file_loader.load() {
-                figment = figment.merge(figment::providers::Serialized::defaults(file_config));
+            if file_loader.file_path.exists() {
+                figment = figment.merge(Toml::file(&file_loader.file_path));
             }
             // Don't fail if file doesn't exist, just skip it
         }
 
         // Layer 2: Environment variables (highest precedence)
-        figment = figment.merge(Env::prefixed("ZL_").split("_"));
+        figment = figment.merge(env_provider("ZL_"));
 
         figment
             .extract()
+            .map(apply_env_fallbacks)
             .map_err(|e| ConfigError::ParseError(e.to_string()))
     }
 
@@ -188,10 +219,11 @@ impl ConfigResolver {
         }
 
         // Layer 2: Environment variables
-        figment = figment.merge(Env::prefixed("ZL_").split("_"));
+        figment = figment.merge(env_provider("ZL_"));
 
         figment
             .extract()
+            .map(apply_env_fallbacks)
             .map_err(|e| ConfigError::ParseError(e.to_string()))
     }
 }
@@ -220,38 +252,149 @@ pub fn load_config_from_env() -> Result<AppConfig, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+    use crate::validation::validate_config;
+    use figment::Jail;
 
-    #[test]
-    #[ignore] // Skip for now due to environment variable pollution in parallel tests
-    fn test_default_config_loading() {
-        // Clean environment variables first
-        env::remove_var("ZL_SERVER_HOST");
-        env::remove_var("ZL_SERVER_PORT");
-
-        let config = load_config().unwrap();
-        assert_eq!(config.server.host, "localhost");
-        assert_eq!(config.server.port, 8081);
+    /// Load from env and defaults only, inside a Jail with a clean environment
+    fn load_env(jail: &mut Jail, vars: &[(&str, &str)]) -> AppConfig {
+        jail.clear_env();
+        for (key, value) in vars {
+            jail.set_env(key, value);
+        }
+        load_config_from_env().unwrap()
     }
 
     #[test]
-    #[ignore] // Skip for now due to environment variable pollution in parallel tests
+    fn test_default_config_loading() {
+        Jail::expect_with(|jail| {
+            let config = load_env(jail, &[]);
+            assert_eq!(config.server.host, "localhost");
+            assert_eq!(config.server.port, 8081);
+            assert_eq!(config.vector.backend, "embedded");
+            assert_eq!(config.embedding.provider, "local");
+            assert_eq!(config.embedding.openai_api_key, None);
+            Ok(())
+        });
+    }
+
+    #[test]
     fn test_env_config_override() {
-        // Ensure clean environment first
-        env::remove_var("ZL_SERVER_HOST");
-        env::remove_var("ZL_SERVER_PORT");
+        Jail::expect_with(|jail| {
+            let config = load_env(
+                jail,
+                &[("ZL_SERVER_HOST", "0.0.0.0"), ("ZL_SERVER_PORT", "9090")],
+            );
+            assert_eq!(config.server.host, "0.0.0.0");
+            assert_eq!(config.server.port, 9090);
+            Ok(())
+        });
+    }
 
-        // Set test values
-        env::set_var("ZL_SERVER_HOST", "0.0.0.0");
-        env::set_var("ZL_SERVER_PORT", "9090");
+    #[test]
+    fn test_env_multi_word_fields() {
+        Jail::expect_with(|jail| {
+            let config = load_env(
+                jail,
+                &[
+                    ("ZL_SERVER_DOCS_PATH", "/srv/docs"),
+                    ("ZL_TEST_PORT_BASE", "20000"),
+                    ("ZL_VECTOR_BACKEND", "qdrant"),
+                    ("ZL_VECTOR_QDRANT_URL", "http://qdrant:6333"),
+                    ("ZL_VECTOR_QDRANT_COLLECTION", "team_docs"),
+                    ("ZL_VECTOR_QDRANT_API_KEY", "secret"),
+                    ("ZL_EMBEDDING_PROVIDER", "openai"),
+                    ("ZL_EMBEDDING_OPENAI_MODEL", "text-embedding-3-large"),
+                    ("ZL_EMBEDDING_OPENAI_MAX_RETRIES", "5"),
+                ],
+            );
+            assert_eq!(config.server.docs_path.as_deref(), Some("/srv/docs"));
+            assert_eq!(config.test.port_base, 20000);
+            assert_eq!(config.vector.backend, "qdrant");
+            assert_eq!(config.vector.qdrant_url, "http://qdrant:6333");
+            assert_eq!(config.vector.qdrant_collection, "team_docs");
+            assert_eq!(config.vector.qdrant_api_key.as_deref(), Some("secret"));
+            assert_eq!(config.embedding.provider, "openai");
+            assert_eq!(config.embedding.openai_model, "text-embedding-3-large");
+            assert_eq!(config.embedding.openai_max_retries, 5);
+            Ok(())
+        });
+    }
 
-        let config = load_config_from_env().unwrap();
-        assert_eq!(config.server.host, "0.0.0.0");
-        assert_eq!(config.server.port, 9090);
+    #[test]
+    fn test_openai_key_fallback() {
+        Jail::expect_with(|jail| {
+            let config = load_env(jail, &[("OPENAI_API_KEY", "sk-from-env")]);
+            assert_eq!(
+                config.embedding.openai_api_key.as_deref(),
+                Some("sk-from-env")
+            );
 
-        // Cleanup
-        env::remove_var("ZL_SERVER_HOST");
-        env::remove_var("ZL_SERVER_PORT");
+            // An explicit ZL_ key wins over OPENAI_API_KEY
+            let config = load_env(
+                jail,
+                &[
+                    ("OPENAI_API_KEY", "sk-from-env"),
+                    ("ZL_EMBEDDING_OPENAI_API_KEY", "sk-explicit"),
+                ],
+            );
+            assert_eq!(
+                config.embedding.openai_api_key.as_deref(),
+                Some("sk-explicit")
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn test_partial_file_with_env_override() {
+        Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(
+                "zero-latency.toml",
+                r#"
+                [vector]
+                backend = "qdrant"
+                qdrant_collection = "from_file"
+                "#,
+            )?;
+            jail.set_env("ZL_VECTOR_QDRANT_COLLECTION", "from_env");
+
+            // Default file location (the Jail's working directory)
+            let config = load_config().unwrap();
+            assert_eq!(config.vector.backend, "qdrant");
+            assert_eq!(config.vector.qdrant_collection, "from_env");
+            assert_eq!(config.vector.qdrant_url, "http://localhost:6333");
+            assert_eq!(config.server.port, 8081);
+
+            // Explicit file path
+            let config = load_config_from_file("zero-latency.toml").unwrap();
+            assert_eq!(config.vector.backend, "qdrant");
+            assert_eq!(config.vector.qdrant_collection, "from_env");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn test_invalid_selection_fails_validation() {
+        Jail::expect_with(|jail| {
+            let config = load_env(jail, &[("ZL_VECTOR_BACKEND", "pinecone")]);
+            let error = validate_config(&config).unwrap_err().to_string();
+            assert!(error.contains("pinecone"), "{}", error);
+
+            let config = load_env(jail, &[("ZL_EMBEDDING_PROVIDER", "openai")]);
+            let error = validate_config(&config).unwrap_err().to_string();
+            assert!(error.contains("API key"), "{}", error);
+
+            let config = load_env(
+                jail,
+                &[
+                    ("ZL_EMBEDDING_PROVIDER", "OpenAI"),
+                    ("OPENAI_API_KEY", "sk-test"),
+                ],
+            );
+            assert!(validate_config(&config).is_ok());
+            Ok(())
+        });
     }
 
     #[test]
