@@ -271,7 +271,23 @@ pub struct ServiceConfig {
 
     /// Path to documentation directory to index
     pub docs_path: std::path::PathBuf,
+
+    /// Maximum size in bytes of a binary document (e.g. PDF) to extract text from
+    #[serde(default = "default_max_binary_file_size")]
+    pub max_binary_file_size: u64,
+
 }
+
+const DEFAULT_MAX_BINARY_FILE_SIZE: u64 = 50 * 1024 * 1024;
+
+fn default_max_binary_file_size() -> u64 {
+    std::env::var("DOC_INDEXER_MAX_BINARY_FILE_SIZE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_MAX_BINARY_FILE_SIZE)
+}
+
+
 
 /// Vector storage backend types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -491,6 +507,7 @@ impl Config {
                             std::path::PathBuf::from("~/Documents")
                         }
                     }),
+                max_binary_file_size: default_max_binary_file_size(),
             },
 
             load_testing: LoadTestingConfig::default(),
@@ -718,6 +735,7 @@ impl Default for Config {
                 } else {
                     std::path::PathBuf::from("~/Documents")
                 },
+                max_binary_file_size: default_max_binary_file_size(),
             },
 
             load_testing: LoadTestingConfig::default(),

@@ -256,6 +256,9 @@ impl ContentHandler for PlainTextHandler {
 }
 
 /// PDF content handler
+///
+/// Receives text already extracted from the PDF when the file was read
+/// (see `extraction::read_document_text`) and normalises it.
 pub struct PdfHandler;
 
 impl ContentHandler for PdfHandler {
@@ -264,32 +267,12 @@ impl ContentHandler for PdfHandler {
     }
 
     fn process(&self, content: &str) -> Result<String> {
-        // For PDF processing, content should be the file path, not file content
-        // This is because PDF files are binary and need special processing
-        use std::path::Path;
-
-        let path = Path::new(content);
-        if !path.exists() {
-            return Err(zero_latency_core::ZeroLatencyError::internal("PDF file not found"));
-        }
-
-        // Extract text from PDF
-        match pdf_extract::extract_text(path) {
-            Ok(text) => {
-                // Clean up the extracted text
-                let cleaned = text
-                    .lines()
-                    .map(|line| line.trim())
-                    .filter(|line| !line.is_empty())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                Ok(cleaned)
-            }
-            Err(e) => {
-                Err(zero_latency_core::ZeroLatencyError::internal(&format!("Failed to extract PDF text: {}", e)))
-            }
-        }
+        Ok(content
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 

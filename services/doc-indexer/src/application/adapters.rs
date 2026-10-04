@@ -9,6 +9,7 @@ use zero_latency_core::Result;
 use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
 use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
+use super::content_processing::extraction::read_document_text;
 use super::interfaces::{
     CollectionManager, CollectionStats, EmbeddingService, FileMetadata, FileSystemService,
     FilterSummary, FilteringService, ProgressStats, ProgressTracker, SearchService, VectorStorage,
@@ -103,7 +104,9 @@ impl SearchService for SearchServiceAdapter {
 }
 
 /// Implementation of FileSystemService using standard library
-pub struct StandardFileSystemService;
+pub struct StandardFileSystemService {
+    max_binary_file_size: u64,
+}
 
 impl Default for StandardFileSystemService {
     fn default() -> Self {
@@ -112,32 +115,34 @@ impl Default for StandardFileSystemService {
 }
 
 impl StandardFileSystemService {
+    /// Default maximum size of a binary file (e.g. PDF) to extract text from
+    pub const DEFAULT_MAX_BINARY_FILE_SIZE: u64 = 50 * 1024 * 1024;
+
     pub fn new() -> Self {
-        Self
+        Self::with_max_binary_file_size(Self::DEFAULT_MAX_BINARY_FILE_SIZE)
+    }
+
+    pub fn with_max_binary_file_size(max_binary_file_size: u64) -> Self {
+        Self {
+            max_binary_file_size,
+        }
     }
 }
 
 #[async_trait]
 impl FileSystemService for StandardFileSystemService {
+    /// Read a file as text, extracting text from binary formats such as PDF.
+    ///
+    /// A binary file that is skipped (too large, unextractable or empty) is an error.
     async fn read_file_content(&self, path: &Path) -> Result<String> {
-        use tokio::fs;
-
-        // Check if this is a binary file that needs special handling
-        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
-            match extension.to_lowercase().as_str() {
-                "pdf" => {
-                    // For PDF files, return the file path as content
-                    // The PDF handler will process the actual file
-                    return Ok(path.to_string_lossy().to_string());
-                }
-                _ => {}
-            }
-        }
-
-        // For text files, read as string
-        fs::read_to_string(path).await.map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(format!("Failed to read file: {}", e))
-        })
+        read_document_text(path, self.max_binary_file_size)
+            .await?
+            .ok_or_else(|| {
+                zero_latency_core::ZeroLatencyError::internal(format!(
+                    "No extractable text in {}",
+                    path.display()
+                ))
+            })
     }
 
     async fn is_file(&self, path: &Path) -> Result<bool> {

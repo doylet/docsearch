@@ -9,14 +9,14 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+
+use std::sync::Arc;
 /// HTTP route handlers for the doc-indexer API
 ///
 /// This module contains the HTTP handlers that translate between HTTP requests/responses
 /// and the application services, following the clean architecture pattern.
 use std::time::Instant;
-use uuid::Uuid;
+
 use zero_latency_api::endpoints::endpoints;
 use zero_latency_core::ZeroLatencyError;
 use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
@@ -24,38 +24,6 @@ use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 use crate::application::{
     CollectionService, DocumentIndexingService, HealthService, ServiceContainer,
 };
-
-#[derive(Debug, Serialize, Clone)]
-pub struct IndexingProgress {
-    pub id: String,
-    pub total_files: usize,
-    pub processed_files: usize,
-    pub current_file: Option<String>,
-    pub status: IndexingStatus,
-    #[serde(skip)]
-    pub start_time: Instant,
-    pub estimated_completion: Option<String>,
-    pub error_message: Option<String>,
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub enum IndexingStatus {
-    #[serde(rename = "starting")]
-    Starting,
-    #[serde(rename = "scanning")]
-    Scanning,
-    #[serde(rename = "processing")]
-    Processing,
-    #[serde(rename = "completed")]
-    Completed,
-    #[serde(rename = "error")]
-    Error,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ProgressQuery {
-    pub id: String,
-}
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -68,7 +36,6 @@ pub struct AppState {
     pub analytics_service:
         Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     pub start_time: Instant,
-    pub progress_tracker: Arc<Mutex<HashMap<String, IndexingProgress>>>,
 }
 
 impl AppState {
@@ -144,7 +111,6 @@ impl AppState {
             collection_service,
             analytics_service,
             start_time: Instant::now(),
-            progress_tracker: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }
@@ -158,7 +124,6 @@ pub fn create_router(state: AppState) -> Router {
         .route(endpoints::INDEX, post(index_documents_from_path))
         .route(endpoints::REINDEX, post(reindex_documents))
         .route(endpoints::BROWSE, get(browse_directory))
-        .route("/api/progress", get(get_indexing_progress))
         .route(endpoints::SERVER_START, post(start_server))
         .route(endpoints::SERVER_STOP, post(stop_server))
         // Collection endpoints
@@ -408,24 +373,6 @@ async fn index_documents_from_path(
 ) -> Result<Json<IndexPathResponse>, AppError> {
     let collection_name = request.collection.as_deref().unwrap_or("zero_latency_docs");
 
-    // Generate unique progress ID
-    let progress_id = Uuid::new_v4().to_string();
-
-    // Initialize progress tracking
-    {
-        let mut tracker = state.progress_tracker.lock().unwrap();
-        tracker.insert(progress_id.clone(), IndexingProgress {
-            id: progress_id.clone(),
-            total_files: 0,
-            processed_files: 0,
-            current_file: None,
-            status: IndexingStatus::Starting,
-            start_time: Instant::now(),
-            estimated_completion: None,
-            error_message: None,
-        });
-    }
-
     tracing::info!(
         "Starting document indexing from path: {} into collection: {}",
         request.path,
@@ -492,10 +439,11 @@ async fn index_documents_from_path(
         .await;
 
     match result {
-        Ok((documents_processed, processing_time_ms)) => {
+        Ok(stats) => {
             tracing::info!(
-                documents_processed = documents_processed,
-                processing_time_ms = processing_time_ms,
+                documents_processed = stats.documents_processed,
+                documents_skipped = stats.documents_skipped,
+                processing_time_ms = stats.processing_time_ms,
                 "Indexing completed successfully"
             );
 
@@ -504,37 +452,18 @@ async fn index_documents_from_path(
                 tracing::warn!("Failed to update collection statistics: {}", e);
             }
 
-            // Mark progress as completed
-            {
-                let mut tracker = state.progress_tracker.lock().unwrap();
-                if let Some(progress) = tracker.get_mut(&progress_id) {
-                    progress.status = IndexingStatus::Completed;
-                    progress.processed_files = documents_processed as usize;
-                    progress.total_files = documents_processed as usize;
-                }
-            }
-
             Ok(Json(IndexPathResponse {
-                documents_processed,
-                processing_time_ms,
+                documents_processed: stats.documents_processed,
+                documents_skipped: stats.documents_skipped,
+                processing_time_ms: stats.processing_time_ms,
                 status: "success".to_string(),
                 message: Some(format!(
                     "Successfully indexed {} documents from path: {}",
-                    documents_processed, request.path
+                    stats.documents_processed, request.path
                 )),
-                progress_id,
             }))
         }
         Err(e) => {
-            // Mark progress as error
-            {
-                let mut tracker = state.progress_tracker.lock().unwrap();
-                if let Some(progress) = tracker.get_mut(&progress_id) {
-                    progress.status = IndexingStatus::Error;
-                    progress.error_message = Some(e.to_string());
-                }
-            }
-
             tracing::error!(error = %e, path = %request.path, "Failed to index documents");
             Err(AppError(e))
         }
@@ -625,10 +554,11 @@ async fn reindex_documents(
         .await;
 
     match result {
-        Ok((documents_processed, processing_time_ms)) => {
+        Ok(stats) => {
             tracing::info!(
-                documents_processed = documents_processed,
-                processing_time_ms = processing_time_ms,
+                documents_processed = stats.documents_processed,
+                documents_skipped = stats.documents_skipped,
+                processing_time_ms = stats.processing_time_ms,
                 "Reindexing completed successfully"
             );
 
@@ -638,12 +568,13 @@ async fn reindex_documents(
             }
 
             Ok(Json(ReindexResponse {
-                documents_processed,
-                processing_time_ms,
+                documents_processed: stats.documents_processed,
+                documents_skipped: stats.documents_skipped,
+                processing_time_ms: stats.processing_time_ms,
                 status: "completed".to_string(),
                 message: Some(format!(
                     "Successfully reindexed {} documents",
-                    documents_processed
+                    stats.documents_processed
                 )),
             }))
         }
@@ -750,10 +681,10 @@ pub struct IndexPathRequest {
 #[derive(Debug, Serialize)]
 pub struct IndexPathResponse {
     pub documents_processed: u64,
+    pub documents_skipped: u64,
     pub processing_time_ms: f64,
     pub status: String,
     pub message: Option<String>,
-    pub progress_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -774,6 +705,7 @@ pub struct ReindexRequest {
 #[derive(Debug, Serialize)]
 pub struct ReindexResponse {
     pub documents_processed: u64,
+    pub documents_skipped: u64,
     pub processing_time_ms: f64,
     pub status: String,
     pub message: Option<String>,
@@ -1103,16 +1035,6 @@ pub struct AnalyticsQuery {
 #[derive(Debug, Deserialize)]
 pub struct BrowseQuery {
     pub path: Option<String>,
-}
-
-/// Get indexing progress for a specific operation
-async fn get_indexing_progress(
-    State(state): State<AppState>,
-    Query(query): Query<ProgressQuery>,
-) -> Result<Json<Option<IndexingProgress>>, AppError> {
-    let tracker = state.progress_tracker.lock().unwrap();
-    let progress = tracker.get(&query.id).cloned();
-    Ok(Json(progress))
 }
 
 /// Browse directory contents for path selection UX
