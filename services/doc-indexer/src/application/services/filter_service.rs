@@ -392,6 +392,13 @@ mod tests {
     }
 
     #[test]
+    fn test_match_recursive_non_ascii_path() {
+        assert!(match_recursive("docs/café/naïve.md", "*.md"));
+        assert!(match_recursive("naïve.md", "na?ve.md"));
+        assert!(!match_recursive("docs/café/naïve.txt", "*.md"));
+    }
+
+    #[test]
     fn test_default_filters() {
         let filters = IndexingFilters::new();
         let service = FilterService::new(filters);

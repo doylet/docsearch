@@ -550,28 +550,20 @@ impl EnhancedSearchService {
         } else {
             None
         };
-        // Convert custom_metadata HashMap<String, String> to JSON values
-        let metadata = if !core_result.custom_metadata.is_empty() {
-            let mut json_metadata = HashMap::new();
-            for (key, value) in &core_result.custom_metadata {
-                json_metadata.insert(key.clone(), serde_json::Value::String(value.clone()));
-            }
-
-            // Add additional metadata from the SearchResult fields
-            json_metadata.insert("doc_id".to_string(), serde_json::Value::String(core_result.doc_id.to_string()));
-            json_metadata.insert("uri".to_string(), serde_json::Value::String(core_result.uri.clone()));
-            json_metadata.insert("title".to_string(), serde_json::Value::String(core_result.title.clone()));
-
-            Some(json_metadata)
-        } else {
-            // Even if no custom metadata, include basic document info
-            let mut basic_metadata = HashMap::new();
-            basic_metadata.insert("doc_id".to_string(), serde_json::Value::String(core_result.doc_id.to_string()));
-            basic_metadata.insert("uri".to_string(), serde_json::Value::String(core_result.uri.clone()));
-            basic_metadata.insert("title".to_string(), serde_json::Value::String(core_result.title.clone()));
-
-            Some(basic_metadata)
-        };
+        // Custom metadata as JSON strings, plus basic document info that is always present
+        let mut metadata: HashMap<String, serde_json::Value> = core_result
+            .custom_metadata
+            .iter()
+            .map(|(key, value)| (key.clone(), serde_json::Value::String(value.clone())))
+            .collect();
+        for (key, value) in [
+            ("doc_id", core_result.doc_id.to_string()),
+            ("uri", core_result.uri.clone()),
+            ("title", core_result.title.clone()),
+        ] {
+            metadata.insert(key.to_string(), serde_json::Value::String(value));
+        }
+        let metadata = Some(metadata);
 
         Ok(Some(EnhancedSearchResult {
             id: core_result.chunk_id.to_string(),

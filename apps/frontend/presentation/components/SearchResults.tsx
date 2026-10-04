@@ -14,8 +14,7 @@ const getFileExtension = (path: string): string => {
   return ext || '';
 };
 
-const getFileIcon = (path: string) => {
-  const ext = getFileExtension(path);
+const getFileIcon = (ext: string) => {
   switch (ext) {
     case 'pdf':
       return <File className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" />;
@@ -84,7 +83,7 @@ export function SearchResults({ results }: SearchResultsProps) {
   return (
     <div className="space-y-4">
       {results.map((result) => {
-        const extension = getFileExtension(result.document.path);
+        const extension = result.document.file_extension || getFileExtension(result.document.path);
         const freshnessIndicator = getFreshnessIndicator(result.document.indexed_at);
 
         return (
@@ -93,13 +92,13 @@ export function SearchResults({ results }: SearchResultsProps) {
             className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200"
           >
             <div className="flex items-start gap-3">
-              {getFileIcon(result.document.path)}
+              {getFileIcon(extension)}
               <div className="flex-1 min-w-0">
                 {/* Header with title and metadata badges */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-1 truncate">
-                      {result.document.title || result.document.path.split('/').pop()}
+                      {result.document.title || result.document.file_name || result.document.path.split('/').pop()}
                     </h3>
                     <p className="text-sm text-gray-600 mb-2 truncate" title={result.document.path}>
                       {result.document.path}
@@ -163,8 +162,16 @@ export function SearchResults({ results }: SearchResultsProps) {
                     <span className="flex items-center gap-1">
                       <HardDrive className="w-3 h-3" />
                       <span className="font-medium">Size:</span>
-                      <span>{formatFileSize(0)}</span> {/* Size would need to be added to API response */}
+                      <span>{formatFileSize(result.document.file_size)}</span>
                     </span>
+
+                    {result.document.last_modified && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span className="font-medium">Modified:</span>
+                        <span>{formatDate(result.document.last_modified)}</span>
+                      </span>
+                    )}
 
                     {result.document.indexed_at && (
                       <span className="flex items-center gap-1">

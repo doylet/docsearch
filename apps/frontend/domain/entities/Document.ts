@@ -25,6 +25,18 @@ export interface Document {
 
   /** Last indexed timestamp (ISO 8601 format) */
   indexed_at?: string;
+
+  /** File name without extension */
+  file_name?: string;
+
+  /** Lowercase file extension without the dot, e.g. "pdf" */
+  file_extension?: string;
+
+  /** File size in bytes */
+  file_size?: number;
+
+  /** File modification timestamp (ISO 8601 format) */
+  last_modified?: string;
 }
 
 /**
