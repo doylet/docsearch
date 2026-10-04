@@ -37,9 +37,9 @@
 
 ## 6. Verify
 
-- [ ] 6.1 Open a pull request and confirm every job in both workflows is green, or skipped by design
-- [ ] 6.2 Push a throwaway commit with a deliberate formatting error to the pull request, confirm CI fails, then drop the commit
-- [ ] 6.3 Merge, and confirm the `main` push run is green
+- [x] 6.1 Open a pull request and confirm every job in both workflows is green, or skipped by design (PR #1 merged directly at your request; on `main` both workflows are green: CI/CD run 37173283726, Schema Validation run 37172791541)
+- [x] 6.2 Push a throwaway commit with a deliberate formatting error to the pull request, confirm CI fails, then drop the commit (substituted: no synthetic commit, per the instruction to skip the PR flow. A real failure proved the same thing: run 37172268466 on c7ac1b2 failed at clippy on Rust 1.99 lints and blocked the downstream jobs)
+- [x] 6.3 Merge, and confirm the `main` push run is green (green at 245f128 after two follow-up fixes: Rust 1.99 lints, Docker builder image)
 
 ## 7. Follow-ups
 
