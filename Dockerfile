@@ -37,6 +37,10 @@ COPY . .
 # Build the application
 RUN cargo build --release --bin doc-indexer
 
+# Download and verify the local embedding model (bge-small-en-v1.5, ~130 MB)
+# so containers start without network access
+RUN ./target/release/doc-indexer --fetch-model /app/models/bge-small-en-v1.5
+
 # Runtime stage
 FROM debian:bookworm-slim as runtime
 
@@ -56,6 +60,7 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/target/release/doc-indexer /usr/local/bin/doc-indexer
 COPY --from=builder /app/demo-content ./demo-content
+COPY --from=builder /app/models ./models
 
 # Copy configuration templates
 COPY docker/config/ ./config/
@@ -69,17 +74,22 @@ RUN mkdir -p /app/data /app/logs \
 USER appuser
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Expose ports
-EXPOSE 8080 8081
+# Expose the HTTP API port
+EXPOSE 8080
 
 # Set environment
 ENV RUST_LOG=info
+# Listen on all interfaces; the default (localhost) is unreachable from outside the container
+ENV ZL_SERVER_HOST=0.0.0.0
+ENV ZL_SERVER_PORT=8080
 ENV DOCSEARCH_CONFIG_PATH=/app/config/production.toml
 ENV DOCSEARCH_DATA_PATH=/app/data
 ENV DOCSEARCH_LOG_PATH=/app/logs
+# Model baked in at build time: verified on start, never downloaded
+ENV ZL_EMBEDDING_LOCAL_MODEL_PATH=/app/models/bge-small-en-v1.5
 
 # Start the application
 CMD ["doc-indexer", "--config", "/app/config/production.toml"]

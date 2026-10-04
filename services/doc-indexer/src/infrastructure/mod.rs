@@ -15,6 +15,9 @@ pub mod memory;
 pub mod search_enhancement;
 pub mod stdio;
 
+#[cfg(all(test, any(feature = "cloud", feature = "embedded")))]
+pub(crate) mod mock_http;
+
 // Phase 4D: Enhanced API Features
 pub mod batch_operations;
 pub mod collection_management;
@@ -46,4 +49,6 @@ pub use persistence::embeddings::{OpenAIAdapter, OpenAIConfig};
 pub use persistence::vector::{EmbeddedConfig, EmbeddedVectorStore};
 
 #[cfg(feature = "embedded")]
-pub use persistence::embeddings::{LocalEmbeddingAdapter, LocalEmbeddingConfig};
+pub use persistence::embeddings::{
+    HashEmbeddingAdapter, HashEmbeddingConfig, ModelSpec, ModelStore, OnnxEmbeddingAdapter,
+};

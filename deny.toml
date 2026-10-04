@@ -2,9 +2,9 @@
 # Local check: `cargo deny check`. Docs: https://embarkstudios.github.io/cargo-deny/
 
 [graph]
-# Default features only, matching what CI builds and tests. The `tantivy` and
-# `cloud` features don't compile (see .github/workflows/ci-cd.yml).
-all-features = false
+# All features, matching what CI lints and tests, so optional dependencies
+# (`cloud`, `tantivy`) are audited too.
+all-features = true
 
 [advisories]
 # Vulnerabilities, unsound and unmaintained crates are denied by default.
@@ -26,6 +26,7 @@ ignore = [
     { id = "RUSTSEC-2025-0119", reason = "number_prefix via indicatif 0.17 (mdx, tokenizers). Review by 2027-01-04" },
     { id = "RUSTSEC-2025-0123", reason = "opentelemetry-jaeger 0.20, direct in doc-indexer; replace with an OTLP exporter. Review by 2027-01-04" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile 1.x via reqwest 0.11 in mdx. Review by 2027-01-04" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.25 via lopdf 0.42 (pdf-extract 0.12); no maintained release, lopdf would need to move to skrifa. Review by 2027-01-04" },
     { id = "RUSTSEC-2025-0141", reason = "bincode 1.x, direct in doc-indexer (embedded feature). Review by 2027-01-04" },
 ]
 

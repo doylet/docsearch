@@ -165,7 +165,7 @@ Shows collection statistics, health, and configuration:
    Vector Dimensions: 384
 
 🔧 Configuration:
-   Embedding Model: gte-small (local)
+   Embedding Model: bge-small-en-v1.5 (local)
    Vector Database: Qdrant (localhost:6333)
 
 🚀 Performance:
@@ -305,7 +305,7 @@ Comprehensive documentation is organized in the [`docs/`](docs/) directory:
 mdx CLI ──HTTP──> API Server ──SQLite──> Embedded Vector DB
    │                   │                       │
    │                   └─> Local Embedder ─────┘
-   │                       (gte-small ONNX)
+   │                       (bge-small ONNX)
    │
    └─> Local Files & Configuration
 ```
@@ -314,7 +314,7 @@ mdx CLI ──HTTP──> API Server ──SQLite──> Embedded Vector DB
 
 - **CLI**: Rust with `clap` framework
 - **HTTP API**: Axum web framework
-- **Embeddings**: Local ONNX model (gte-small, 384 dimensions)
+- **Embeddings**: Local ONNX model (bge-small-en-v1.5, 384 dimensions)
 - **Vector DB**: Embedded SQLite with binary blob storage
 - **File Monitoring**: Real-time document change detection
 
@@ -374,7 +374,7 @@ cargo build --release
 ### Build Features
 
 - **`embedded`** (default): Local SQLite storage + ONNX embeddings
-- **`cloud`**: Qdrant integration + OpenAI embeddings
+- **`cloud`**: Qdrant vector store + OpenAI embeddings, both over HTTP (see [Docker Setup](#docker-setup))
 - **`full`**: All features enabled for development/testing
 
 ### Building Distribution Packages
@@ -403,19 +403,28 @@ docker run -d \
   -p 6334:6334 \
   qdrant/qdrant
 
-# Configure to use external Qdrant
-export DOC_INDEXER_VECTOR_BACKEND=qdrant
-export DOC_INDEXER_QDRANT_URL=http://localhost:6333
+# Configure to use external Qdrant (requires a build with the `cloud` feature)
+export ZL_VECTOR_BACKEND=qdrant
+export ZL_VECTOR_QDRANT_URL=http://localhost:6333
+export ZL_VECTOR_QDRANT_COLLECTION=zero_latency_docs   # optional
+
+# Optional: OpenAI embeddings instead of local ones
+export ZL_EMBEDDING_PROVIDER=openai
+export OPENAI_API_KEY=sk-...                            # or ZL_EMBEDDING_OPENAI_API_KEY
+export ZL_EMBEDDING_OPENAI_MODEL=text-embedding-3-small # 1536 dimensions
 ```
+
+The same settings can go in `zero-latency.toml`, under `[vector]` (`backend`, `qdrant_url`, …) and `[embedding]` (`provider`, `openai_model`, …). Environment variables take precedence over the file. Run `doc-indexer --env-example` for the full list.
+
+The Qdrant collection is created on the first insert, sized to the embedding dimension, with cosine distance. Its dimension is then fixed: if you switch embedding provider or model (local embeddings are 384-dimensional, `text-embedding-3-small` 1536, `text-embedding-3-large` 3072), use a new collection name or delete the old collection first. OpenAI requests are retried on rate limits and server errors (`ZL_EMBEDDING_OPENAI_MAX_RETRIES`, default 3).
 
 ## 📊 Features
 
 ### ✅ Completed (Phase 1 & 2)
 
 - **Local Embeddings**: No API keys required
-  - gte-small model (384 dimensions)
-  - ~1ms inference time
-  - Automatic model download and caching
+  - bge-small-en-v1.5 model (384 dimensions) on ONNX Runtime
+  - Verified model download on first run, offline afterwards
 
 - **Real-time Indexing**:
   - File system monitoring
@@ -472,12 +481,13 @@ export MDX_API_URL="http://localhost:8081"
 export RUST_LOG="info"
 
 # Vector Storage (embedded build default)
-export DOC_INDEXER_VECTOR_BACKEND="embedded"
-export DOC_INDEXER_EMBEDDED_DB_PATH="~/.zero-latency/vectors.db"
+export ZL_VECTOR_BACKEND="embedded"
+export ZL_VECTOR_EMBEDDED_DB_PATH="~/.zero-latency/vectors.db"
 
 # Cloud features (cloud build only)
-export DOC_INDEXER_VECTOR_BACKEND="qdrant"
-export QDRANT_URL="http://localhost:6333"
+export ZL_VECTOR_BACKEND="qdrant"
+export ZL_VECTOR_QDRANT_URL="http://localhost:6333"
+export ZL_EMBEDDING_PROVIDER="openai"
 export OPENAI_API_KEY="your-api-key"
 
 # CLI preferences
@@ -490,18 +500,30 @@ export MDX_DEFAULT_LIMIT="10"
 The embedded database automatically stores vectors in:
 
 - **Default Location**: `~/.zero-latency/vectors.db`
-- **Custom Location**: Set `DOC_INDEXER_EMBEDDED_DB_PATH`
+- **Custom Location**: Set `ZL_VECTOR_EMBEDDED_DB_PATH`
 - **Cache Size**: 10,000 vectors in memory by default
 - **Performance**: ~2KB per document chunk
 
 ### Model Configuration
 
-The system automatically downloads and caches the embedding model:
+The default embedding provider (`ZL_EMBEDDING_PROVIDER=local`) runs **bge-small-en-v1.5** (BAAI, MIT licence, 384 dimensions) through ONNX Runtime, on the CPU, with no API key.
 
-- **Model**: gte-small (384 dimensions)
-- **Size**: ~126MB
-- **Cache Location**: `~/.cache/zero-latency/models/`
-- **Performance**: <1ms inference time
+- **First run**: `doc-indexer` downloads `model.onnx` and `tokenizer.json` (~130 MB) from a pinned Hugging Face revision into `~/.zero-latency/models/bge-small-en-v1.5/`. Each file's SHA-256 is checked before it is used; a partial or corrupt download is never loaded. After that it works offline.
+- **Offline / air-gapped**: run `doc-indexer --fetch-model` (or `--fetch-model <dir>`) on a machine with access, copy the directory, and set `ZL_EMBEDDING_LOCAL_MODEL_PATH` to it. With that set, nothing is ever downloaded; missing or corrupt files are a startup error.
+- **Mirror**: `ZL_EMBEDDING_LOCAL_MODEL_URL` replaces `https://huggingface.co/BAAI/bge-small-en-v1.5`. `HTTPS_PROXY` is honoured.
+- **Docker**: the image downloads the model at build time and sets `ZL_EMBEDDING_LOCAL_MODEL_PATH=/app/models/bge-small-en-v1.5`, so containers start offline.
+- **Dimension**: fixed at 384; `ZL_EMBEDDING_LOCAL_DIMENSION` set to anything else is rejected.
+- `ZL_EMBEDDING_PROVIDER=hash` selects a deterministic, non-semantic embedder **for tests only**: it needs no model, but its rankings are meaningless.
+
+#### Re-indexing after an embedding model change
+
+The embedded store records which model wrote its vectors. If it was written by a different model, including stores from versions before bge-small-en-v1.5 (which used hash vectors), `doc-indexer` removes those vectors on startup, logs a warning with the count, and reports `"reindex_required": true` on `GET /api/status` until something is indexed again. Your documents are not touched. Re-index with:
+
+```bash
+mdx reindex            # or: mdx index ~/my-docs
+```
+
+Qdrant collections aren't checked: if one was built with the old local embeddings, delete it (or use a new `ZL_VECTOR_QDRANT_COLLECTION`) and re-index.
 
 ## 📈 Performance
 
@@ -509,7 +531,8 @@ The system automatically downloads and caches the embedding model:
 
 - **Search Latency**: 10-20ms (typical)
 - **Indexing Speed**: ~50 documents/second
-- **Memory Usage**: ~100MB base + model size
+- **Memory Usage**: ~300MB with the local embedding model loaded
+- **Local embeddings**: ~10 chunks/s when indexing, ~11ms per search including the query embedding (laptop CPU)
 - **Index Size**: ~2KB per document chunk
 
 ### Scaling Characteristics
@@ -600,7 +623,7 @@ Response:
 
 ### Additional Endpoints
 
-- `GET /api/status` - System health and statistics
+- `GET /api/status` - System health and statistics, including `reindex_required` (see [Re-indexing](#re-indexing-after-an-embedding-model-change))
 - `GET /api/docs` - List indexed documents
 - `POST /api/reindex` - Rebuild search index
 - `DELETE /api/docs/{id}` - Remove document

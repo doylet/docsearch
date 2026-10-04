@@ -1,7 +1,7 @@
-/// Vector store infrastructure adapters
-///
-/// This module contains concrete implementations of the VectorRepository trait
-/// for different vector storage backends.
+//! Vector store infrastructure adapters
+//!
+//! This module contains concrete implementations of the VectorRepository trait
+//! for different vector storage backends.
 
 #[cfg(feature = "cloud")]
 pub mod qdrant_adapter;

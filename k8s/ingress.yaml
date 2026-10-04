@@ -8,7 +8,6 @@ metadata:
     component: ingress
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
@@ -40,13 +39,6 @@ spec:
             name: docsearch-service
             port:
               number: 80
-      - path: /indexer
-        pathType: Prefix
-        backend:
-          service:
-            name: docsearch-service
-            port:
-              number: 8081
 
 ---
 # Alternative ingress for internal services (no TLS)
@@ -60,7 +52,6 @@ metadata:
     component: ingress-internal
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     # Internal use only - more permissive rate limiting
     nginx.ingress.kubernetes.io/rate-limit: "1000"
@@ -77,10 +68,3 @@ spec:
             name: docsearch-service
             port:
               number: 80
-      - path: /indexer
-        pathType: Prefix
-        backend:
-          service:
-            name: docsearch-service
-            port:
-              number: 8081

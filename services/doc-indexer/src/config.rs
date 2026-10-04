@@ -32,17 +32,12 @@ pub struct OpenAIConfig {
 
 #[cfg(not(feature = "embedded"))]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct LocalEmbeddingConfig {
-    pub dimension: usize,
-    pub seed: u64,
-}
-
-#[cfg(not(feature = "embedded"))]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EmbeddedConfig {
     pub db_path: std::path::PathBuf,
     pub dimension: usize,
     pub cache_size: usize,
+    pub enable_string_interning: bool,
+    pub enable_smart_caching: bool,
 }
 
 // Import actual types when features are enabled
@@ -50,7 +45,39 @@ pub struct EmbeddedConfig {
 use crate::infrastructure::{OpenAIConfig, QdrantConfig};
 
 #[cfg(feature = "embedded")]
-use crate::infrastructure::{EmbeddedConfig, LocalEmbeddingConfig};
+use crate::infrastructure::EmbeddedConfig;
+
+/// Settings for the `local` (bge-small-en-v1.5) and `hash` embedding providers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalEmbeddingConfig {
+    /// Fixed at 384 for `local`; free for `hash`
+    pub dimension: usize,
+    /// Seed for the `hash` provider
+    pub seed: u64,
+    /// Vector pooling for the `hash` provider
+    pub enable_vector_pooling: bool,
+    /// Directory holding pre-supplied model files. Never downloaded into
+    #[serde(default)]
+    pub model_path: Option<std::path::PathBuf>,
+    /// Override for the model download base URL
+    #[serde(default)]
+    pub model_url: Option<String>,
+}
+
+impl Default for LocalEmbeddingConfig {
+    fn default() -> Self {
+        Self {
+            dimension: LOCAL_EMBEDDING_DIMENSION,
+            seed: 42,
+            enable_vector_pooling: true,
+            model_path: None,
+            model_url: None,
+        }
+    }
+}
+
+/// The local model (bge-small-en-v1.5) produces 384-dimensional vectors
+pub const LOCAL_EMBEDDING_DIMENSION: usize = 384;
 
 /// Load testing configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -331,8 +358,11 @@ pub enum VectorBackend {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EmbeddingProvider {
+    /// bge-small-en-v1.5 through ONNX Runtime
     Local,
     OpenAI,
+    /// Deterministic, non-semantic vectors. Testing only
+    Hash,
 }
 
 /// Document chunking strategies
@@ -350,205 +380,6 @@ pub enum ChunkingStrategy {
 }
 
 impl Config {
-    /// Load configuration from environment variables with defaults
-    pub fn from_env() -> Result<Self> {
-        let config = Config {
-            server: ServerConfig {
-                host: std::env::var("DOC_INDEXER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
-                port: std::env::var("DOC_INDEXER_PORT")
-                    .unwrap_or_else(|_| "8080".to_string())
-                    .parse()
-                    .map_err(|_| ZeroLatencyError::configuration("Invalid port number"))?,
-                timeout_seconds: std::env::var("DOC_INDEXER_TIMEOUT")
-                    .unwrap_or_else(|_| "300".to_string()) // 5 minutes default
-                    .parse()
-                    .unwrap_or(300),
-                enable_cors: std::env::var("DOC_INDEXER_ENABLE_CORS")
-                    .unwrap_or_else(|_| "true".to_string())
-                    .parse()
-                    .unwrap_or(true),
-                cors_origins: std::env::var("DOC_INDEXER_CORS_ORIGINS")
-                    .unwrap_or_default()
-                    .split(',')
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.trim().to_string())
-                    .collect(),
-            },
-
-            vector: VectorConfig {
-                backend: std::env::var("DOC_INDEXER_VECTOR_BACKEND")
-                    .unwrap_or_else(|_| "embedded".to_string())
-                    .parse()
-                    .unwrap_or(VectorBackend::Embedded),
-                qdrant: QdrantConfig {
-                    url: std::env::var("DOC_INDEXER_QDRANT_URL")
-                        .unwrap_or_else(|_| "http://localhost:6333".to_string()),
-                    collection_name: std::env::var("DOC_INDEXER_QDRANT_COLLECTION")
-                        .unwrap_or_else(|_| "zero_latency_docs".to_string()),
-                    api_key: std::env::var("DOC_INDEXER_QDRANT_API_KEY").ok(),
-                    timeout_seconds: std::env::var("DOC_INDEXER_QDRANT_TIMEOUT")
-                        .unwrap_or_else(|_| "30".to_string())
-                        .parse()
-                        .unwrap_or(30),
-                },
-                embedded: EmbeddedConfig {
-                    db_path: std::env::var("DOC_INDEXER_EMBEDDED_DB_PATH")
-                        .map(|p| {
-                            if let Some(rest) = p.strip_prefix("~/") {
-                                #[cfg(feature = "embedded")]
-                                {
-                                    dirs::home_dir()
-                                        .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                        .join(rest)
-                                }
-                                #[cfg(not(feature = "embedded"))]
-                                {
-                                    std::path::PathBuf::from(rest)
-                                }
-                            } else {
-                                std::path::PathBuf::from(p)
-                            }
-                        })
-                        .unwrap_or_else(|_| {
-                            #[cfg(feature = "embedded")]
-                            {
-                                dirs::home_dir()
-                                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                                    .join(".zero-latency")
-                                    .join("vectors.db")
-                            }
-                            #[cfg(not(feature = "embedded"))]
-                            {
-                                std::path::PathBuf::from(".zero-latency").join("vectors.db")
-                            }
-                        }),
-                    dimension: std::env::var("DOC_INDEXER_EMBEDDED_DIMENSION")
-                        .unwrap_or_else(|_| "384".to_string())
-                        .parse()
-                        .unwrap_or(384),
-                    cache_size: std::env::var("DOC_INDEXER_EMBEDDED_CACHE_SIZE")
-                        .unwrap_or_else(|_| "10000".to_string())
-                        .parse()
-                        .unwrap_or(10000),
-                    enable_string_interning: std::env::var("DOC_INDEXER_EMBEDDED_STRING_INTERNING")
-                        .unwrap_or_else(|_| "true".to_string())
-                        .parse()
-                        .unwrap_or(true),
-                    enable_smart_caching: std::env::var("DOC_INDEXER_EMBEDDED_SMART_CACHING")
-                        .unwrap_or_else(|_| "true".to_string())
-                        .parse()
-                        .unwrap_or(true),
-                },
-            },
-
-            embedding: EmbeddingConfig {
-                provider: std::env::var("DOC_INDEXER_EMBEDDING_PROVIDER")
-                    .unwrap_or_else(|_| "local".to_string())
-                    .parse()
-                    .unwrap_or(EmbeddingProvider::Local),
-                openai: OpenAIConfig {
-                    api_key: std::env::var("OPENAI_API_KEY").unwrap_or_default(),
-                    model: std::env::var("DOC_INDEXER_OPENAI_MODEL")
-                        .unwrap_or_else(|_| "text-embedding-3-small".to_string()),
-                    base_url: std::env::var("DOC_INDEXER_OPENAI_BASE_URL").ok(),
-                    timeout_seconds: std::env::var("DOC_INDEXER_OPENAI_TIMEOUT")
-                        .unwrap_or_else(|_| "30".to_string())
-                        .parse()
-                        .unwrap_or(30),
-                    max_retries: std::env::var("DOC_INDEXER_OPENAI_MAX_RETRIES")
-                        .unwrap_or_else(|_| "3".to_string())
-                        .parse()
-                        .unwrap_or(3),
-                },
-                local: LocalEmbeddingConfig {
-                    dimension: std::env::var("DOC_INDEXER_LOCAL_EMBEDDING_DIMENSION")
-                        .unwrap_or_else(|_| "384".to_string())
-                        .parse()
-                        .unwrap_or(384),
-                    seed: std::env::var("DOC_INDEXER_LOCAL_EMBEDDING_SEED")
-                        .unwrap_or_else(|_| "42".to_string())
-                        .parse()
-                        .unwrap_or(42),
-                    enable_vector_pooling: std::env::var(
-                        "DOC_INDEXER_LOCAL_EMBEDDING_VECTOR_POOLING",
-                    )
-                    .unwrap_or_else(|_| "true".to_string())
-                    .parse()
-                    .unwrap_or(true),
-                },
-            },
-
-            logging: LoggingConfig {
-                level: std::env::var("DOC_INDEXER_LOG_LEVEL")
-                    .unwrap_or_else(|_| "info".to_string()),
-                format: std::env::var("DOC_INDEXER_LOG_FORMAT")
-                    .unwrap_or_else(|_| "pretty".to_string()),
-                structured: std::env::var("DOC_INDEXER_LOG_STRUCTURED")
-                    .unwrap_or_else(|_| "false".to_string())
-                    .parse()
-                    .unwrap_or(false),
-            },
-
-            service: ServiceConfig {
-                name: "doc-indexer".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-                max_document_size: std::env::var("DOC_INDEXER_MAX_DOCUMENT_SIZE")
-                    .unwrap_or_else(|_| "10485760".to_string()) // 10MB
-                    .parse()
-                    .unwrap_or(10 * 1024 * 1024),
-                default_search_limit: std::env::var("DOC_INDEXER_DEFAULT_SEARCH_LIMIT")
-                    .unwrap_or_else(|_| "10".to_string())
-                    .parse()
-                    .unwrap_or(10),
-                max_search_limit: std::env::var("DOC_INDEXER_MAX_SEARCH_LIMIT")
-                    .unwrap_or_else(|_| "100".to_string())
-                    .parse()
-                    .unwrap_or(100),
-                default_collection: std::env::var("DOC_INDEXER_DEFAULT_COLLECTION")
-                    .unwrap_or_else(|_| "zero_latency_docs".to_string()),
-                enable_query_enhancement: std::env::var("DOC_INDEXER_ENABLE_QUERY_ENHANCEMENT")
-                    .unwrap_or_else(|_| "true".to_string())
-                    .parse()
-                    .unwrap_or(true),
-                enable_result_ranking: std::env::var("DOC_INDEXER_ENABLE_RESULT_RANKING")
-                    .unwrap_or_else(|_| "true".to_string())
-                    .parse()
-                    .unwrap_or(true),
-                chunking_strategy: std::env::var("DOC_INDEXER_CHUNKING_STRATEGY")
-                    .unwrap_or_else(|_| "sentence".to_string())
-                    .parse()
-                    .unwrap_or(ChunkingStrategy::Sentence),
-                chunk_size: std::env::var("DOC_INDEXER_CHUNK_SIZE")
-                    .unwrap_or_else(|_| "1000".to_string())
-                    .parse()
-                    .unwrap_or(1000),
-                chunk_overlap: std::env::var("DOC_INDEXER_CHUNK_OVERLAP")
-                    .unwrap_or_else(|_| "200".to_string())
-                    .parse()
-                    .unwrap_or(200),
-                docs_path: std::env::var("DOC_INDEXER_DOCS_PATH")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_else(|_| {
-                        // Default to ~/Documents in production, but allow ~/Documents to be expanded
-                        if let Ok(home) = std::env::var("HOME") {
-                            std::path::PathBuf::from(home).join("Documents")
-                        } else {
-                            std::path::PathBuf::from("~/Documents")
-                        }
-                    }),
-                max_binary_file_size: default_max_binary_file_size(),
-                browse_roots: default_browse_roots(),
-                browse_max_entries: default_browse_max_entries(),
-            },
-
-            load_testing: LoadTestingConfig::default(),
-            production: ProductionConfig::default(),
-        };
-
-        config.validate()?;
-        Ok(config)
-    }
-
     /// Load configuration from a TOML file
     pub fn from_file(path: &str) -> Result<Self> {
         let content = std::fs::read_to_string(path).map_err(|e| {
@@ -582,9 +413,17 @@ impl Config {
                 }
             }
             EmbeddingProvider::Local => {
+                if self.embedding.local.dimension != LOCAL_EMBEDDING_DIMENSION {
+                    return Err(ZeroLatencyError::configuration(format!(
+                        "Local embedding dimension is fixed at {} by the bge-small-en-v1.5 model, got {}",
+                        LOCAL_EMBEDDING_DIMENSION, self.embedding.local.dimension
+                    )));
+                }
+            }
+            EmbeddingProvider::Hash => {
                 if self.embedding.local.dimension == 0 {
                     return Err(ZeroLatencyError::configuration(
-                        "Local embedding dimension must be greater than 0",
+                        "Hash embedding dimension must be greater than 0",
                     ));
                 }
             }
@@ -609,46 +448,45 @@ impl Config {
     /// Get configuration as environment variable examples
     pub fn env_example() -> String {
         r#"# Doc-Indexer Configuration
-DOC_INDEXER_HOST=0.0.0.0
-DOC_INDEXER_PORT=8080
-DOC_INDEXER_TIMEOUT=30
-DOC_INDEXER_ENABLE_CORS=true
-DOC_INDEXER_CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+# Environment variables override zero-latency.toml (or --config <file>),
+# which overrides the defaults. Each ZL_<SECTION>_<FIELD> sets <section>.<field>.
 
-# Vector Storage
-DOC_INDEXER_VECTOR_BACKEND=embedded
-DOC_INDEXER_QDRANT_URL=http://localhost:6333
-DOC_INDEXER_QDRANT_COLLECTION=documents
-DOC_INDEXER_QDRANT_API_KEY=your-api-key
-DOC_INDEXER_QDRANT_TIMEOUT=30
+# Server
+ZL_SERVER_HOST=localhost
+ZL_SERVER_PORT=8081
+ZL_SERVER_DOCS_PATH=~/Documents
+ZL_SERVER_COLLECTION_NAME=zero_latency_docs
+ZL_SERVER_TIMEOUT_MS=30000
 
-# Embedded Vector Storage
-DOC_INDEXER_EMBEDDED_DB_PATH=~/.zero-latency/vectors.db
-DOC_INDEXER_EMBEDDED_DIMENSION=384
-DOC_INDEXER_EMBEDDED_CACHE_SIZE=10000
+# Vector storage: embedded (default), memory, or qdrant (needs the `cloud` feature)
+ZL_VECTOR_BACKEND=embedded
+ZL_VECTOR_EMBEDDED_DB_PATH=~/.zero-latency/vectors.db
+ZL_VECTOR_EMBEDDED_DIMENSION=384
+ZL_VECTOR_EMBEDDED_CACHE_SIZE=10000
+ZL_VECTOR_QDRANT_URL=http://localhost:6333
+ZL_VECTOR_QDRANT_COLLECTION=zero_latency_docs
+ZL_VECTOR_QDRANT_API_KEY=your-qdrant-api-key
+ZL_VECTOR_QDRANT_TIMEOUT_SECONDS=30
 
-# Embeddings
-DOC_INDEXER_EMBEDDING_PROVIDER=local
+# Embeddings: local (default, bge-small-en-v1.5), openai (needs the `cloud`
+# feature), or hash (testing only: deterministic, not semantic)
+ZL_EMBEDDING_PROVIDER=local
+# Fixed at 384 for the local model
+ZL_EMBEDDING_LOCAL_DIMENSION=384
+# Pre-supplied model.onnx + tokenizer.json; nothing is downloaded when set.
+# Unset: downloaded on first run (~130 MB) to ~/.zero-latency/models/bge-small-en-v1.5
+ZL_EMBEDDING_LOCAL_MODEL_PATH=/app/models/bge-small-en-v1.5
+# Download source (mirror) for the model files
+ZL_EMBEDDING_LOCAL_MODEL_URL=https://huggingface.co/BAAI/bge-small-en-v1.5
+# OPENAI_API_KEY is used when ZL_EMBEDDING_OPENAI_API_KEY is unset
 OPENAI_API_KEY=your-openai-api-key
-DOC_INDEXER_OPENAI_MODEL=text-embedding-3-small
-DOC_INDEXER_OPENAI_TIMEOUT=30
-DOC_INDEXER_OPENAI_MAX_RETRIES=3
-DOC_INDEXER_LOCAL_EMBEDDING_DIMENSION=384
-DOC_INDEXER_LOCAL_EMBEDDING_SEED=42
+ZL_EMBEDDING_OPENAI_MODEL=text-embedding-3-small
+ZL_EMBEDDING_OPENAI_BASE_URL=https://api.openai.com/v1
+ZL_EMBEDDING_OPENAI_TIMEOUT_SECONDS=30
+ZL_EMBEDDING_OPENAI_MAX_RETRIES=3
 
 # Logging
-DOC_INDEXER_LOG_LEVEL=info
-DOC_INDEXER_LOG_FORMAT=pretty
-DOC_INDEXER_LOG_STRUCTURED=false
-
-# Service Settings
-DOC_INDEXER_MAX_DOCUMENT_SIZE=10485760
-DOC_INDEXER_DEFAULT_SEARCH_LIMIT=10
-DOC_INDEXER_MAX_SEARCH_LIMIT=100
-DOC_INDEXER_CHUNKING_STRATEGY=sentence
-DOC_INDEXER_CHUNK_SIZE=1000
-DOC_INDEXER_CHUNK_OVERLAP=200
-DOC_INDEXER_DOCS_PATH=~/Documents
+ZL_APP_LOG_LEVEL=info
 "#
         .to_string()
     }
@@ -678,6 +516,7 @@ impl std::str::FromStr for EmbeddingProvider {
         match s.to_lowercase().as_str() {
             "local" => Ok(EmbeddingProvider::Local),
             "openai" => Ok(EmbeddingProvider::OpenAI),
+            "hash" => Ok(EmbeddingProvider::Hash),
             _ => Err(ZeroLatencyError::configuration(format!(
                 "Unknown embedding provider: {}",
                 s
@@ -705,7 +544,7 @@ impl std::str::FromStr for ChunkingStrategy {
 
 impl Config {
     /// Create Config from the centralized AppConfig
-    pub fn from_app_config(app_config: AppConfig) -> Self {
+    pub fn from_app_config(app_config: AppConfig) -> Result<Self> {
         let mut config = Self::default();
 
         // Map server configuration
@@ -726,7 +565,53 @@ impl Config {
         // Map timeouts
         config.server.timeout_seconds = app_config.server.timeout_ms / 1000;
 
+        // Map vector storage
+        let vector = app_config.vector;
+        config.vector.backend = vector.backend.parse()?;
+        config.vector.qdrant.url = vector.qdrant_url;
+        config.vector.qdrant.collection_name = vector.qdrant_collection;
+        config.vector.qdrant.api_key = vector.qdrant_api_key;
+        config.vector.qdrant.timeout_seconds = vector.qdrant_timeout_seconds;
+        if let Some(db_path) = vector.embedded_db_path {
+            config.vector.embedded.db_path = expand_home(&db_path);
+        }
+        config.vector.embedded.dimension = vector.embedded_dimension;
+        config.vector.embedded.cache_size = vector.embedded_cache_size;
+
+        // Map embeddings
+        let embedding = app_config.embedding;
+        config.embedding.provider = embedding.provider.parse()?;
+        config.embedding.openai.api_key = embedding.openai_api_key.unwrap_or_default();
+        config.embedding.openai.model = embedding.openai_model;
+        config.embedding.openai.base_url = embedding.openai_base_url;
+        config.embedding.openai.timeout_seconds = embedding.openai_timeout_seconds;
+        config.embedding.openai.max_retries = embedding.openai_max_retries;
+        config.embedding.local.dimension = embedding.local_dimension;
+        config.embedding.local.model_path = embedding.local_model_path.as_deref().map(expand_home);
+        config.embedding.local.model_url = embedding.local_model_url;
+
+        config.validate()?;
+        Ok(config)
+    }
+}
+
+impl Config {
+    /// Defaults for tests that build a service container: in-memory vectors and
+    /// the hash embedder, so no model files, disk store or network are needed.
+    /// The hash embedder is not semantic: don't assert on ranking quality.
+    pub fn for_tests() -> Self {
+        let mut config = Self::default();
+        config.vector.backend = VectorBackend::Memory;
+        config.embedding.provider = EmbeddingProvider::Hash;
         config
+    }
+}
+
+/// Expand a leading `~/` to the home directory
+pub(crate) fn expand_home(path: &str) -> std::path::PathBuf {
+    match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
+        (Some(rest), Some(home)) => std::path::PathBuf::from(home).join(rest),
+        _ => std::path::PathBuf::from(path),
     }
 }
 
@@ -774,5 +659,119 @@ impl Default for Config {
             load_testing: LoadTestingConfig::default(),
             production: ProductionConfig::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_defaults_use_embedded_and_local() {
+        let config = Config::from_app_config(AppConfig::default()).unwrap();
+        assert!(matches!(config.vector.backend, VectorBackend::Embedded));
+        assert!(matches!(
+            config.embedding.provider,
+            EmbeddingProvider::Local
+        ));
+        assert_eq!(config.embedding.local.dimension, 384);
+    }
+
+    #[test]
+    fn test_maps_qdrant_and_openai_settings() {
+        let mut app_config = AppConfig::default();
+        app_config.vector.backend = "qdrant".to_string();
+        app_config.vector.qdrant_url = "http://qdrant:6333".to_string();
+        app_config.vector.qdrant_collection = "team_docs".to_string();
+        app_config.vector.qdrant_api_key = Some("secret".to_string());
+        app_config.vector.qdrant_timeout_seconds = 7;
+        app_config.embedding.provider = "openai".to_string();
+        app_config.embedding.openai_api_key = Some("sk-test".to_string());
+        app_config.embedding.openai_model = "text-embedding-3-large".to_string();
+        app_config.embedding.openai_base_url = Some("http://proxy/v1".to_string());
+        app_config.embedding.openai_max_retries = 5;
+
+        let config = Config::from_app_config(app_config).unwrap();
+
+        assert!(matches!(config.vector.backend, VectorBackend::Qdrant));
+        assert_eq!(config.vector.qdrant.url, "http://qdrant:6333");
+        assert_eq!(config.vector.qdrant.collection_name, "team_docs");
+        assert_eq!(config.vector.qdrant.api_key.as_deref(), Some("secret"));
+        assert_eq!(config.vector.qdrant.timeout_seconds, 7);
+        assert!(matches!(
+            config.embedding.provider,
+            EmbeddingProvider::OpenAI
+        ));
+        assert_eq!(config.embedding.openai.api_key, "sk-test");
+        assert_eq!(config.embedding.openai.model, "text-embedding-3-large");
+        assert_eq!(
+            config.embedding.openai.base_url.as_deref(),
+            Some("http://proxy/v1")
+        );
+        assert_eq!(config.embedding.openai.max_retries, 5);
+    }
+
+    #[test]
+    fn test_unknown_backend_is_error() {
+        let mut app_config = AppConfig::default();
+        app_config.vector.backend = "pinecone".to_string();
+        let error = Config::from_app_config(app_config).unwrap_err();
+        assert!(error.to_string().contains("pinecone"), "{}", error);
+    }
+
+    #[test]
+    fn test_openai_without_key_is_error() {
+        let mut app_config = AppConfig::default();
+        app_config.embedding.provider = "openai".to_string();
+        let error = Config::from_app_config(app_config).unwrap_err();
+        assert!(error.to_string().contains("API key"), "{}", error);
+    }
+
+    #[test]
+    fn test_maps_local_model_settings() {
+        let mut app_config = AppConfig::default();
+        app_config.embedding.local_model_path = Some("~/models/bge".to_string());
+        app_config.embedding.local_model_url = Some("http://mirror/bge".to_string());
+        let config = Config::from_app_config(app_config).unwrap();
+        let home = std::env::var_os("HOME").unwrap();
+        assert_eq!(
+            config.embedding.local.model_path,
+            Some(std::path::PathBuf::from(home).join("models/bge"))
+        );
+        assert_eq!(
+            config.embedding.local.model_url.as_deref(),
+            Some("http://mirror/bge")
+        );
+    }
+
+    #[test]
+    fn test_hash_provider_parses() {
+        let mut app_config = AppConfig::default();
+        app_config.embedding.provider = "hash".to_string();
+        let config = Config::from_app_config(app_config).unwrap();
+        assert!(matches!(config.embedding.provider, EmbeddingProvider::Hash));
+    }
+
+    #[test]
+    fn test_local_dimension_other_than_384_is_error() {
+        let mut config = Config::default();
+        config.embedding.local.dimension = 768;
+        let error = config.validate().unwrap_err();
+        assert!(error.to_string().contains("384"), "{}", error);
+
+        config.embedding.provider = EmbeddingProvider::Hash;
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_embedded_db_path_expands_home() {
+        let mut app_config = AppConfig::default();
+        app_config.vector.embedded_db_path = Some("~/data/vectors.db".to_string());
+        let config = Config::from_app_config(app_config).unwrap();
+        let home = std::env::var_os("HOME").unwrap();
+        assert_eq!(
+            config.vector.embedded.db_path,
+            std::path::PathBuf::from(home).join("data/vectors.db")
+        );
     }
 }

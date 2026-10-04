@@ -3,8 +3,8 @@ use tantivy::{
     collector::TopDocs,
     doc,
     query::QueryParser,
-    schema::{Field, Schema, Value, FAST, INDEXED, STORED, TEXT},
-    Index, IndexReader, IndexWriter, TantivyDocument,
+    schema::{Field, Schema, Value, FAST, STORED, STRING, TEXT},
+    Index, IndexReader, TantivyDocument,
 };
 
 use async_trait::async_trait;
@@ -79,12 +79,12 @@ impl TantivyAdapter {
         let mut schema_builder = Schema::builder();
 
         // Define fields for document indexing
-        let doc_id = schema_builder.add_text_field("doc_id", INDEXED | STORED | FAST);
+        let doc_id = schema_builder.add_text_field("doc_id", STRING | STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT | STORED);
         let content = schema_builder.add_text_field("content", TEXT);
         let uri = schema_builder.add_text_field("uri", STORED);
         let section_path = schema_builder.add_text_field("section_path", STORED);
-        let collection = schema_builder.add_text_field("collection", INDEXED | STORED | FAST);
+        let collection = schema_builder.add_text_field("collection", STRING | STORED | FAST);
         let metadata = schema_builder.add_text_field("metadata", STORED);
 
         let schema = schema_builder.build();
@@ -99,19 +99,16 @@ impl TantivyAdapter {
         };
 
         // Create or open index
-        let index_path = Path::new(&config.index_path);
-        let index = if index_path.exists() {
-            Index::open_in_dir(index_path).map_err(|e| {
-                ZeroLatencyError::search(format!("Failed to open Tantivy index: {}", e))
-            })?
-        } else {
-            std::fs::create_dir_all(index_path).map_err(|e| {
-                ZeroLatencyError::io(format!("Failed to create index directory: {}", e))
-            })?;
-            Index::create_in_dir(index_path, schema.clone()).map_err(|e| {
-                ZeroLatencyError::search(format!("Failed to create Tantivy index: {}", e))
-            })?
-        };
+        let index_path = std::path::Path::new(&config.index_path);
+        std::fs::create_dir_all(index_path).map_err(|e| {
+            ZeroLatencyError::io(format!("Failed to create index directory: {}", e))
+        })?;
+        let directory = tantivy::directory::MmapDirectory::open(index_path).map_err(|e| {
+            ZeroLatencyError::search(format!("Failed to open index directory: {}", e))
+        })?;
+        let index = Index::open_or_create(directory, schema.clone()).map_err(|e| {
+            ZeroLatencyError::search(format!("Failed to open Tantivy index: {}", e))
+        })?;
 
         let reader = index.reader().map_err(|e| {
             ZeroLatencyError::search(format!("Failed to create index reader: {}", e))
@@ -128,16 +125,19 @@ impl TantivyAdapter {
 
     /// Index a document
     pub async fn index_document(&self, result: &BM25SearchResult) -> Result<()> {
-        let mut writer = self.index.writer(50_000_000).map_err(|e| {
-            ZeroLatencyError::search(format!("Failed to create index writer: {}", e))
-        })?;
+        let mut writer = self
+            .index
+            .writer::<TantivyDocument>(50_000_000)
+            .map_err(|e| {
+                ZeroLatencyError::search(format!("Failed to create index writer: {}", e))
+            })?;
 
         let mut doc = TantivyDocument::default();
-        doc.add_text(self.fields.doc_id, &result.doc_id.to_index_key());
+        doc.add_text(self.fields.doc_id, result.doc_id.to_index_key());
         doc.add_text(self.fields.title, &result.title);
         doc.add_text(self.fields.content, &result.content);
         doc.add_text(self.fields.uri, &result.uri);
-        doc.add_text(self.fields.section_path, &result.section_path.join(" > "));
+        doc.add_text(self.fields.section_path, result.section_path.join(" > "));
         doc.add_text(self.fields.collection, &result.collection);
 
         // Serialize metadata as JSON
@@ -150,6 +150,9 @@ impl TantivyAdapter {
 
         writer.commit().map_err(|e| {
             ZeroLatencyError::search(format!("Failed to commit index changes: {}", e))
+        })?;
+        self.reader.reload().map_err(|e| {
+            ZeroLatencyError::search(format!("Failed to reload index reader: {}", e))
         })?;
 
         Ok(())
@@ -172,14 +175,14 @@ impl TantivyAdapter {
         let mut results = Vec::new();
 
         for (score, doc_address) in top_docs {
-            let retrieved_doc = searcher.doc(doc_address).map_err(|e| {
+            let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address).map_err(|e| {
                 ZeroLatencyError::search(format!("Failed to retrieve document: {}", e))
             })?;
 
             // Extract fields from document
             let doc_id_str = retrieved_doc
                 .get_first(self.fields.doc_id)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| ZeroLatencyError::search("Missing doc_id field".to_string()))?;
 
             let doc_id = DocId::from_index_key(doc_id_str)
@@ -187,25 +190,25 @@ impl TantivyAdapter {
 
             let title = retrieved_doc
                 .get_first(self.fields.title)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let content = retrieved_doc
                 .get_first(self.fields.content)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let uri = retrieved_doc
                 .get_first(self.fields.uri)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let section_path_str = retrieved_doc
                 .get_first(self.fields.section_path)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("");
 
             let section_path = if section_path_str.is_empty() {
@@ -219,13 +222,13 @@ impl TantivyAdapter {
 
             let collection = retrieved_doc
                 .get_first(self.fields.collection)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let metadata_str = retrieved_doc
                 .get_first(self.fields.metadata)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("{}");
 
             let metadata: HashMap<String, String> =
@@ -250,9 +253,12 @@ impl TantivyAdapter {
 
     /// Delete a document from the index
     pub async fn delete_document(&self, doc_id: &DocId) -> Result<()> {
-        let mut writer = self.index.writer(50_000_000).map_err(|e| {
-            ZeroLatencyError::search(format!("Failed to create index writer: {}", e))
-        })?;
+        let mut writer = self
+            .index
+            .writer::<TantivyDocument>(50_000_000)
+            .map_err(|e| {
+                ZeroLatencyError::search(format!("Failed to create index writer: {}", e))
+            })?;
 
         let term = tantivy::Term::from_field_text(self.fields.doc_id, &doc_id.to_index_key());
         writer.delete_term(term);
@@ -260,6 +266,9 @@ impl TantivyAdapter {
         writer
             .commit()
             .map_err(|e| ZeroLatencyError::search(format!("Failed to commit delete: {}", e)))?;
+        self.reader.reload().map_err(|e| {
+            ZeroLatencyError::search(format!("Failed to reload index reader: {}", e))
+        })?;
 
         Ok(())
     }
@@ -373,27 +382,21 @@ impl SearchStep for BM25SearchStep {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "tantivy"))]
 mod tests {
-    #[cfg(feature = "tantivy")]
     use super::*;
-    #[cfg(feature = "tantivy")]
     use tempfile::TempDir;
 
-    #[tokio::test]
-    #[cfg(feature = "tantivy")]
-    async fn test_tantivy_adapter() {
-        let temp_dir = TempDir::new().unwrap();
-        let config = BM25Config {
-            index_path: temp_dir.path().to_str().unwrap().to_string(),
+    fn config_for(path: &std::path::Path) -> BM25Config {
+        BM25Config {
+            index_path: path.to_str().unwrap().to_string(),
             max_results: 10,
             min_score: 0.0,
-        };
+        }
+    }
 
-        let adapter = TantivyAdapter::new(config).await.unwrap();
-
-        let doc_id = DocId::new("test", "doc1", 1);
-        let test_result = BM25SearchResult {
+    fn test_document(doc_id: &DocId) -> BM25SearchResult {
+        BM25SearchResult {
             doc_id: doc_id.clone(),
             title: "Test Document".to_string(),
             content: "This is a test document for search".to_string(),
@@ -402,14 +405,76 @@ mod tests {
             section_path: vec!["Section 1".to_string()],
             collection: "test".to_string(),
             metadata: HashMap::new(),
-        };
+        }
+    }
 
-        // Index the document
-        adapter.index_document(&test_result).await.unwrap();
+    #[tokio::test]
+    async fn test_tantivy_adapter() {
+        // TempDir creates the directory, so this also covers an existing empty directory
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = TantivyAdapter::new(config_for(temp_dir.path()))
+            .await
+            .unwrap();
 
-        // Search for it
+        let doc_id = DocId::new("test", "doc1", 1);
+        adapter
+            .index_document(&test_document(&doc_id))
+            .await
+            .unwrap();
+
+        // Searchable as soon as index_document returns
         let results = adapter.search("test document", 10).await.unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].doc_id, doc_id);
+    }
+
+    #[tokio::test]
+    async fn test_creates_missing_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let index_path = temp_dir.path().join("nested").join("index");
+
+        TantivyAdapter::new(config_for(&index_path)).await.unwrap();
+
+        assert!(index_path.join("meta.json").exists());
+    }
+
+    #[tokio::test]
+    async fn test_reopens_existing_index() {
+        let temp_dir = TempDir::new().unwrap();
+        let doc_id = DocId::new("test", "doc1", 1);
+        {
+            let adapter = TantivyAdapter::new(config_for(temp_dir.path()))
+                .await
+                .unwrap();
+            adapter
+                .index_document(&test_document(&doc_id))
+                .await
+                .unwrap();
+        }
+
+        let reopened = TantivyAdapter::new(config_for(temp_dir.path()))
+            .await
+            .unwrap();
+        let results = reopened.search("test document", 10).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].doc_id, doc_id);
+    }
+
+    #[tokio::test]
+    async fn test_delete_then_search() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = TantivyAdapter::new(config_for(temp_dir.path()))
+            .await
+            .unwrap();
+        let doc_id = DocId::new("test", "doc1", 1);
+        adapter
+            .index_document(&test_document(&doc_id))
+            .await
+            .unwrap();
+
+        adapter.delete_document(&doc_id).await.unwrap();
+
+        let results = adapter.search("test document", 10).await.unwrap();
+        assert!(results.is_empty());
     }
 }

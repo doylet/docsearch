@@ -85,7 +85,7 @@ curl http://localhost:8080/health
 
 ### External Access
 - **Public API**: `https://docsearch.example.com/`
-- **Doc Indexer**: `https://docsearch.example.com/indexer/`
+- **Indexing**: same server, `POST https://docsearch.example.com/api/index`
 - **Internal API**: `http://docsearch-internal.cluster.local/`
 
 ## Troubleshooting

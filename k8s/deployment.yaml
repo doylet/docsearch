@@ -42,16 +42,11 @@ spec:
         - name: http
           containerPort: 8080
           protocol: TCP
-        - name: indexer
-          containerPort: 8081
-          protocol: TCP
         env:
-        - name: SERVER_HOST
+        - name: ZL_SERVER_HOST
           value: "0.0.0.0"
-        - name: SERVER_PORT
+        - name: ZL_SERVER_PORT
           value: "8080"
-        - name: DOC_INDEXER_PORT
-          value: "8081"
         - name: LOG_LEVEL
           valueFrom:
             configMapKeyRef:

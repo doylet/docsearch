@@ -15,6 +15,7 @@ use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
 use crate::application::container::ServiceContainer;
 use crate::application::content_processing::extraction::{build_file_metadata, read_document_text};
+use crate::application::embedding_setup::IndexState;
 use crate::application::services::filter_service::{FilterService, IndexingFilters};
 use crate::application::ContentProcessor;
 
@@ -29,6 +30,7 @@ pub struct DocumentIndexingService {
     query_enhancer: Option<Arc<dyn QueryEnhancer>>,
     result_ranker: Option<Arc<dyn ResultRanker>>,
     max_binary_file_size: u64,
+    index_state: Arc<IndexState>,
 }
 
 impl DocumentIndexingService {
@@ -49,6 +51,7 @@ impl DocumentIndexingService {
             query_enhancer: None,
             result_ranker: None,
             max_binary_file_size: container.config().service.max_binary_file_size,
+            index_state: container.index_state(),
         }
     }
 
@@ -68,6 +71,7 @@ impl DocumentIndexingService {
             query_enhancer,
             result_ranker,
             max_binary_file_size: container.config().service.max_binary_file_size,
+            index_state: container.index_state(),
         }
     }
 
@@ -91,14 +95,22 @@ impl DocumentIndexingService {
         // Create chunks from the document
         let chunks = self.create_document_chunks(&document).await?;
 
-        // Generate embeddings for each chunk
-        let mut vector_documents = Vec::new();
-        for chunk in chunks {
-            let embedding = self
-                .embedding_generator
-                .generate_embedding(&chunk.content)
-                .await?;
+        // Embed every chunk in one batch call
+        let texts: Vec<&str> = chunks.iter().map(|c| c.content.as_str()).collect();
+        let embeddings = self
+            .embedding_generator
+            .generate_batch_embeddings(texts)
+            .await?;
+        if embeddings.len() != chunks.len() {
+            return Err(zero_latency_core::ZeroLatencyError::internal(format!(
+                "Embedding provider returned {} vectors for {} chunks",
+                embeddings.len(),
+                chunks.len()
+            )));
+        }
 
+        let mut vector_documents = Vec::with_capacity(chunks.len());
+        for (chunk, embedding) in chunks.into_iter().zip(embeddings) {
             let mut custom_metadata = chunk.metadata.custom.clone();
             custom_metadata.insert("collection".to_string(), collection_name.to_string());
 
@@ -122,6 +134,9 @@ impl DocumentIndexingService {
 
         // Store in vector repository
         self.vector_repository.insert(vector_documents).await?;
+
+        // The store now holds vectors from the active model
+        self.index_state.set_reindex_required(false);
 
         Ok(())
     }
@@ -234,6 +249,7 @@ impl DocumentIndexingService {
             query_enhancer: self.query_enhancer.clone(),
             result_ranker: self.result_ranker.clone(),
             max_binary_file_size: self.max_binary_file_size,
+            index_state: Arc::clone(&self.index_state),
         }
     }
 

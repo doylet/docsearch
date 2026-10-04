@@ -5,6 +5,39 @@ All notable changes to the Zero-Latency Documentation Search project will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **BREAKING: real local embeddings.** `ZL_EMBEDDING_PROVIDER=local` (the default) now runs bge-small-en-v1.5 through ONNX Runtime instead of a hash of the text, so search results are ranked by meaning. Queries get bge's retrieval prefix.
+  - **First run** downloads the model (~130 MB) from a pinned Hugging Face revision into `~/.zero-latency/models/bge-small-en-v1.5/` and checks its SHA-256; after that it runs offline. For air-gapped machines and containers, run `doc-indexer --fetch-model [dir]` elsewhere and set `ZL_EMBEDDING_LOCAL_MODEL_PATH`; the Docker image does this at build time
+  - **Re-index once after upgrading.** Existing embedded stores hold hash vectors; on first start they are removed (your documents are not touched), a warning gives the count, and `GET /api/status` shows `"reindex_required": true`. Search returns nothing until you run `mdx reindex` (or `mdx index <path>`)
+  - **Qdrant users**: collections built with the old local embeddings aren't detected. Delete the collection (or use a new `ZL_VECTOR_QDRANT_COLLECTION`) and re-index
+  - **Rolling back**: the previous release has no model check and would search bge vectors with hash queries. Revert, delete `~/.zero-latency/vectors.db`, then re-index
+- `ZL_EMBEDDING_LOCAL_DIMENSION` must be 384 with the local provider; other values are rejected
+- **Search ranking follows similarity**: vector similarity now makes up at least 80% of a result's final score (previously 40%). The keyword and title heuristics only break near-ties. Previously a short, heading-like chunk could outrank a clearly more relevant passage, and the same query could rank differently from run to run
+
+### Added
+- `ZL_EMBEDDING_LOCAL_MODEL_PATH` (pre-supplied model directory, never downloaded into) and `ZL_EMBEDDING_LOCAL_MODEL_URL` (download mirror)
+- `doc-indexer --fetch-model [dir]`: download and verify the model, print its directory, exit
+- `ZL_EMBEDDING_PROVIDER=hash`: the old deterministic embedder, for tests only (not semantic)
+- `reindex_required` on `GET /api/status` and in `mdx status`
+
+### Fixed
+- **`tantivy` feature builds**: the Tantivy BM25 adapter is ported to tantivy 0.22, opens or creates its index in an empty directory, and makes documents searchable as soon as indexing returns
+- **`cloud` feature builds**: the OpenAI embedding provider now calls the OpenAI API (previously it returned placeholder vectors), and the Qdrant backend now stores, updates, deletes and counts vectors (previously only search worked), creating its collection on first insert
+- **Vector backend and embedding provider are configurable**: `doc-indexer` read neither, so Qdrant and OpenAI could never be selected. Set them with `ZL_VECTOR_*` / `ZL_EMBEDDING_*` or `[vector]` / `[embedding]` in `zero-latency.toml`. `OPENAI_API_KEY` is honoured. The `DOC_INDEXER_*` names for these settings were documented but never read, and are removed from the docs
+- **Multi-word `ZL_` settings** such as `ZL_SERVER_DOCS_PATH` now take effect (previously every `_` was read as nesting)
+- **Builds without `embedded`** (`--no-default-features`) compile again
+- **RUSTSEC-2026-0187**: `pdf-extract` upgraded to 0.12, which brings in a `lopdf` without the stack overflow on deeply nested PDFs
+
+### Removed
+- `zero-latency-search`'s `examples` feature, which gated a stub that never compiled
+- The unused `qdrant-client` and `tonic` dependencies
+
+### CI
+- Clippy, tests and `cargo-deny` now cover every feature (`--all-features`)
+- New `model-tests` job runs the ONNX embedding tests against the real model, cached per pinned revision; the main test job stays offline and model-free
+
 ## [1.1.2] - 2025-08-30
 
 ### Issues Discovered
@@ -16,13 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation Added
 - **Comprehensive Issue Analysis**: `docs/implementation/COLLECTION_METADATA_SEARCH_ISSUES.md`
   - Detailed root cause analysis with code investigation
-  - Testing evidence and functional impact assessment  
+  - Testing evidence and functional impact assessment
   - Recommended fixes for document ID preservation and metadata serialization
 - **Known Issues Section**: Added to `docs/INDEX.md` and `docs/CURRENT_ARCHITECTURE.md`
 
 ### Sprint Planning
 - **Sprint 004**: Metadata & Collection Management Issues Resolution (2 weeks, 47 story points)
-- **Sprint 005**: Search & Filtering Issues Resolution (1.5 weeks, 37 story points)  
+- **Sprint 005**: Search & Filtering Issues Resolution (1.5 weeks, 37 story points)
 - **Sprint 006**: Protocol Compliance & Standards Alignment (2 weeks, 46 story points)
 
 ### Documentation Organization
@@ -167,7 +200,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Shared Domain Crates
 - **zero-latency-core**: Foundation models, error handling, health monitoring
-- **zero-latency-vector**: Vector storage and embedding abstractions  
+- **zero-latency-vector**: Vector storage and embedding abstractions
 - **zero-latency-search**: Search orchestration and query processing
 - **zero-latency-observability**: Metrics and monitoring frameworks
 - **zero-latency-config**: Type-safe configuration management
@@ -264,7 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Legend
 
 - **Added**: New features
-- **Changed**: Changes in existing functionality  
+- **Changed**: Changes in existing functionality
 - **Deprecated**: Soon-to-be removed features
 - **Removed**: Removed features
 - **Fixed**: Bug fixes

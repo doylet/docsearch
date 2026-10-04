@@ -205,14 +205,15 @@ impl Default for ServerConfig {
     }
 }
 
-#[cfg(test)]
+// Config::for_tests() uses the hash embedder, which needs the `embedded` feature
+#[cfg(all(test, feature = "embedded"))]
 mod tests {
     use super::*;
     use crate::config::Config;
 
     #[tokio::test]
     async fn test_router_creation() {
-        let config = Config::default();
+        let config = Config::for_tests();
         let container = Arc::new(
             ServiceContainer::new(config)
                 .await
@@ -228,7 +229,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cors_layer_creation() {
-        let config = Config::default();
+        let config = Config::for_tests();
         let container = Arc::new(
             ServiceContainer::new(config)
                 .await

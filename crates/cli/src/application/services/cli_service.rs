@@ -119,6 +119,9 @@ impl CliServiceImpl {
         println!("Version: {}", status.version);
         println!("Uptime: {} seconds", status.uptime_seconds);
         println!("Total Documents: {}", status.total_documents);
+        if status.reindex_required {
+            println!("Re-index required: the embedding model changed and old vectors were removed");
+        }
         Ok(())
     }
 

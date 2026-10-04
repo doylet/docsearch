@@ -1,9 +1,9 @@
 use crate::infrastructure::memory::{PooledVector, VectorPool, VectorPoolConfig};
-/// Local embeddings adapter
+/// Hash embeddings adapter (`embedding.provider = "hash"`)
 ///
-/// This adapter provides a simple local implementation of EmbeddingGenerator
-/// for testing and development purposes. It creates deterministic embeddings
-/// based on text content without requiring external API calls.
+/// TESTING ONLY: vectors are derived from character codes and a seeded hash, so
+/// they are deterministic and offline but carry no meaning. Ranking with them is
+/// arbitrary; never assert on ranking quality in tests that use this provider.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
@@ -12,24 +12,23 @@ use std::sync::Arc;
 use zero_latency_core::{Result, ZeroLatencyError};
 use zero_latency_vector::EmbeddingGenerator;
 
-/// Configuration for local embeddings
+/// Configuration for hash embeddings
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocalEmbeddingConfig {
+pub struct HashEmbeddingConfig {
     pub dimension: usize,
     pub seed: u64,
     pub enable_vector_pooling: bool,
 }
 
-/// Local embeddings adapter that generates deterministic embeddings
-/// based on text content using a simple algorithm
-pub struct LocalEmbeddingAdapter {
-    config: LocalEmbeddingConfig,
+/// Deterministic, non-semantic embeddings for tests
+pub struct HashEmbeddingAdapter {
+    config: HashEmbeddingConfig,
     vector_pool: Option<Arc<VectorPool>>,
 }
 
-impl LocalEmbeddingAdapter {
-    /// Create a new local embedding adapter
-    pub fn new(config: LocalEmbeddingConfig) -> Result<Self> {
+impl HashEmbeddingAdapter {
+    /// Create a new hash embedding adapter
+    pub fn new(config: HashEmbeddingConfig) -> Result<Self> {
         if config.dimension == 0 {
             return Err(ZeroLatencyError::configuration(
                 "Embedding dimension must be greater than 0",
@@ -172,7 +171,7 @@ impl LocalEmbeddingAdapter {
 }
 
 #[async_trait]
-impl EmbeddingGenerator for LocalEmbeddingAdapter {
+impl EmbeddingGenerator for HashEmbeddingAdapter {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
         if text.is_empty() {
             return Err(ZeroLatencyError::validation("text", "Text cannot be empty"));
@@ -204,11 +203,15 @@ impl EmbeddingGenerator for LocalEmbeddingAdapter {
     }
 
     fn model_name(&self) -> &str {
-        "local-deterministic"
+        "hash-deterministic"
+    }
+
+    fn model_id(&self) -> String {
+        format!("hash-v1@{}:{}", self.config.dimension, self.config.seed)
     }
 }
 
-impl Default for LocalEmbeddingConfig {
+impl Default for HashEmbeddingConfig {
     fn default() -> Self {
         Self {
             dimension: 384,              // Common dimension for smaller models
@@ -218,9 +221,9 @@ impl Default for LocalEmbeddingConfig {
     }
 }
 
-impl Default for LocalEmbeddingAdapter {
+impl Default for HashEmbeddingAdapter {
     fn default() -> Self {
-        Self::new(LocalEmbeddingConfig::default()).unwrap()
+        Self::new(HashEmbeddingConfig::default()).unwrap()
     }
 }
 
@@ -230,13 +233,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_embedding_generation() {
-        let config = LocalEmbeddingConfig {
+        let config = HashEmbeddingConfig {
             dimension: 128,
             seed: 12345,
             enable_vector_pooling: true,
         };
 
-        let adapter = LocalEmbeddingAdapter::new(config).unwrap();
+        let adapter = HashEmbeddingAdapter::new(config).unwrap();
 
         // Test single embedding
         let embedding = adapter.generate_embedding("Hello world").await.unwrap();
@@ -249,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_deterministic_embeddings() {
-        let adapter = LocalEmbeddingAdapter::default();
+        let adapter = HashEmbeddingAdapter::default();
 
         // Same text should produce same embedding
         let text = "Consistent text";
@@ -265,7 +268,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_embeddings() {
-        let adapter = LocalEmbeddingAdapter::default();
+        let adapter = HashEmbeddingAdapter::default();
 
         let _texts = [
             "First text".to_string(),
@@ -284,7 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_text_error() {
-        let adapter = LocalEmbeddingAdapter::default();
+        let adapter = HashEmbeddingAdapter::default();
 
         // Empty text should return error
         let result = adapter.generate_embedding("").await;
@@ -293,7 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_text_similarity() {
-        let adapter = LocalEmbeddingAdapter::default();
+        let adapter = HashEmbeddingAdapter::default();
 
         // Similar texts should have higher similarity
         let similarity1 = adapter
@@ -324,19 +327,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_different_seeds_produce_different_embeddings() {
-        let config1 = LocalEmbeddingConfig {
+        let config1 = HashEmbeddingConfig {
             dimension: 128,
             seed: 1,
             enable_vector_pooling: false,
         };
-        let config2 = LocalEmbeddingConfig {
+        let config2 = HashEmbeddingConfig {
             dimension: 128,
             seed: 2,
             enable_vector_pooling: false,
         };
 
-        let adapter1 = LocalEmbeddingAdapter::new(config1).unwrap();
-        let adapter2 = LocalEmbeddingAdapter::new(config2).unwrap();
+        let adapter1 = HashEmbeddingAdapter::new(config1).unwrap();
+        let adapter2 = HashEmbeddingAdapter::new(config2).unwrap();
 
         let text = "Same text";
         let embedding1 = adapter1.generate_embedding(text).await.unwrap();

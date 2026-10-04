@@ -5,9 +5,12 @@ use doc_indexer::application::content_processing::handlers::PdfHandler;
 use doc_indexer::application::content_processing::{
     ContentHandler, ContentProcessorRegistry, ContentType, ContentTypeDetector,
 };
+#[cfg(feature = "embedded")]
 use doc_indexer::application::services::document_service::DocumentIndexingService;
+#[cfg(feature = "embedded")]
 use doc_indexer::application::ServiceContainer;
-use doc_indexer::config::{Config, VectorBackend};
+#[cfg(feature = "embedded")]
+use doc_indexer::config::Config;
 use doc_indexer::{FileSystemService, StandardFileSystemService};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -22,6 +25,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 /// Copy fixtures (and extra Markdown files) into a fresh directory.
+#[cfg(feature = "embedded")]
 fn directory_with(pdfs: &[&str], markdown: &[&str]) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     for name in pdfs {
@@ -37,9 +41,10 @@ fn directory_with(pdfs: &[&str], markdown: &[&str]) -> tempfile::TempDir {
     dir
 }
 
+/// Needs the hash embedder, so only in builds with `embedded`.
+#[cfg(feature = "embedded")]
 async fn indexing_service() -> DocumentIndexingService {
-    let mut config = Config::default();
-    config.vector.backend = VectorBackend::Memory;
+    let config = Config::for_tests();
     let container = ServiceContainer::new(config).await.unwrap();
     DocumentIndexingService::new(&container)
 }
@@ -121,6 +126,7 @@ async fn text_pdf_is_extracted_not_passed_as_path() {
     assert!(!via_service.contains(path.to_str().unwrap()));
 }
 
+#[cfg(feature = "embedded")]
 #[tokio::test]
 async fn text_pdf_is_indexed_and_searchable_with_pdf_metadata() {
     let dir = directory_with(&["text.pdf"], &[]);
@@ -166,6 +172,7 @@ fn pdf_handler_normalises_whitespace() {
 
 // Requirement: Unreadable PDFs do not abort indexing
 
+#[cfg(feature = "embedded")]
 #[tokio::test]
 async fn corrupt_pdf_in_directory_is_skipped_with_warning() {
     let dir = directory_with(&["corrupt.pdf"], &["one.md", "two.md"]);
@@ -191,6 +198,7 @@ async fn corrupt_pdf_in_directory_is_skipped_with_warning() {
     );
 }
 
+#[cfg(feature = "embedded")]
 #[tokio::test]
 async fn image_only_pdf_creates_no_document_and_counts_as_skipped() {
     assert_eq!(
