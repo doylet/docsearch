@@ -62,6 +62,7 @@ impl ContentProcessorRegistry {
         self.register_handler(Arc::new(YamlHandler));
         self.register_handler(Arc::new(TomlHandler));
         self.register_handler(Arc::new(PlainTextHandler));
+        self.register_handler(Arc::new(PdfHandler));
 
         // Register source code handlers
         self.register_handler(Arc::new(SourceCodeHandler::new(

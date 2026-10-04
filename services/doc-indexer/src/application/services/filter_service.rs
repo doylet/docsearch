@@ -343,8 +343,12 @@ fn match_recursive(text: &str, pattern: &str) -> bool {
         match pattern_char {
             '*' => {
                 // Try matching with different amounts of text consumed
-                for i in 0..=text.len() {
-                    if match_recursive(&text[i..], remaining_pattern) {
+                // Use char_indices to get proper character boundaries
+                let mut char_indices: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
+                char_indices.push(text.len()); // Add the end position
+
+                for &char_start in &char_indices {
+                    if match_recursive(&text[char_start..], remaining_pattern) {
                         return true;
                     }
                 }
@@ -385,6 +389,13 @@ mod tests {
         assert!(glob_match("hello.txt", "hello.txt"));
         assert!(!glob_match("hello.txt", "*.rs"));
         assert!(!glob_match("hello.txt", "goodbye.*"));
+    }
+
+    #[test]
+    fn test_match_recursive_non_ascii_path() {
+        assert!(match_recursive("docs/café/naïve.md", "*.md"));
+        assert!(match_recursive("naïve.md", "na?ve.md"));
+        assert!(!match_recursive("docs/café/naïve.txt", "*.md"));
     }
 
     #[test]

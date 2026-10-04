@@ -42,14 +42,22 @@ export class RestApiSearchRepository implements SearchRepository {
    * Map API document format to domain Document entity
    */
   private mapApiDocumentToDomain(apiDoc: ApiSearchResult): Document {
+    // Metadata values arrive as strings; numbers are parsed here
+    const metadata = apiDoc.custom_metadata ?? {};
+    const fileSize = metadata.file_size !== undefined ? Number(metadata.file_size) : NaN;
+
     return {
       document_id: apiDoc.document_id,
       title: apiDoc.title,
-      path: apiDoc.document_path,
+      path: metadata.file_path ?? apiDoc.document_path,
       content: apiDoc.content || '',
       score: apiDoc.final_score,
-      collection: apiDoc.collection,
-      indexed_at: undefined, // not in current API response
+      collection: apiDoc.collection ?? metadata.collection ?? '',
+      indexed_at: metadata.indexed_at,
+      file_name: metadata.file_name,
+      file_extension: metadata.file_extension,
+      file_size: Number.isFinite(fileSize) ? fileSize : undefined,
+      last_modified: metadata.last_modified,
     };
   }
 }
@@ -92,11 +100,20 @@ interface ApiSearchResult {
   };
   ranking_signals: any;
   url: string | null;
-  collection: string;
+  collection: string | null;
+  /** Document metadata; every value is a string */
   custom_metadata: {
-    parent_document_id: string;
-    collection: string;
-    chunk_index: string;
+    parent_document_id?: string;
+    collection?: string;
+    chunk_index?: string;
+    file_path?: string;
+    file_name?: string;
+    file_extension?: string;
+    file_size?: string;
+    file_type?: string;
+    last_modified?: string;
+    indexed_at?: string;
+    [key: string]: string | undefined;
   };
 }
 

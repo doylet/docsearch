@@ -1,9 +1,9 @@
 # API Reference - doc-indexer
 
-**REST API for Zero-Latency Document Search**  
-**Version**: v0.1.0  
-**Updated**: August 24, 2025  
-**Base URL**: `http://localhost:8081`  
+**REST API for Zero-Latency Document Search**
+**Version**: v0.1.0
+**Updated**: August 24, 2025
+**Base URL**: `http://localhost:8081`
 
 ## Overview
 
@@ -71,7 +71,7 @@ GET /collections
     },
     {
       "id": "api-docs",
-      "name": "api-docs", 
+      "name": "api-docs",
       "description": "API documentation collection",
       "created_at": "2025-08-24T10:00:00Z",
       "document_count": 25,
@@ -105,7 +105,7 @@ GET /collections/{collection_id}
 {
   "id": "api-docs",
   "name": "api-docs",
-  "description": "API documentation collection", 
+  "description": "API documentation collection",
   "created_at": "2025-08-24T10:00:00Z",
   "updated_at": "2025-08-24T12:30:00Z",
   "document_count": 25,
@@ -295,7 +295,7 @@ GET /documents
       }
     },
     {
-      "id": "doc-124", 
+      "id": "doc-124",
       "title": "Rate Limiting Documentation",
       "path": "/docs/api/rate-limits.md",
       "size": 2048,
@@ -422,26 +422,25 @@ POST /api/index
 | `overwrite_existing` | boolean | No | Overwrite existing documents (default: false) |
 
 #### Response
+Indexing runs synchronously: the response arrives when indexing has finished.
+
 ```json
 {
-  "operation_id": "idx-789",
-  "message": "Indexing completed successfully",
-  "results": {
-    "documents_processed": 150,
-    "documents_added": 142,
-    "documents_updated": 5,
-    "documents_skipped": 3,
-    "errors": []
-  },
-  "performance": {
-    "processing_time_ms": 12450.5,
-    "average_time_per_document_ms": 83.0,
-    "throughput_docs_per_second": 12.0
-  },
-  "collection": "api-docs",
-  "timestamp": "2025-08-24T14:30:00Z"
+  "documents_processed": 142,
+  "documents_skipped": 3,
+  "processing_time_ms": 12450.0,
+  "status": "success",
+  "message": "Successfully indexed 142 documents from path: /data/api-docs"
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `documents_processed` | Documents indexed |
+| `documents_skipped` | Files that passed filtering but could not be read, extracted or indexed (for example a corrupt, image-only or oversized PDF). Each one is logged as a warning naming the file. |
+
+#### PDF files
+`.pdf` files (any case) are indexed by extracting their text. A PDF is skipped and counted in `documents_skipped` if extraction fails, it holds no extractable text (scanned PDFs are not OCR'd), or it is larger than `DOC_INDEXER_MAX_BINARY_FILE_SIZE` bytes (default 50 MB).
 
 #### Example
 ```bash
@@ -460,6 +459,52 @@ curl -X POST http://localhost:8081/api/index \
 - `400` - Invalid request parameters
 - `404` - Path not found or collection not found
 - `500` - Indexing operation failed
+
+### Browse Directories
+
+List directories and indexable files so a user can pick a path to index. Browsing is restricted to the directories configured in `DOC_INDEXER_BROWSE_ROOTS` (`:`-separated). It is **disabled when that variable is unset**.
+
+```http
+GET /api/browse?path=<dir>
+```
+
+#### Query Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | No | Directory to list. Omit it to list the allowed roots. |
+
+#### Response
+```json
+{
+  "path": "/data/docs",
+  "parent_path": null,
+  "items": [
+    { "name": "guides", "path": "/data/docs/guides", "is_directory": true, "size": null },
+    { "name": "a.md", "path": "/data/docs/a.md", "is_directory": false, "size": 1204 },
+    { "name": "b.pdf", "path": "/data/docs/b.pdf", "is_directory": false, "size": 88213 }
+  ],
+  "truncated": false
+}
+```
+
+- Directories come first, then files, each sorted by name. Hidden entries (names starting with `.`) and files that wouldn't be indexed are omitted.
+- `path` is the canonical path of the listed directory. It is `null` when the response lists the roots.
+- `parent_path` is `null` at a root and when listing the roots.
+- At most `DOC_INDEXER_BROWSE_MAX_ENTRIES` items are returned (default 1000). `truncated` is `true` when the listing was cut off.
+
+#### Example
+```bash
+# List the allowed roots
+curl "http://localhost:8081/api/browse"
+
+# List a directory inside a root
+curl "http://localhost:8081/api/browse?path=/data/docs"
+```
+
+#### Error Responses
+- `400` - The path is not a directory
+- `403` - The path is outside every browse root, including paths reached through `..` or symbolic links
+- `404` - The path would be inside a root but does not exist
 
 ## Search API
 
@@ -481,6 +526,23 @@ GET /search
 | `limit` | integer | `10` | Maximum results (1-100) |
 | `threshold` | float | `0.5` | Minimum similarity score (0.0-1.0) |
 | `include_content` | boolean | `false` | Include document content in results |
+
+### Search Result Metadata
+
+Each result from `POST /api/search` carries `doc_id`, `uri`, `title` and `collection` as top-level fields. Documents indexed from files also carry this metadata in `custom_metadata`. Every value is a string, so parse numbers on the client.
+
+| Key | Example | Description |
+|-----|---------|-------------|
+| `file_path` | `/data/docs/guides/setup.md` | Path of the source file |
+| `file_name` | `setup` | File name without extension |
+| `file_extension` | `md` | Lowercase extension, when present |
+| `file_size` | `1204` | Size in bytes |
+| `file_type` | `text/md` | Type derived from the extension |
+| `last_modified` | `2026-10-04T06:54:13+00:00` | File modification time (RFC 3339) |
+| `indexed_at` | `2026-10-04T06:55:02+00:00` | When the document was indexed (RFC 3339) |
+| `collection` | `zero_latency_docs` | Collection the document was indexed into |
+
+The enhanced search API combines these keys with `doc_id`, `uri` and `title` into a single `metadata` object.
 
 ### Collection Filtering in Search
 
@@ -550,7 +612,7 @@ curl -X GET "http://localhost:8081/search?q=python"
 # Returns: 15 results from various collections
 
 # Search in specific collection
-curl -X GET "http://localhost:8081/search?q=python&collection=tutorials"  
+curl -X GET "http://localhost:8081/search?q=python&collection=tutorials"
 # Returns: 5 results only from tutorials collection
 ```
 
@@ -597,7 +659,7 @@ curl -X POST "http://localhost:8081/search" \
     {
       "document": {
         "id": "doc-125",
-        "title": "Security Best Practices", 
+        "title": "Security Best Practices",
         "path": "/docs/security/best-practices.md",
         "summary": "Security guidelines for API development..."
       },
@@ -838,7 +900,7 @@ GET /health
   "uptime_seconds": 7890,
   "services": {
     "vector_store": "healthy",
-    "embedding_service": "healthy", 
+    "embedding_service": "healthy",
     "file_system": "healthy"
   },
   "metrics": {
@@ -923,7 +985,7 @@ Current rate limits (subject to change):
 
 Rate limit headers are included in responses:
 - `X-RateLimit-Limit`: Request limit
-- `X-RateLimit-Remaining`: Remaining requests  
+- `X-RateLimit-Remaining`: Remaining requests
 - `X-RateLimit-Reset`: Reset timestamp
 
 ## SDKs and Client Libraries
@@ -997,7 +1059,7 @@ curl -X GET "$BASE_URL/collections/docs/stats"
 ### v0.1.0 (August 24, 2025)
 - Initial API release
 - Collection CRUD operations
-- Document discovery endpoints  
+- Document discovery endpoints
 - Indexing API
 - Semantic search functionality
 - Health and status endpoints

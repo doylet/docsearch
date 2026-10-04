@@ -7,6 +7,7 @@
 /// - Dependency Inversion: Depends on abstractions, not concretions
 pub mod content_type;
 pub mod detector;
+pub mod extraction;
 pub mod handlers;
 pub mod processor;
 pub mod registry;

@@ -14,6 +14,7 @@ use zero_latency_search::{
 use zero_latency_vector::{EmbeddingGenerator, VectorDocument, VectorRepository};
 
 use crate::application::container::ServiceContainer;
+use crate::application::content_processing::extraction::{build_file_metadata, read_document_text};
 use crate::application::services::filter_service::{FilterService, IndexingFilters};
 use crate::application::ContentProcessor;
 
@@ -27,6 +28,7 @@ pub struct DocumentIndexingService {
     content_processor: ContentProcessor,
     query_enhancer: Option<Arc<dyn QueryEnhancer>>,
     result_ranker: Option<Arc<dyn ResultRanker>>,
+    max_binary_file_size: u64,
 }
 
 impl DocumentIndexingService {
@@ -46,6 +48,7 @@ impl DocumentIndexingService {
             content_processor: ContentProcessor::new(),
             query_enhancer: None,
             result_ranker: None,
+            max_binary_file_size: container.config().service.max_binary_file_size,
         }
     }
 
@@ -64,6 +67,7 @@ impl DocumentIndexingService {
             content_processor: ContentProcessor::new(),
             query_enhancer,
             result_ranker,
+            max_binary_file_size: container.config().service.max_binary_file_size,
         }
     }
 
@@ -229,6 +233,7 @@ impl DocumentIndexingService {
             content_processor: self.content_processor.clone(),
             query_enhancer: self.query_enhancer.clone(),
             result_ranker: self.result_ranker.clone(),
+            max_binary_file_size: self.max_binary_file_size,
         }
     }
 
@@ -237,7 +242,7 @@ impl DocumentIndexingService {
         &self,
         path: &str,
         recursive: bool,
-    ) -> Result<(u64, f64)> {
+    ) -> Result<IndexingStats> {
         self.index_documents_from_path_with_filters(path, recursive, None)
             .await
     }
@@ -248,7 +253,7 @@ impl DocumentIndexingService {
         path: &str,
         recursive: bool,
         filters: Option<IndexingFilters>,
-    ) -> Result<(u64, f64)> {
+    ) -> Result<IndexingStats> {
         self.index_documents_from_path_with_filters_and_collection(
             path,
             recursive,
@@ -265,35 +270,13 @@ impl DocumentIndexingService {
         recursive: bool,
         filters: Option<IndexingFilters>,
         collection_name: &str,
-    ) -> Result<(u64, f64)> {
-        use std::fs;
-        use std::time::Instant;
+    ) -> Result<IndexingStats> {
+        let start_time = std::time::Instant::now();
 
-        let start_time = Instant::now();
-        let mut documents_processed = 0u64;
-
-        // Create a temporary service with filters if provided
-        let service = if let Some(filters) = filters {
-            Self {
-                vector_repository: Arc::clone(&self.vector_repository),
-                embedding_generator: Arc::clone(&self.embedding_generator),
-                search_orchestrator: Arc::clone(&self.search_orchestrator),
-                filter_service: Arc::new(FilterService::new(filters)),
-                content_processor: self.content_processor.clone(),
-                query_enhancer: self.query_enhancer.clone(),
-                result_ranker: self.result_ranker.clone(),
-            }
-        } else {
-            // Clone current service (uses existing filters)
-            Self {
-                vector_repository: Arc::clone(&self.vector_repository),
-                embedding_generator: Arc::clone(&self.embedding_generator),
-                search_orchestrator: Arc::clone(&self.search_orchestrator),
-                filter_service: Arc::clone(&self.filter_service),
-                content_processor: self.content_processor.clone(),
-                query_enhancer: self.query_enhancer.clone(),
-                result_ranker: self.result_ranker.clone(),
-            }
+        // Use a temporary service if request-specific filters were provided
+        let service = match filters {
+            Some(filters) => self.with_updated_filters(filters),
+            None => self.clone(),
         };
 
         let path = std::path::Path::new(path);
@@ -304,48 +287,104 @@ impl DocumentIndexingService {
             ));
         }
 
+        let mut counts = IndexCounts::default();
         if path.is_file() {
-            // Check if we should index this file
-            if !service.filter_service.should_index(path) {
-                return Ok((0, 0.0));
-            }
-
-            // Index single file
-            if let Ok(content) = fs::read_to_string(path) {
-                let mut document = Document {
-                    id: zero_latency_core::Uuid::new_v4(),
-                    title: path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    content,
-                    path: path.to_path_buf(),
-                    last_modified: chrono::Utc::now(),
-                    size: fs::metadata(path).map(|m| m.len()).unwrap_or(0),
-                    metadata: zero_latency_core::models::DocumentMetadata::default(),
-                };
-
-                // Add collection information to document metadata
-                document
-                    .metadata
-                    .custom
-                    .insert("collection".to_string(), collection_name.to_string());
-
-                service
-                    .index_document_with_collection(document, collection_name)
-                    .await?;
-                documents_processed += 1;
+            if service.filter_service.should_index(path) {
+                counts.record(service.index_file(path, collection_name).await);
             }
         } else if path.is_dir() {
-            // Index directory with collection awareness
-            documents_processed = service
+            counts = service
                 .index_directory_with_collection(path, recursive, collection_name)
                 .await?;
         }
 
-        let processing_time = start_time.elapsed().as_millis() as f64;
-        Ok((documents_processed, processing_time))
+        Ok(IndexingStats {
+            documents_processed: counts.indexed,
+            documents_skipped: counts.skipped,
+            processing_time_ms: start_time.elapsed().as_millis() as f64,
+        })
+    }
+
+    /// Read, process and index one file.
+    ///
+    /// Files that cannot be read or extracted, or whose content fails processing
+    /// or indexing, are reported as `Skipped` so one bad file never aborts a run.
+    async fn index_file(&self, path: &std::path::Path, collection_name: &str) -> FileOutcome {
+        let raw_content = match read_document_text(path, self.max_binary_file_size).await {
+            Ok(Some(content)) => content,
+            Ok(None) => return FileOutcome::Skipped,
+            Err(e) => {
+                tracing::debug!("Could not read {}: {}", path.display(), e);
+                return FileOutcome::Skipped;
+            }
+        };
+
+        let content_type = self
+            .content_processor
+            .detect_content_type(path, &raw_content);
+        if !self.content_processor.should_index(&content_type) {
+            tracing::debug!("Skipping {:?} file: {}", content_type, path.display());
+            return FileOutcome::NotIndexable;
+        }
+
+        let processed_content = match self
+            .content_processor
+            .process_content(&raw_content, &content_type)
+        {
+            Ok(content) => content,
+            Err(e) => {
+                tracing::warn!("Failed to process content for {}: {}", path.display(), e);
+                return FileOutcome::Skipped;
+            }
+        };
+
+        let (size, last_modified) = match std::fs::metadata(path) {
+            Ok(metadata) => (
+                metadata.len(),
+                metadata
+                    .modified()
+                    .map(chrono::DateTime::<chrono::Utc>::from)
+                    .unwrap_or_else(|_| chrono::Utc::now()),
+            ),
+            Err(_) => (0, chrono::Utc::now()),
+        };
+
+        let mut metadata = zero_latency_core::models::DocumentMetadata {
+            content_type: Some(format!("{:?}", content_type)),
+            custom: build_file_metadata(path, size, last_modified),
+            ..Default::default()
+        };
+        metadata
+            .custom
+            .insert("collection".to_string(), collection_name.to_string());
+
+        let document = Document {
+            id: zero_latency_core::Uuid::new_v4(),
+            title: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .to_string(),
+            content: processed_content,
+            path: path.to_path_buf(),
+            last_modified,
+            size,
+            metadata,
+        };
+
+        match self
+            .index_document_with_collection(document, collection_name)
+            .await
+        {
+            Ok(()) => {
+                tracing::debug!("Indexed {} as {:?}", path.display(), content_type);
+                FileOutcome::Indexed
+            }
+            Err(e) => {
+                tracing::warn!("Failed to index {}: {}", path.display(), e);
+                FileOutcome::Skipped
+            }
+        }
     }
 
     /// Recursively index documents in a directory
@@ -353,7 +392,7 @@ impl DocumentIndexingService {
         &'a self,
         dir: &'a std::path::Path,
         recursive: bool,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<IndexCounts>> + Send + 'a>> {
         self.index_directory_with_collection(dir, recursive, "zero_latency_docs")
     }
 
@@ -363,11 +402,11 @@ impl DocumentIndexingService {
         dir: &'a std::path::Path,
         recursive: bool,
         collection_name: &'a str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<IndexCounts>> + Send + 'a>> {
         Box::pin(async move {
             use std::fs;
 
-            let mut documents_processed = 0u64;
+            let mut counts = IndexCounts::default();
             let mut files_scanned = 0u64;
             let start_time = std::time::Instant::now();
 
@@ -406,113 +445,34 @@ impl DocumentIndexingService {
                             "Progress: {}/{} files scanned, {} documents indexed ({:.1}%)",
                             files_scanned,
                             total_entries,
-                            documents_processed,
+                            counts.indexed,
                             (index as f64 / total_entries as f64) * 100.0
                         );
                     }
 
                     if path.is_file() {
-                        // Read file content first
-                        if let Ok(raw_content) = fs::read_to_string(&path) {
-                            // Detect content type
-                            let content_type = self
-                                .content_processor
-                                .detect_content_type(&path, &raw_content);
-
-                            // Check if this content type should be indexed
-                            if self.content_processor.should_index(&content_type) {
-                                // Process content based on type
-                                match self
-                                    .content_processor
-                                    .process_content(&raw_content, &content_type)
-                                {
-                                    Ok(processed_content) => {
-                                        let document = Document {
-                                            id: zero_latency_core::Uuid::new_v4(),
-                                            title: path
-                                                .file_name()
-                                                .and_then(|n| n.to_str())
-                                                .unwrap_or("Unknown")
-                                                .to_string(),
-                                            content: processed_content,
-                                            path: path.clone(),
-                                            last_modified: chrono::Utc::now(),
-                                            size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
-                                            metadata: {
-                                                let mut metadata =
-                                                    zero_latency_core::models::DocumentMetadata {
-                                                        content_type: Some(format!(
-                                                            "{:?}",
-                                                            content_type
-                                                        )),
-                                                        ..Default::default()
-                                                    };
-                                                metadata.custom.insert(
-                                                    "collection".to_string(),
-                                                    collection_name.to_string(),
-                                                );
-                                                metadata
-                                            },
-                                        };
-
-                                        if let Err(e) = self
-                                            .index_document_with_collection(
-                                                document,
-                                                collection_name,
-                                            )
-                                            .await
-                                        {
-                                            tracing::warn!(
-                                                "Failed to index {}: {}",
-                                                path.display(),
-                                                e
-                                            );
-                                        } else {
-                                            documents_processed += 1;
-                                            tracing::debug!(
-                                                "Indexed {} as {:?}",
-                                                path.display(),
-                                                content_type
-                                            );
-                                        }
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!(
-                                            "Failed to process content for {}: {}",
-                                            path.display(),
-                                            e
-                                        );
-                                    }
-                                }
-                            } else {
-                                tracing::debug!(
-                                    "Skipping {:?} file: {}",
-                                    content_type,
-                                    path.display()
-                                );
-                            }
-                        } else {
-                            tracing::debug!("Could not read file as UTF-8: {}", path.display());
-                        }
+                        counts.record(self.index_file(&path, collection_name).await);
                     } else if path.is_dir() && recursive {
                         // Recursively index subdirectories
                         tracing::debug!("Recursing into directory: {}", path.display());
-                        documents_processed += self
-                            .index_directory_with_collection(&path, recursive, collection_name)
-                            .await?;
+                        counts.add(
+                            self.index_directory_with_collection(&path, recursive, collection_name)
+                                .await?,
+                        );
                     }
                 }
             }
 
             let elapsed = start_time.elapsed();
             tracing::info!(
-                "Completed directory indexing: {} - {} documents processed in {:.2}s",
+                "Completed directory indexing: {} - {} documents processed, {} skipped in {:.2}s",
                 dir.display(),
-                documents_processed,
+                counts.indexed,
+                counts.skipped,
                 elapsed.as_secs_f64()
             );
 
-            Ok(documents_processed)
+            Ok(counts)
         })
     }
 
@@ -555,6 +515,45 @@ impl DocumentIndexingService {
         }
 
         Ok(chunks)
+    }
+}
+
+/// Result of indexing a path
+#[derive(Debug, Clone, Copy)]
+pub struct IndexingStats {
+    pub documents_processed: u64,
+    /// Files that passed filtering but could not be read, extracted or indexed
+    pub documents_skipped: u64,
+    pub processing_time_ms: f64,
+}
+
+/// What happened to a single file during indexing
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileOutcome {
+    Indexed,
+    Skipped,
+    NotIndexable,
+}
+
+/// Running totals while walking a directory tree
+#[derive(Debug, Default, Clone, Copy)]
+struct IndexCounts {
+    indexed: u64,
+    skipped: u64,
+}
+
+impl IndexCounts {
+    fn record(&mut self, outcome: FileOutcome) {
+        match outcome {
+            FileOutcome::Indexed => self.indexed += 1,
+            FileOutcome::Skipped => self.skipped += 1,
+            FileOutcome::NotIndexable => {}
+        }
+    }
+
+    fn add(&mut self, other: IndexCounts) {
+        self.indexed += other.indexed;
+        self.skipped += other.skipped;
     }
 }
 

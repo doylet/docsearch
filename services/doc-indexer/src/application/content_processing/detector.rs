@@ -13,33 +13,36 @@ pub struct ContentTypeDetector;
 impl ContentTypeDetector {
     /// Detect content type from file extension and content
     pub fn detect_content_type(path: &Path, content: &str) -> ContentType {
-        // First try to detect by file extension
-        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-            match extension.to_lowercase().as_str() {
-                "md" | "markdown" => return ContentType::Markdown,
-                "txt" => return ContentType::PlainText,
-                "html" | "htm" => return ContentType::Html,
-                "rst" => return ContentType::RestructuredText,
-                "adoc" | "asciidoc" => return ContentType::AsciiDoc,
-                "org" => return ContentType::OrgMode,
-                "json" => return ContentType::Json,
-                "yaml" | "yml" => return ContentType::Yaml,
-                "toml" => return ContentType::Toml,
-                "rs" => return ContentType::Rust,
-                "js" | "ts" | "jsx" | "tsx" => return ContentType::JavaScript,
-                "py" => return ContentType::Python,
-                "sh" | "bash" | "zsh" | "fish" => return ContentType::Shell,
-                "conf" | "config" | "cfg" | "ini" => return ContentType::Config,
-                // Binary and unknown extensions
-                "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => {
-                    return ContentType::Unknown
-                }
-                _ => {}
-            }
-        }
+        // First try to detect by file extension, then fall back to the content
+        Self::detect_from_path(path).unwrap_or_else(|| Self::detect_by_content(content))
+    }
 
-        // Fallback to content-based detection
-        Self::detect_by_content(content)
+    /// Detect content type from the file extension alone (case-insensitive).
+    ///
+    /// Returns `None` when the extension is missing or not recognised.
+    pub fn detect_from_path(path: &Path) -> Option<ContentType> {
+        let extension = path.extension()?.to_str()?.to_lowercase();
+        let content_type = match extension.as_str() {
+            "md" | "markdown" => ContentType::Markdown,
+            "txt" => ContentType::PlainText,
+            "html" | "htm" => ContentType::Html,
+            "rst" => ContentType::RestructuredText,
+            "adoc" | "asciidoc" => ContentType::AsciiDoc,
+            "org" => ContentType::OrgMode,
+            "json" => ContentType::Json,
+            "yaml" | "yml" => ContentType::Yaml,
+            "toml" => ContentType::Toml,
+            "rs" => ContentType::Rust,
+            "js" | "ts" | "jsx" | "tsx" => ContentType::JavaScript,
+            "py" => ContentType::Python,
+            "sh" | "bash" | "zsh" | "fish" => ContentType::Shell,
+            "pdf" => ContentType::Pdf,
+            "conf" | "config" | "cfg" | "ini" => ContentType::Config,
+            // Binary and unknown extensions
+            "bin" | "exe" | "dll" | "so" | "dylib" | "o" | "obj" => ContentType::Unknown,
+            _ => return None,
+        };
+        Some(content_type)
     }
 
     /// Detect content type by analyzing content

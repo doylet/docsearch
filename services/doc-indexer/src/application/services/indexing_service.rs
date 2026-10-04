@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 /// Document indexing service with dependency injection
 ///
@@ -10,6 +9,7 @@ use zero_latency_core::{
     Result, Uuid,
 };
 
+use crate::application::content_processing::extraction::{build_file_metadata, file_type};
 use crate::application::content_processing::ContentProcessor;
 use crate::application::indexing_strategies::{IndexingStrategy, StandardIndexingStrategy};
 use crate::application::interfaces::{
@@ -106,7 +106,8 @@ impl IndexingService {
         // Read file content (delegation to file system service)
         let content = match self.file_system.read_file_content(path).await {
             Ok(content) => content,
-            Err(_) => {
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "Skipping unreadable file");
                 self.progress_tracker.file_processed(path, false).await;
                 return Ok(false);
             }
@@ -124,12 +125,7 @@ impl IndexingService {
             }
         };
 
-        // Detect content type from file extension
-        let content_type = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| format!("text/{}", ext.to_lowercase()))
-            .unwrap_or("text/plain".to_string());
+        let content_type = file_type(path);
 
         // Extract title from path
         let title = path
@@ -138,7 +134,8 @@ impl IndexingService {
             .unwrap_or("untitled")
             .to_string();
 
-        // Create document
+        let custom_metadata = build_file_metadata(path, file_metadata.size, file_metadata.modified);
+
         let document = Document {
             id: Uuid::new_v4(),
             title,
@@ -148,7 +145,7 @@ impl IndexingService {
             size: file_metadata.size,
             metadata: DocumentMetadata {
                 content_type: Some(content_type),
-                custom: HashMap::new(),
+                custom: custom_metadata,
                 ..Default::default()
             },
         };

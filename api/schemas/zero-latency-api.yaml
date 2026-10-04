@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   title: Zero-Latency API
   description: >
-    Zero-Latency Document Indexing and Search API providing real-time document 
-    ingestion, semantic search, and collection management capabilities with 
+    Zero-Latency Document Indexing and Search API providing real-time document
+    ingestion, semantic search, and collection management capabilities with
     multi-tenant support.
   version: 1.0.0
   contact:
@@ -168,6 +168,40 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /api/browse:
+    get:
+      tags: [Indexing]
+      summary: Browse allowed directories
+      description: >
+        Lists the sub-directories and indexable files of a directory inside one of the
+        configured browse roots (DOC_INDEXER_BROWSE_ROOTS). With no path, lists the roots.
+        Hidden entries are omitted; directories come first, then files, each sorted by name.
+      operationId: browseDirectory
+      parameters:
+        - name: path
+          in: query
+          required: false
+          description: Directory to list. Omit to list the allowed roots.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrowseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Path lies outside every browse root
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/reindex:
     post:
@@ -923,6 +957,44 @@ components:
             format: uuid
           description: Specific document IDs to reindex
           example: ["550e8400-e29b-41d4-a716-446655440000"]
+
+    BrowseResponse:
+      type: object
+      required:
+        - items
+        - truncated
+      properties:
+        path:
+          type: [string, 'null']
+          description: Canonical path of the listed directory; null when listing the roots
+        parent_path:
+          type: [string, 'null']
+          description: Parent directory; null at a root or when listing the roots
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowseItem'
+        truncated:
+          type: boolean
+          description: True when the listing was cut off at the configured maximum
+
+    BrowseItem:
+      type: object
+      required:
+        - name
+        - path
+        - is_directory
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        is_directory:
+          type: boolean
+        size:
+          type: [integer, 'null']
+          format: int64
+          description: File size in bytes; null for directories
 
     IndexResponse:
       type: object

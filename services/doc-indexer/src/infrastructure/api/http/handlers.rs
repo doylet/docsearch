@@ -9,16 +9,19 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+
+use std::sync::Arc;
 /// HTTP route handlers for the doc-indexer API
 ///
 /// This module contains the HTTP handlers that translate between HTTP requests/responses
 /// and the application services, following the clean architecture pattern.
-use std::sync::Arc;
 use std::time::Instant;
+
 use zero_latency_api::endpoints::endpoints;
 use zero_latency_core::ZeroLatencyError;
 use zero_latency_search::traits::{PopularQuery, SearchAnalytics, SearchTrends};
 
+use super::browse::{browse_directory, BrowseConfig};
 use crate::application::{
     CollectionService, DocumentIndexingService, HealthService, ServiceContainer,
 };
@@ -34,6 +37,7 @@ pub struct AppState {
     pub analytics_service:
         Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     pub start_time: Instant,
+    pub browse: BrowseConfig,
 }
 
 impl AppState {
@@ -99,6 +103,11 @@ impl AppState {
         // Initialize collection stats from actual vector repository
         collection_service.initialize().await?;
 
+        let browse = BrowseConfig::new(
+            &config.service.browse_roots,
+            config.service.browse_max_entries,
+        );
+
         // Use the analytics service from the container (shared with search pipeline)
         let analytics_service = container.analytics();
 
@@ -109,6 +118,7 @@ impl AppState {
             collection_service,
             analytics_service,
             start_time: Instant::now(),
+            browse,
         })
     }
 }
@@ -121,6 +131,7 @@ pub fn create_router(state: AppState) -> Router {
         .route(endpoints::SEARCH, post(search_documents))
         .route(endpoints::INDEX, post(index_documents_from_path))
         .route(endpoints::REINDEX, post(reindex_documents))
+        .route(endpoints::BROWSE, get(browse_directory))
         .route(endpoints::SERVER_START, post(start_server))
         .route(endpoints::SERVER_STOP, post(stop_server))
         // Collection endpoints
@@ -369,6 +380,7 @@ async fn index_documents_from_path(
     Json(request): Json<IndexPathRequest>,
 ) -> Result<Json<IndexPathResponse>, AppError> {
     let collection_name = request.collection.as_deref().unwrap_or("zero_latency_docs");
+
     tracing::info!(
         "Starting document indexing from path: {} into collection: {}",
         request.path,
@@ -435,10 +447,11 @@ async fn index_documents_from_path(
         .await;
 
     match result {
-        Ok((documents_processed, processing_time_ms)) => {
+        Ok(stats) => {
             tracing::info!(
-                documents_processed = documents_processed,
-                processing_time_ms = processing_time_ms,
+                documents_processed = stats.documents_processed,
+                documents_skipped = stats.documents_skipped,
+                processing_time_ms = stats.processing_time_ms,
                 "Indexing completed successfully"
             );
 
@@ -448,12 +461,13 @@ async fn index_documents_from_path(
             }
 
             Ok(Json(IndexPathResponse {
-                documents_processed,
-                processing_time_ms,
+                documents_processed: stats.documents_processed,
+                documents_skipped: stats.documents_skipped,
+                processing_time_ms: stats.processing_time_ms,
                 status: "success".to_string(),
                 message: Some(format!(
                     "Successfully indexed {} documents from path: {}",
-                    documents_processed, request.path
+                    stats.documents_processed, request.path
                 )),
             }))
         }
@@ -548,10 +562,11 @@ async fn reindex_documents(
         .await;
 
     match result {
-        Ok((documents_processed, processing_time_ms)) => {
+        Ok(stats) => {
             tracing::info!(
-                documents_processed = documents_processed,
-                processing_time_ms = processing_time_ms,
+                documents_processed = stats.documents_processed,
+                documents_skipped = stats.documents_skipped,
+                processing_time_ms = stats.processing_time_ms,
                 "Reindexing completed successfully"
             );
 
@@ -561,12 +576,13 @@ async fn reindex_documents(
             }
 
             Ok(Json(ReindexResponse {
-                documents_processed,
-                processing_time_ms,
+                documents_processed: stats.documents_processed,
+                documents_skipped: stats.documents_skipped,
+                processing_time_ms: stats.processing_time_ms,
                 status: "completed".to_string(),
                 message: Some(format!(
                     "Successfully reindexed {} documents",
-                    documents_processed
+                    stats.documents_processed
                 )),
             }))
         }
@@ -673,6 +689,7 @@ pub struct IndexPathRequest {
 #[derive(Debug, Serialize)]
 pub struct IndexPathResponse {
     pub documents_processed: u64,
+    pub documents_skipped: u64,
     pub processing_time_ms: f64,
     pub status: String,
     pub message: Option<String>,
@@ -696,6 +713,7 @@ pub struct ReindexRequest {
 #[derive(Debug, Serialize)]
 pub struct ReindexResponse {
     pub documents_processed: u64,
+    pub documents_skipped: u64,
     pub processing_time_ms: f64,
     pub status: String,
     pub message: Option<String>,

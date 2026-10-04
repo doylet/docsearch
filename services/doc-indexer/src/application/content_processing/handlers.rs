@@ -255,6 +255,27 @@ impl ContentHandler for PlainTextHandler {
     }
 }
 
+/// PDF content handler
+///
+/// Receives text already extracted from the PDF when the file was read
+/// (see `extraction::read_document_text`) and normalises it.
+pub struct PdfHandler;
+
+impl ContentHandler for PdfHandler {
+    fn content_type(&self) -> ContentType {
+        ContentType::Pdf
+    }
+
+    fn process(&self, content: &str) -> Result<String> {
+        Ok(content
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n"))
+    }
+}
+
 /// Default handler for unknown content types
 pub struct DefaultHandler;
 

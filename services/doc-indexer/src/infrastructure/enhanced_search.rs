@@ -550,14 +550,29 @@ impl EnhancedSearchService {
         } else {
             None
         };
+        // Custom metadata as JSON strings, plus basic document info that is always present
+        let mut metadata: HashMap<String, serde_json::Value> = core_result
+            .custom_metadata
+            .iter()
+            .map(|(key, value)| (key.clone(), serde_json::Value::String(value.clone())))
+            .collect();
+        for (key, value) in [
+            ("doc_id", core_result.doc_id.to_string()),
+            ("uri", core_result.uri.clone()),
+            ("title", core_result.title.clone()),
+        ] {
+            metadata.insert(key.to_string(), serde_json::Value::String(value));
+        }
+        let metadata = Some(metadata);
+
         Ok(Some(EnhancedSearchResult {
             id: core_result.chunk_id.to_string(),
             content: core_result.content.clone(),
-            metadata: None, // TODO: Map fields as needed
+            metadata,
             confidence_score,
             scores,
             explanation,
-            collection: None, // Will be set by calling function if needed
+            collection: core_result.collection.clone(),
         }))
     }
 
