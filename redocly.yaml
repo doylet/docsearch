@@ -1,0 +1,7 @@
+# Redocly CLI config, used by .github/workflows/schema-validation.yml.
+extends:
+  - recommended
+
+rules:
+  # The server URL depends on the deployment, so the public spec doesn't list one.
+  no-empty-servers: off

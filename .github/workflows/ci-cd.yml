@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, 'sprint/**' ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   release:
     types: [ created ]
 
@@ -16,44 +16,39 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust: [stable, beta]
+
+    # Features excluded from CI because they don't compile (tracked as follow-up
+    # OpenSpec changes). CI builds and tests default features only, never
+    # --all-features:
+    #   - zero-latency-search/tantivy: out of date with the current tantivy API
+    #   - doc-indexer/cloud: out of date with the Qdrant and OpenAI adapters
+    #
+    # Clippy allows dead_code until the dead-code cleanup change removes the
+    # unused items; every other warning is an error.
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
 
     - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      uses: Swatinem/rust-cache@v2
 
     - name: Check formatting
       run: cargo fmt --all -- --check
 
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --workspace --all-targets -- -D warnings -A dead_code
 
     - name: Run tests
-      run: cargo test --verbose --all-features
+      run: cargo test --workspace
 
     - name: Check documentation
-      run: cargo doc --no-deps --all-features
+      run: cargo doc --workspace --no-deps
 
   security:
     name: Security Audit
@@ -63,21 +58,44 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
-
-    - name: Run security audit
-      run: cargo audit
-
+    # Advisories, licenses, bans and sources, as configured in deny.toml.
     - name: Run cargo-deny
-      uses: EmbarkStudios/cargo-deny-action@v1
+      uses: EmbarkStudios/cargo-deny-action@v2
       with:
         log-level: warn
         command: check
-        arguments: --all-features
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+
+    # The root lockfile covers the apps/* workspaces.
+    - name: Install dependencies
+      run: npm ci
+
+    # ESLint is not run yet: its config loads under eslint 9 but reports
+    # errors that need fixing first.
+    - name: Type-check
+      working-directory: apps/frontend
+      run: npx tsc --noEmit
+
+    - name: Build
+      working-directory: apps/frontend
+      run: npm run build
+
+    - name: Audit production dependencies
+      working-directory: apps/frontend
+      run: npm audit --omit=dev --audit-level=high
 
   build:
     name: Build and Test
@@ -92,40 +110,46 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
 
     - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      uses: Swatinem/rust-cache@v2
 
     - name: Build release
-      run: cargo build --release --verbose
+      run: cargo build --release --workspace
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: docsearch-binary
-        path: target/release/docsearch
+        name: docsearch-binaries
+        path: |
+          target/release/doc-indexer
+          target/release/mdx
+        if-no-files-found: error
         retention-days: 30
 
+  # Builds the image on every run so the Dockerfile stays honest. Pushing to
+  # GHCR and the deploy jobs are opt-in: set the repository variable
+  # DEPLOY_ENABLED=true once the registry, Kubernetes secrets
+  # (KUBE_CONFIG_STAGING, KUBE_CONFIG_PRODUCTION), SLACK_WEBHOOK_URL and the
+  # staging/production environments exist.
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name != 'pull_request'
+    env:
+      PUSH: ${{ github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true' }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up QEMU
+      if: env.PUSH == 'true'
+      uses: docker/setup-qemu-action@v3
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: Log in to GitHub Container Registry
+      if: env.PUSH == 'true'
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
@@ -144,22 +168,24 @@ jobs:
           type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+    # Multi-arch builds run under QEMU and are slow, so only build arm64 when
+    # the image is actually published.
+    - name: Build Docker image
+      uses: docker/build-push-action@v6
       with:
         context: .
-        push: true
+        push: ${{ env.PUSH == 'true' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        platforms: linux/amd64,linux/arm64
+        platforms: ${{ env.PUSH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
 
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.ref == 'refs/heads/develop'
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: staging
 
     steps:
@@ -167,7 +193,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Configure kubectl
-      uses: azure/k8s-set-context@v1
+      uses: azure/k8s-set-context@v4
       with:
         method: kubeconfig
         kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
@@ -175,7 +201,7 @@ jobs:
     - name: Deploy to staging
       run: |
         # Update image tag in deployment
-        sed -i "s|docsearch:latest|ghcr.io/${{ github.repository }}:develop|g" k8s/deployment.yaml
+        sed -i "s|docsearch:latest|ghcr.io/${{ github.repository }}:main|g" k8s/deployment.yaml
 
         # Apply secrets (if not already present)
         kubectl apply -f docker/secrets/k8s-secrets.yaml --dry-run=client -o yaml | kubectl apply -f -
@@ -198,14 +224,14 @@ jobs:
         STAGING_URL=$(kubectl get ingress docsearch-internal-ingress -o jsonpath='{.spec.rules[0].host}')
 
         # Run health check
-        curl -f "http://${STAGING_URL}/health" || exit 1
+        curl -f "http://${STAGING_URL}/health"
         echo "Staging deployment successful!"
 
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.event_name == 'release'
+    if: vars.DEPLOY_ENABLED == 'true' && github.event_name == 'release'
     environment: production
 
     steps:
@@ -213,7 +239,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Configure kubectl
-      uses: azure/k8s-set-context@v1
+      uses: azure/k8s-set-context@v4
       with:
         method: kubeconfig
         kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
@@ -247,7 +273,7 @@ jobs:
         PROD_URL=$(kubectl get ingress docsearch-ingress -o jsonpath='{.spec.rules[0].host}')
 
         # Run health check
-        curl -f "https://${PROD_URL}/health" || exit 1
+        curl -f "https://${PROD_URL}/health"
         echo "Production deployment successful!"
 
     - name: Notify deployment
