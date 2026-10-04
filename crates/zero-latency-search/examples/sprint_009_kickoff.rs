@@ -124,7 +124,9 @@ fn main() {
                         story_points: 8,
                         priority: "Must Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Environment configs, secrets, containerization, K8s deployment".to_string(),
+                        description:
+                            "Environment configs, secrets, containerization, K8s deployment"
+                                .to_string(),
                     },
                     Task {
                         id: "ZL-009-002".to_string(),
@@ -132,7 +134,8 @@ fn main() {
                         story_points: 13,
                         priority: "Must Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Load testing, optimization, cache tuning, latency validation".to_string(),
+                        description: "Load testing, optimization, cache tuning, latency validation"
+                            .to_string(),
                     },
                     Task {
                         id: "ZL-009-003".to_string(),
@@ -140,7 +143,8 @@ fn main() {
                         story_points: 13,
                         priority: "Must Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Observability stack, metrics, tracing, dashboards, alerting".to_string(),
+                        description: "Observability stack, metrics, tracing, dashboards, alerting"
+                            .to_string(),
                     },
                 ],
             },
@@ -157,7 +161,9 @@ fn main() {
                         story_points: 21,
                         priority: "Should Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "BERT reranking with ONNX Runtime, A/B testing, quality improvement".to_string(),
+                        description:
+                            "BERT reranking with ONNX Runtime, A/B testing, quality improvement"
+                                .to_string(),
                     },
                     Task {
                         id: "ZL-009-005".to_string(),
@@ -165,7 +171,8 @@ fn main() {
                         story_points: 13,
                         priority: "Should Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Multi-query expansion, intent classification, deduplication".to_string(),
+                        description: "Multi-query expansion, intent classification, deduplication"
+                            .to_string(),
                     },
                     Task {
                         id: "ZL-009-006".to_string(),
@@ -173,7 +180,9 @@ fn main() {
                         story_points: 8,
                         priority: "Could Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Analytics dashboard, quality monitoring, A/B testing framework".to_string(),
+                        description:
+                            "Analytics dashboard, quality monitoring, A/B testing framework"
+                                .to_string(),
                     },
                 ],
             },
@@ -190,7 +199,9 @@ fn main() {
                         story_points: 13,
                         priority: "Should Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Critical TODO implementation, evaluation framework, API completions".to_string(),
+                        description:
+                            "Critical TODO implementation, evaluation framework, API completions"
+                                .to_string(),
                     },
                     Task {
                         id: "ZL-009-008".to_string(),
@@ -198,7 +209,9 @@ fn main() {
                         story_points: 8,
                         priority: "Should Have".to_string(),
                         status: TaskStatus::Planned,
-                        description: "Test coverage, API docs, architecture updates, developer guides".to_string(),
+                        description:
+                            "Test coverage, API docs, architecture updates, developer guides"
+                                .to_string(),
                     },
                 ],
             },
@@ -220,32 +233,82 @@ fn main() {
     println!("🎯 SUCCESS METRICS");
     println!("─────────────────");
     println!("🔍 Search Quality:");
-    println!("   • NDCG@10 Target: ≥{:.2}", sprint.success_metrics.search_quality.ndcg_at_10_target);
-    println!("   • Reranking Improvement: ≥{:.1}%", sprint.success_metrics.search_quality.reranking_improvement_target);
-    println!("   • Recall Improvement (MQE): ≥{:.1}%", sprint.success_metrics.search_quality.recall_improvement_target);
+    println!(
+        "   • NDCG@10 Target: ≥{:.2}",
+        sprint.success_metrics.search_quality.ndcg_at_10_target
+    );
+    println!(
+        "   • Reranking Improvement: ≥{:.1}%",
+        sprint
+            .success_metrics
+            .search_quality
+            .reranking_improvement_target
+    );
+    println!(
+        "   • Recall Improvement (MQE): ≥{:.1}%",
+        sprint
+            .success_metrics
+            .search_quality
+            .recall_improvement_target
+    );
     println!();
     println!("⚡ Performance:");
-    println!("   • P95 Hybrid Latency: ≤{:.0}ms", sprint.success_metrics.performance.p95_hybrid_latency_ms);
-    println!("   • P95 Reranking Latency: ≤{:.0}ms", sprint.success_metrics.performance.p95_reranking_latency_ms);
-    println!("   • Sustained Throughput: ≥{:.0} QPS", sprint.success_metrics.performance.throughput_qps);
-    println!("   • Uptime Target: {:.1}%", sprint.success_metrics.performance.uptime_target);
+    println!(
+        "   • P95 Hybrid Latency: ≤{:.0}ms",
+        sprint.success_metrics.performance.p95_hybrid_latency_ms
+    );
+    println!(
+        "   • P95 Reranking Latency: ≤{:.0}ms",
+        sprint.success_metrics.performance.p95_reranking_latency_ms
+    );
+    println!(
+        "   • Sustained Throughput: ≥{:.0} QPS",
+        sprint.success_metrics.performance.throughput_qps
+    );
+    println!(
+        "   • Uptime Target: {:.1}%",
+        sprint.success_metrics.performance.uptime_target
+    );
     println!();
     println!("🔧 Operational:");
-    println!("   • Test Coverage: ≥{:.0}%", sprint.success_metrics.operational.test_coverage_target);
-    println!("   • Deployment Time: ≤{:.0} minutes", sprint.success_metrics.operational.deployment_time_target_min);
-    println!("   • Incident Detection: ≤{:.0} seconds", sprint.success_metrics.operational.incident_detection_time_sec);
+    println!(
+        "   • Test Coverage: ≥{:.0}%",
+        sprint.success_metrics.operational.test_coverage_target
+    );
+    println!(
+        "   • Deployment Time: ≤{:.0} minutes",
+        sprint
+            .success_metrics
+            .operational
+            .deployment_time_target_min
+    );
+    println!(
+        "   • Incident Detection: ≤{:.0} seconds",
+        sprint
+            .success_metrics
+            .operational
+            .incident_detection_time_sec
+    );
     println!();
 
     // Epic Breakdown
     println!("📋 EPIC BREAKDOWN");
     println!("─────────────────");
     for (idx, epic) in sprint.epics.iter().enumerate() {
-        println!("{}. {} ({} SP) - Priority: {} [{}]",
-                 idx + 1, epic.name, epic.story_points, epic.priority, epic.status);
+        println!(
+            "{}. {} ({} SP) - Priority: {} [{}]",
+            idx + 1,
+            epic.name,
+            epic.story_points,
+            epic.priority,
+            epic.status
+        );
 
         for task in &epic.tasks {
-            println!("   • {} - {} ({} SP) [{}]",
-                     task.id, task.name, task.story_points, task.status);
+            println!(
+                "   • {} - {} ({} SP) [{}]",
+                task.id, task.name, task.story_points, task.status
+            );
             println!("     Description: {}", task.description);
         }
         println!();
@@ -305,7 +368,11 @@ fn main() {
     println!("📊 CURRENT STATUS");
     println!("─────────────────");
     println!("🎯 Sprint Phase: {}", sprint.current_phase);
-    println!("📈 Total Story Points: {} SP across {} epics", sprint.total_story_points, sprint.epics.len());
+    println!(
+        "📈 Total Story Points: {} SP across {} epics",
+        sprint.total_story_points,
+        sprint.epics.len()
+    );
     println!("🚀 Ready for Implementation: All tasks planned and dependencies resolved");
     println!("✅ Foundation Complete: Sprint 008 hybrid search system operational");
     println!("🎪 Success Criteria: Clear metrics and validation framework established");

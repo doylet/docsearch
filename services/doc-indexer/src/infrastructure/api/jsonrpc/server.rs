@@ -129,8 +129,8 @@ pub fn create_dual_protocol_router(app_state: AppState) -> Router {
     let rest_router = crate::infrastructure::api::http::handlers::create_router(app_state.clone());
     let jsonrpc_server = JsonRpcServer::new(app_state.clone());
     let jsonrpc_router = jsonrpc_server.create_router();
-    let streaming_router =
-        crate::infrastructure::protocols::streaming::create_streaming_router().with_state(app_state);
+    let streaming_router = crate::infrastructure::protocols::streaming::create_streaming_router()
+        .with_state(app_state);
 
     // Combine all routers
     rest_router.merge(jsonrpc_router).merge(streaming_router)

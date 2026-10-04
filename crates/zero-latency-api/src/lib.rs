@@ -53,7 +53,9 @@ pub mod client {
         }
 
         /// Create a new API client with custom configuration
-        pub fn with_config(config: ApiClientConfig) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        pub fn with_config(
+            config: ApiClientConfig,
+        ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
             let client = Client::builder()
                 .timeout(std::time::Duration::from_secs(config.timeout_seconds))
                 .user_agent(&config.user_agent)
@@ -77,19 +79,19 @@ pub mod client {
             );
 
             if let Some(tenant_id) = self.config.tenant_id {
-                headers.insert(
-                    "x-tenant-id",
-                    tenant_id.to_string().parse().unwrap(),
-                );
+                headers.insert("x-tenant-id", tenant_id.to_string().parse().unwrap());
             }
 
             headers
         }
 
         /// Health check endpoint
-        pub async fn health_check(&self) -> Result<HealthCheckResult, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn health_check(
+            &self,
+        ) -> Result<HealthCheckResult, Box<dyn std::error::Error + Send + Sync>> {
             let url = format!("{}/health", self.config.base_url);
-            let response = self.client
+            let response = self
+                .client
                 .get(&url)
                 .headers(self.build_headers())
                 .send()
@@ -104,9 +106,12 @@ pub mod client {
         }
 
         /// Get API status
-        pub async fn api_status(&self) -> Result<ApiStatusResponse, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn api_status(
+            &self,
+        ) -> Result<ApiStatusResponse, Box<dyn std::error::Error + Send + Sync>> {
             let url = format!("{}/api/status", self.config.base_url);
-            let response = self.client
+            let response = self
+                .client
                 .get(&url)
                 .headers(self.build_headers())
                 .send()
@@ -121,9 +126,13 @@ pub mod client {
         }
 
         /// Search documents
-        pub async fn search_documents(&self, request: SearchRequest) -> Result<SearchResponse, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn search_documents(
+            &self,
+            request: SearchRequest,
+        ) -> Result<SearchResponse, Box<dyn std::error::Error + Send + Sync>> {
             let url = format!("{}/api/search", self.config.base_url);
-            let response = self.client
+            let response = self
+                .client
                 .post(&url)
                 .headers(self.build_headers())
                 .json(&request)
@@ -139,9 +148,13 @@ pub mod client {
         }
 
         /// Index documents from path
-        pub async fn index_documents(&self, request: IndexRequest) -> Result<IndexResponse, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn index_documents(
+            &self,
+            request: IndexRequest,
+        ) -> Result<IndexResponse, Box<dyn std::error::Error + Send + Sync>> {
             let url = format!("{}/api/index", self.config.base_url);
-            let response = self.client
+            let response = self
+                .client
                 .post(&url)
                 .headers(self.build_headers())
                 .json(&request)
@@ -157,7 +170,11 @@ pub mod client {
         }
 
         /// List collections
-        pub async fn list_collections(&self, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Collection>, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn list_collections(
+            &self,
+            limit: Option<i32>,
+            offset: Option<i32>,
+        ) -> Result<Vec<Collection>, Box<dyn std::error::Error + Send + Sync>> {
             let mut url = format!("{}/api/collections", self.config.base_url);
             let mut params = Vec::new();
 
@@ -173,7 +190,8 @@ pub mod client {
                 url.push_str(&params.join("&"));
             }
 
-            let response = self.client
+            let response = self
+                .client
                 .get(&url)
                 .headers(self.build_headers())
                 .send()
@@ -193,9 +211,13 @@ pub mod client {
         }
 
         /// Get collection by name
-        pub async fn get_collection(&self, name: &str) -> Result<Collection, Box<dyn std::error::Error + Send + Sync>> {
+        pub async fn get_collection(
+            &self,
+            name: &str,
+        ) -> Result<Collection, Box<dyn std::error::Error + Send + Sync>> {
             let url = format!("{}/api/collections/{}", self.config.base_url, name);
-            let response = self.client
+            let response = self
+                .client
                 .get(&url)
                 .headers(self.build_headers())
                 .send()
@@ -218,8 +240,8 @@ pub mod client {
 }
 
 // Re-export commonly used items
+pub use client::{ApiClientConfig, ZeroLatencyApiClient};
 pub use types::*;
-pub use client::{ZeroLatencyApiClient, ApiClientConfig};
 
 /// Convenience function to create a new API client
 pub fn new_client() -> Result<ZeroLatencyApiClient, Box<dyn std::error::Error + Send + Sync>> {
@@ -227,7 +249,9 @@ pub fn new_client() -> Result<ZeroLatencyApiClient, Box<dyn std::error::Error + 
 }
 
 /// Convenience function to create a client with custom base URL
-pub fn new_client_with_url(base_url: String) -> Result<ZeroLatencyApiClient, Box<dyn std::error::Error + Send + Sync>> {
+pub fn new_client_with_url(
+    base_url: String,
+) -> Result<ZeroLatencyApiClient, Box<dyn std::error::Error + Send + Sync>> {
     let config = ApiClientConfig {
         base_url,
         ..Default::default()

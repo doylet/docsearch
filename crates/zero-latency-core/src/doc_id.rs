@@ -3,7 +3,7 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Stable document identifier shared across BM25 and vector stores
-/// 
+///
 /// This provides a consistent identification scheme that works across
 /// both tantivy BM25 indexes and vector databases, ensuring documents
 /// can be uniquely identified and synchronized between storage systems.
@@ -11,34 +11,38 @@ use uuid::Uuid;
 pub struct DocId {
     /// Collection namespace this document belongs to
     pub collection: String,
-    
+
     /// External identifier (from source system)
     pub external_id: String,
-    
+
     /// Document version for handling updates
     pub version: u64,
 }
 
 impl DocId {
     /// Create a new document ID
-    pub fn new(collection: impl Into<String>, external_id: impl Into<String>, version: u64) -> Self {
+    pub fn new(
+        collection: impl Into<String>,
+        external_id: impl Into<String>,
+        version: u64,
+    ) -> Self {
         Self {
             collection: collection.into(),
             external_id: external_id.into(),
             version,
         }
     }
-    
+
     /// Create from UUID (backward compatibility)
     pub fn from_uuid(collection: impl Into<String>, uuid: Uuid, version: u64) -> Self {
         Self::new(collection, uuid.to_string(), version)
     }
-    
+
     /// Generate a stable string representation for indexing
     pub fn to_index_key(&self) -> String {
         format!("{}:{}:{}", self.collection, self.external_id, self.version)
     }
-    
+
     /// Parse from index key format
     pub fn from_index_key(key: &str) -> Option<Self> {
         let parts: Vec<&str> = key.splitn(3, ':').collect();
@@ -53,7 +57,7 @@ impl DocId {
         }
         None
     }
-    
+
     /// Get the base ID without version (for deduplication)
     pub fn base_id(&self) -> String {
         format!("{}:{}", self.collection, self.external_id)

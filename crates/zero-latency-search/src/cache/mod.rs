@@ -3,21 +3,21 @@
 //! This module implements comprehensive caching strategies to optimize
 //! hybrid search performance while maintaining quality improvements.
 
+pub mod cache_demo;
+pub mod integration;
 pub mod manager;
 pub mod performance;
-pub mod integration;
-pub mod cache_demo;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::hash::{Hash};
+use std::hash::Hash;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::models::SearchRequest;
 
 // Re-export simplified types
-pub use manager::HybridSearchCacheManager;
 pub use integration::CachedHybridSearchPipeline;
+pub use manager::HybridSearchCacheManager;
 
 /// Cache configuration for performance optimization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,7 +163,7 @@ impl<T> CacheEntry<T> {
 
 /// LRU cache with TTL support
 #[derive(Debug)]
-pub struct LRUCache<K, V> 
+pub struct LRUCache<K, V>
 where
     K: Hash + Eq + Clone,
     V: Clone,
@@ -230,11 +230,11 @@ where
     pub fn remove(&mut self, key: &K) -> Option<V> {
         if let Some(entry) = self.entries.remove(key) {
             self.current_size_bytes = self.current_size_bytes.saturating_sub(entry.size_bytes);
-            
+
             if let Some(pos) = self.access_order.iter().position(|k| k == key) {
                 self.access_order.remove(pos);
             }
-            
+
             Some(entry.value)
         } else {
             None
@@ -248,7 +248,8 @@ where
     }
 
     pub fn cleanup_expired(&mut self) {
-        let expired_keys: Vec<K> = self.entries
+        let expired_keys: Vec<K> = self
+            .entries
             .iter()
             .filter(|(_, entry)| entry.is_expired(self.ttl))
             .map(|(key, _)| key.clone())
@@ -261,10 +262,10 @@ where
 
     fn evict_if_needed(&mut self, incoming_size: usize) {
         // Check if we need to evict based on count or size
-        while (self.entries.len() >= self.max_entries || 
-               self.current_size_bytes + incoming_size > self.max_size_bytes) &&
-              !self.access_order.is_empty() {
-            
+        while (self.entries.len() >= self.max_entries
+            || self.current_size_bytes + incoming_size > self.max_size_bytes)
+            && !self.access_order.is_empty()
+        {
             let lru_key = self.access_order.remove(0);
             if let Some(entry) = self.entries.remove(&lru_key) {
                 self.current_size_bytes = self.current_size_bytes.saturating_sub(entry.size_bytes);
@@ -349,7 +350,7 @@ pub struct QueryCacheKey {
 impl QueryCacheKey {
     pub fn new(request: &SearchRequest) -> Self {
         let mut filters = Vec::new();
-        
+
         // Add document type filters
         for doc_type in &request.filters.document_types {
             filters.push(format!("doc_type:{}", doc_type));

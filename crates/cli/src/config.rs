@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use zero_latency_config::{AppConfig, load_config, Config as LegacyConfig};
+use zero_latency_config::{load_config, AppConfig, Config as LegacyConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CliConfig {
@@ -16,7 +16,7 @@ impl Default for CliConfig {
     fn default() -> Self {
         let app_config = AppConfig::default();
         let legacy_config: LegacyConfig = app_config.into();
-        
+
         Self {
             server_url: legacy_config.server_url,
             collection_name: legacy_config.collection_name,
@@ -37,7 +37,7 @@ impl CliConfig {
             let config: Self = toml::from_str(&content)?;
             return Ok(config);
         }
-        
+
         // Fallback to new zero-latency-config system
         match load_config() {
             Ok(app_config) => {
@@ -50,7 +50,7 @@ impl CliConfig {
                     verbose: false,
                 })
             }
-            Err(_) => Ok(Self::default())
+            Err(_) => Ok(Self::default()),
         }
     }
 

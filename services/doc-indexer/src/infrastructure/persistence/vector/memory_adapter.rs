@@ -1,11 +1,11 @@
 use async_trait::async_trait;
+use dashmap::DashMap;
 /// In-memory vector store adapter
 ///
 /// This adapter provides an in-memory implementation of VectorRepository
 /// for testing and development purposes. It's not suitable for production
 /// but useful for integration tests and local development.
 use std::sync::Arc;
-use dashmap::DashMap;
 use zero_latency_core::{models::HealthStatus, values::Score, Result};
 use zero_latency_vector::{
     SimilarityCalculator, SimilarityResult, VectorDocument, VectorRepository,

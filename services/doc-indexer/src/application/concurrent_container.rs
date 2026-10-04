@@ -4,14 +4,12 @@
 /// search operations that don't interfere with indexing operations.
 use std::sync::Arc;
 use zero_latency_core::{Result, ZeroLatencyError};
-use zero_latency_search::{
-    SearchPipeline, SimpleSearchOrchestrator,
-};
+use zero_latency_search::{SearchPipeline, SimpleSearchOrchestrator};
 use zero_latency_vector::{EmbeddingGenerator, VectorRepository};
 
 use crate::config::{Config, EmbeddingProvider};
-use crate::infrastructure::search_enhancement::{MultiFactorResultRanker, SimpleQueryEnhancer};
 use crate::infrastructure::concurrent_search::ConcurrentSearchService;
+use crate::infrastructure::search_enhancement::{MultiFactorResultRanker, SimpleQueryEnhancer};
 
 /// Enhanced service container with concurrent search capabilities
 pub struct ConcurrentServiceContainer {
@@ -53,12 +51,10 @@ impl ConcurrentServiceContainer {
         let search_orchestrator = Arc::new(SimpleSearchOrchestrator::new(search_pipeline));
 
         // Create concurrent search service wrapper
-        let concurrent_search_service = Arc::new(
-            ConcurrentSearchService::new(
-                search_orchestrator,
-                analytics.clone(),
-            )
-        );
+        let concurrent_search_service = Arc::new(ConcurrentSearchService::new(
+            search_orchestrator,
+            analytics.clone(),
+        ));
 
         Ok(Self {
             concurrent_search_service,
@@ -75,7 +71,9 @@ impl ConcurrentServiceContainer {
     }
 
     /// Get the analytics service
-    pub fn analytics(&self) -> Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics> {
+    pub fn analytics(
+        &self,
+    ) -> Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics> {
         self.analytics.clone()
     }
 
@@ -215,14 +213,17 @@ impl ConcurrentServiceContainer {
         let result_ranker = Arc::new(MultiFactorResultRanker::new());
 
         // Create search steps
-        let query_enhancement_step = Box::new(zero_latency_search::QueryEnhancementStep::new(query_enhancer));
+        let query_enhancement_step = Box::new(zero_latency_search::QueryEnhancementStep::new(
+            query_enhancer,
+        ));
 
         let vector_search_step = Box::new(zero_latency_search::VectorSearchStep::new(
             vector_repository,
             embedding_service,
         ));
 
-        let result_ranking_step = Box::new(zero_latency_search::ResultRankingStep::new(result_ranker));
+        let result_ranking_step =
+            Box::new(zero_latency_search::ResultRankingStep::new(result_ranker));
 
         // Build the enhanced pipeline: Query Enhancement → Vector Search → Result Ranking → Analytics
         let analytics_step = Box::new(zero_latency_search::services::AnalyticsStep::new(analytics));

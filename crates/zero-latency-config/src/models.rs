@@ -190,7 +190,10 @@ impl TestConfigHelper {
                 return port;
             }
         }
-        panic!("no free test port found above {}", self.base_config.port_base);
+        panic!(
+            "no free test port found above {}",
+            self.base_config.port_base
+        );
     }
 
     /// Get a unique collection name for testing

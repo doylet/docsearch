@@ -88,7 +88,7 @@ pub struct SearchResult {
     pub doc_id: DocId,
     /// Legacy chunk ID for backward compatibility
     pub chunk_id: Uuid,
-    /// Legacy document ID for backward compatibility  
+    /// Legacy document ID for backward compatibility
     pub document_id: Uuid,
     /// URI/path to the document
     pub uri: String,
@@ -133,7 +133,7 @@ impl SearchResult {
         let chunk_id = Uuid::new_v4();
         let document_id = Uuid::new_v4(); // Legacy compatibility
         let final_score = Score::new(scores.fused).unwrap_or_else(|_| Score::zero());
-        
+
         Self {
             doc_id,
             chunk_id,
@@ -154,26 +154,26 @@ impl SearchResult {
             custom_metadata: HashMap::new(),
         }
     }
-    
+
     /// Set the snippet for this result
     pub fn with_snippet(mut self, snippet: String) -> Self {
         self.snippet = Some(snippet);
         self
     }
-    
+
     /// Set the section path
     pub fn with_section_path(mut self, section_path: Vec<String>) -> Self {
         self.section_path = section_path.clone();
         self.heading_path = section_path; // Legacy compatibility
         self
     }
-    
+
     /// Set the collection
     pub fn with_collection(mut self, collection: String) -> Self {
         self.collection = Some(collection);
         self
     }
-    
+
     /// Set custom metadata
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
         self.custom_metadata = metadata;

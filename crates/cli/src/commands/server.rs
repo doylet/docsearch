@@ -3,8 +3,8 @@ use colored::*;
 use std::process::{Command, Stdio};
 
 use crate::application::{CliServiceContainer, ServerCommand as AppServerCommand};
-use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
 use zero_latency_config::{load_config, AppConfig};
+use zero_latency_core::{Result as ZeroLatencyResult, ZeroLatencyError};
 
 /// CLI arguments for the server command
 #[derive(Args)]

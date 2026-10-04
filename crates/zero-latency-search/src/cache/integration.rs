@@ -1,8 +1,8 @@
 //! Cache integration for hybrid search pipeline
 
-use std::sync::Arc;
 use super::HybridSearchCacheManager;
 use crate::models::{SearchRequest, SearchResult};
+use std::sync::Arc;
 use zero_latency_core::Result;
 
 /// Cache-aware hybrid search pipeline

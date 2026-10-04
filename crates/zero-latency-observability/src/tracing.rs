@@ -35,7 +35,7 @@ impl TraceContext {
             baggage: HashMap::new(),
         }
     }
-    
+
     /// Create a child span from this context
     pub fn child_span(&self) -> Self {
         Self {
@@ -46,13 +46,13 @@ impl TraceContext {
             baggage: self.baggage.clone(),
         }
     }
-    
+
     /// Add baggage item
     pub fn with_baggage(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.baggage.insert(key.into(), value.into());
         self
     }
-    
+
     /// Set sampling decision
     pub fn with_sampling(mut self, sampled: bool) -> Self {
         self.sampled = sampled;
@@ -143,12 +143,16 @@ pub struct SpanLog {
 
 impl Span {
     /// Create a new span
-    pub fn new(context: TraceContext, operation_name: impl Into<String>, service: impl Into<String>) -> Self {
+    pub fn new(
+        context: TraceContext,
+        operation_name: impl Into<String>,
+        service: impl Into<String>,
+    ) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros() as u64;
-            
+
         Self {
             context,
             operation_name: operation_name.into(),
@@ -160,29 +164,29 @@ impl Span {
             service: service.into(),
         }
     }
-    
+
     /// Add a tag to the span
     pub fn set_tag(&mut self, key: impl Into<String>, value: impl Into<serde_json::Value>) {
         self.tags.insert(key.into(), value.into());
     }
-    
+
     /// Log an event in the span
     pub fn log(&mut self, level: LogLevel, message: impl Into<String>) {
         self.log_with_fields(level, message, HashMap::new());
     }
-    
+
     /// Log an event with additional fields
     pub fn log_with_fields(
-        &mut self, 
-        level: LogLevel, 
-        message: impl Into<String>, 
-        fields: HashMap<String, serde_json::Value>
+        &mut self,
+        level: LogLevel,
+        message: impl Into<String>,
+        fields: HashMap<String, serde_json::Value>,
     ) {
         let timestamp_us = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros() as u64;
-            
+
         self.logs.push(SpanLog {
             timestamp_us,
             level,
@@ -190,19 +194,19 @@ impl Span {
             fields,
         });
     }
-    
+
     /// Finish the span
     pub fn finish(mut self) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros() as u64;
-            
+
         self.end_time_us = Some(now);
         self.duration_us = Some(now - self.start_time_us);
         self
     }
-    
+
     /// Mark span as failed with error
     pub fn set_error(&mut self, error: impl fmt::Display) {
         self.set_tag("error", true);
@@ -227,44 +231,44 @@ impl StructuredLogger {
             trace_context: None,
         }
     }
-    
+
     /// Set minimum log level
     pub fn with_level(mut self, level: LogLevel) -> Self {
         self.min_level = level;
         self
     }
-    
+
     /// Set trace context
     pub fn with_trace_context(mut self, context: TraceContext) -> Self {
         self.trace_context = Some(context);
         self
     }
-    
+
     /// Log at trace level
     pub fn trace(&self, message: impl Into<String>) {
         self.log_with_fields(LogLevel::Trace, message, HashMap::new());
     }
-    
+
     /// Log at debug level
     pub fn debug(&self, message: impl Into<String>) {
         self.log_with_fields(LogLevel::Debug, message, HashMap::new());
     }
-    
+
     /// Log at info level
     pub fn info(&self, message: impl Into<String>) {
         self.log_with_fields(LogLevel::Info, message, HashMap::new());
     }
-    
+
     /// Log at warn level
     pub fn warn(&self, message: impl Into<String>) {
         self.log_with_fields(LogLevel::Warn, message, HashMap::new());
     }
-    
+
     /// Log at error level
     pub fn error(&self, message: impl Into<String>) {
         self.log_with_fields(LogLevel::Error, message, HashMap::new());
     }
-    
+
     /// Log with structured fields
     pub fn log_with_fields(
         &self,
@@ -275,7 +279,7 @@ impl StructuredLogger {
         if level < self.min_level {
             return;
         }
-        
+
         let entry = LogEntry {
             timestamp: chrono::Utc::now().to_rfc3339(),
             level,
@@ -285,7 +289,7 @@ impl StructuredLogger {
             source: None, // TODO: Capture caller location
             service: self.service_name.clone(),
         };
-        
+
         // Output as JSON for structured logging
         if let Ok(json) = serde_json::to_string(&entry) {
             println!("{}", json);
@@ -307,35 +311,39 @@ impl Tracer {
             spans: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
-    
+
     /// Start a new root span
     pub fn start_span(&self, operation_name: impl Into<String>) -> Span {
         let context = TraceContext::new();
         Span::new(context, operation_name, &self.service_name)
     }
-    
+
     /// Start a child span
-    pub fn start_child_span(&self, parent: &TraceContext, operation_name: impl Into<String>) -> Span {
+    pub fn start_child_span(
+        &self,
+        parent: &TraceContext,
+        operation_name: impl Into<String>,
+    ) -> Span {
         let context = parent.child_span();
         Span::new(context, operation_name, &self.service_name)
     }
-    
+
     /// Finish and collect a span
     pub fn finish_span(&self, span: Span) {
         let finished_span = span.finish();
-        
+
         if finished_span.context.sampled {
             let mut spans = self.spans.lock().unwrap();
             spans.push(finished_span);
         }
     }
-    
+
     /// Get all collected spans
     pub fn get_spans(&self) -> Vec<Span> {
         let spans = self.spans.lock().unwrap();
         spans.clone()
     }
-    
+
     /// Clear collected spans
     pub fn clear_spans(&self) {
         let mut spans = self.spans.lock().unwrap();
@@ -389,54 +397,55 @@ fn generate_span_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_trace_context() {
         let parent = TraceContext::new();
         let child = parent.child_span();
-        
+
         assert_eq!(parent.trace_id, child.trace_id);
         assert_ne!(parent.span_id, child.span_id);
         assert_eq!(child.parent_span_id, Some(parent.span_id));
     }
-    
+
     #[test]
     fn test_span_lifecycle() {
         let context = TraceContext::new();
         let mut span = Span::new(context, "test_operation", "test_service");
-        
+
         span.set_tag("user_id", "12345");
         span.log(LogLevel::Info, "Processing request");
-        
+
         let finished_span = span.finish();
-        
+
         assert!(finished_span.end_time_us.is_some());
         assert!(finished_span.duration_us.is_some());
         assert_eq!(finished_span.tags.get("user_id").unwrap(), "12345");
         assert_eq!(finished_span.logs.len(), 1);
     }
-    
+
     #[test]
     fn test_structured_logger() {
-        let logger = StructuredLogger::new("test_service")
-            .with_level(LogLevel::Debug);
-            
+        let logger = StructuredLogger::new("test_service").with_level(LogLevel::Debug);
+
         logger.info("Test message");
         logger.log_with_fields(
             LogLevel::Warn,
             "Warning message",
             [("key".to_string(), serde_json::json!("value"))]
-                .iter().cloned().collect()
+                .iter()
+                .cloned()
+                .collect(),
         );
     }
-    
+
     #[test]
     fn test_tracer() {
         let tracer = Tracer::new("test_service");
-        
+
         let span = tracer.start_span("test_operation");
         tracer.finish_span(span);
-        
+
         let spans = tracer.get_spans();
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].operation_name, "test_operation");

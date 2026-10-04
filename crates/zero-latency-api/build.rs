@@ -39,9 +39,12 @@ fn main() {
     let rust_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
-            "-i", schema_path.to_str().unwrap(),
-            "-g", "rust",
-            "-o", rust_output.to_str().unwrap(),
+            "-i",
+            schema_path.to_str().unwrap(),
+            "-g",
+            "rust",
+            "-o",
+            rust_output.to_str().unwrap(),
             "--additional-properties",
             "packageName=zero_latency_api,supportAsync=true,library=reqwest",
         ])
@@ -50,8 +53,10 @@ fn main() {
     match rust_generation {
         Ok(output) => {
             if !output.status.success() {
-                println!("cargo:warning=Rust code generation failed: {}",
-                         String::from_utf8_lossy(&output.stderr));
+                println!(
+                    "cargo:warning=Rust code generation failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
                 generate_placeholder_types(&generated_dir);
             } else {
                 println!("cargo:warning=Generated Rust API types successfully");
@@ -71,9 +76,12 @@ fn main() {
     let _ts_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
-            "-i", schema_path.to_str().unwrap(),
-            "-g", "typescript-fetch",
-            "-o", ts_output.to_str().unwrap(),
+            "-i",
+            schema_path.to_str().unwrap(),
+            "-g",
+            "typescript-fetch",
+            "-o",
+            ts_output.to_str().unwrap(),
             "--additional-properties",
             "npmName=zero-latency-api-client,supportsES6=true",
         ])
@@ -86,9 +94,12 @@ fn main() {
     let _python_generation = Command::new("openapi-generator-cli")
         .args([
             "generate",
-            "-i", schema_path.to_str().unwrap(),
-            "-g", "python",
-            "-o", python_output.to_str().unwrap(),
+            "-i",
+            schema_path.to_str().unwrap(),
+            "-g",
+            "python",
+            "-o",
+            python_output.to_str().unwrap(),
             "--additional-properties",
             "packageName=zero_latency_api_client,generateSourceCodeOnly=true",
         ])
@@ -97,7 +108,10 @@ fn main() {
     // Generate API documentation
     generate_docs(&schema_path, &generated_dir);
 
-    println!("cargo:rustc-env=GENERATED_CODE_DIR={}", generated_dir.display());
+    println!(
+        "cargo:rustc-env=GENERATED_CODE_DIR={}",
+        generated_dir.display()
+    );
 }
 
 /// Generate API documentation in multiple formats
@@ -293,7 +307,7 @@ fn copy_generated_rust_files(rust_output: &Path, target_dir: &Path) {
                     "index_request.rs",
                     "index_response.rs",
                     "health_check_result.rs",
-                    "api_status_response.rs"
+                    "api_status_response.rs",
                 ];
 
                 // First include priority files
@@ -355,10 +369,11 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
             }
 
             // Filter out unwanted lines but keep struct/enum definitions
-            if trimmed.starts_with("use ") ||
-               trimmed.starts_with("//") ||
-               trimmed.starts_with("*") ||
-               (trimmed.is_empty() && !line.starts_with("    ")) {
+            if trimmed.starts_with("use ")
+                || trimmed.starts_with("//")
+                || trimmed.starts_with("*")
+                || (trimmed.is_empty() && !line.starts_with("    "))
+            {
                 None
             } else {
                 Some(line.to_string())
@@ -373,34 +388,31 @@ fn process_model_file(file_path: &Path, content: &str) -> String {
     // Rename Status enums to avoid conflicts
     let file_name = file_path.file_name().unwrap().to_str().unwrap();
     match file_name {
-        "api_status_response.rs" => {
-            processed
-                .replace("pub enum Status", "pub enum ApiStatus")
-                .replace("pub status: Status", "pub status: ApiStatus")
-                .replace("status: Status", "status: ApiStatus")
-                .replace("-> Status {", "-> ApiStatus {")
-                .replace("impl Default for Status", "impl Default for ApiStatus")
-                .replace("Self::", "ApiStatus::")
-        },
-        "collection.rs" => {
-            processed
-                .replace("pub enum Status", "pub enum CollectionStatus")
-                .replace("pub status: Status", "pub status: CollectionStatus")
-                .replace("status: Option<Status>", "status: Option<CollectionStatus>")
-                .replace("-> Status {", "-> CollectionStatus {")
-                .replace("impl Default for Status", "impl Default for CollectionStatus")
-                .replace("Self::", "CollectionStatus::")
-        },
-        "health_check_result.rs" => {
-            processed
-                .replace("pub enum Status", "pub enum HealthStatus")
-                .replace("pub status: Status", "pub status: HealthStatus")
-                .replace("status: Status", "status: HealthStatus")
-                .replace("-> Status {", "-> HealthStatus {")
-                .replace("impl Default for Status", "impl Default for HealthStatus")
-                .replace("Self::", "HealthStatus::")
-        },
-        _ => processed
+        "api_status_response.rs" => processed
+            .replace("pub enum Status", "pub enum ApiStatus")
+            .replace("pub status: Status", "pub status: ApiStatus")
+            .replace("status: Status", "status: ApiStatus")
+            .replace("-> Status {", "-> ApiStatus {")
+            .replace("impl Default for Status", "impl Default for ApiStatus")
+            .replace("Self::", "ApiStatus::"),
+        "collection.rs" => processed
+            .replace("pub enum Status", "pub enum CollectionStatus")
+            .replace("pub status: Status", "pub status: CollectionStatus")
+            .replace("status: Option<Status>", "status: Option<CollectionStatus>")
+            .replace("-> Status {", "-> CollectionStatus {")
+            .replace(
+                "impl Default for Status",
+                "impl Default for CollectionStatus",
+            )
+            .replace("Self::", "CollectionStatus::"),
+        "health_check_result.rs" => processed
+            .replace("pub enum Status", "pub enum HealthStatus")
+            .replace("pub status: Status", "pub status: HealthStatus")
+            .replace("status: Status", "status: HealthStatus")
+            .replace("-> Status {", "-> HealthStatus {")
+            .replace("impl Default for Status", "impl Default for HealthStatus")
+            .replace("Self::", "HealthStatus::"),
+        _ => processed,
     }
 }
 
@@ -418,7 +430,10 @@ fn generate_markdown_docs(spec: &serde_yaml::Value) -> Result<String, Box<dyn st
             content.push_str(&format!("{}\n\n", description.as_str().unwrap_or("")));
         }
         if let Some(version) = info.get("version") {
-            content.push_str(&format!("**Version:** {}\n\n", version.as_str().unwrap_or("1.0.0")));
+            content.push_str(&format!(
+                "**Version:** {}\n\n",
+                version.as_str().unwrap_or("1.0.0")
+            ));
         }
     }
 
@@ -445,10 +460,15 @@ fn generate_markdown_docs(spec: &serde_yaml::Value) -> Result<String, Box<dyn st
                     // Add request/response schema information
                     if let Some(request_body) = method_obj.get("requestBody") {
                         content.push_str("**Request Body:**\n");
-                        if let Some(content_obj) = request_body.get("content").and_then(|c| c.get("application/json")) {
+                        if let Some(content_obj) = request_body
+                            .get("content")
+                            .and_then(|c| c.get("application/json"))
+                        {
                             if let Some(schema) = content_obj.get("schema") {
-                                content.push_str(&format!("```json\n{}\n```\n\n",
-                                    serde_yaml::to_string(schema).unwrap_or_default().trim()));
+                                content.push_str(&format!(
+                                    "```json\n{}\n```\n\n",
+                                    serde_yaml::to_string(schema).unwrap_or_default().trim()
+                                ));
                             }
                         }
                     }

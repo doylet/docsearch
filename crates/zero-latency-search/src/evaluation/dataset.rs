@@ -63,12 +63,12 @@ impl LabeledExample {
             metadata: HashMap::new(),
         }
     }
-    
+
     pub fn with_category(mut self, category: impl Into<String>) -> Self {
         self.category = Some(category.into());
         self
     }
-    
+
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
@@ -100,15 +100,15 @@ impl EvaluationDataset {
             metadata: HashMap::new(),
         }
     }
-    
+
     pub fn add_example(&mut self, example: LabeledExample) {
         self.examples.push(example);
     }
-    
+
     pub fn add_examples(&mut self, examples: Vec<LabeledExample>) {
         self.examples.extend(examples);
     }
-    
+
     /// Get all unique queries in the dataset
     pub fn get_queries(&self) -> Vec<String> {
         let mut queries: Vec<String> = self
@@ -121,7 +121,7 @@ impl EvaluationDataset {
         queries.sort();
         queries
     }
-    
+
     /// Get examples for a specific query
     pub fn get_examples_for_query(&self, query: &str) -> Vec<&LabeledExample> {
         self.examples
@@ -129,7 +129,7 @@ impl EvaluationDataset {
             .filter(|ex| ex.query == query)
             .collect()
     }
-    
+
     /// Get examples by category
     pub fn get_examples_by_category(&self, category: &str) -> Vec<&LabeledExample> {
         self.examples
@@ -137,40 +137,38 @@ impl EvaluationDataset {
             .filter(|ex| ex.category.as_deref() == Some(category))
             .collect()
     }
-    
+
     /// Load dataset from JSON file
     pub fn from_json_file(path: &str) -> Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            ZeroLatencyError::io(format!("Failed to read dataset file: {}", e))
-        })?;
-        
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ZeroLatencyError::io(format!("Failed to read dataset file: {}", e)))?;
+
         let dataset: EvaluationDataset = serde_json::from_str(&content).map_err(|e| {
             ZeroLatencyError::configuration(format!("Failed to parse dataset JSON: {}", e))
         })?;
-        
+
         Ok(dataset)
     }
-    
+
     /// Save dataset to JSON file
     pub fn to_json_file(&self, path: &str) -> Result<()> {
         let content = serde_json::to_string_pretty(self).map_err(|e| {
             ZeroLatencyError::configuration(format!("Failed to serialize dataset: {}", e))
         })?;
-        
-        std::fs::write(path, content).map_err(|e| {
-            ZeroLatencyError::io(format!("Failed to write dataset file: {}", e))
-        })?;
-        
+
+        std::fs::write(path, content)
+            .map_err(|e| ZeroLatencyError::io(format!("Failed to write dataset file: {}", e)))?;
+
         Ok(())
     }
-    
+
     /// Create a sample dataset for testing
     pub fn create_sample() -> Self {
         let mut dataset = Self::new(
             "sample_evaluation_dataset",
             "Sample dataset for testing search quality metrics",
         );
-        
+
         // Add some sample examples
         let examples = vec![
             LabeledExample::new(
@@ -178,30 +176,31 @@ impl EvaluationDataset {
                 "rust programming language",
                 DocId::new("docs", "rust-lang-intro", 1),
                 RelevanceRating::HighlyRelevant,
-            ).with_category("programming"),
-            
+            )
+            .with_category("programming"),
             LabeledExample::new(
-                "ex2", 
+                "ex2",
                 "rust programming language",
                 DocId::new("docs", "javascript-guide", 1),
                 RelevanceRating::NotRelevant,
-            ).with_category("programming"),
-            
+            )
+            .with_category("programming"),
             LabeledExample::new(
                 "ex3",
                 "vector database search",
                 DocId::new("docs", "qdrant-setup", 1),
                 RelevanceRating::HighlyRelevant,
-            ).with_category("database"),
-            
+            )
+            .with_category("database"),
             LabeledExample::new(
                 "ex4",
-                "vector database search", 
+                "vector database search",
                 DocId::new("docs", "mysql-tutorial", 1),
                 RelevanceRating::SomewhatRelevant,
-            ).with_category("database"),
+            )
+            .with_category("database"),
         ];
-        
+
         dataset.add_examples(examples);
         dataset
     }
@@ -217,7 +216,7 @@ mod tests {
         let dataset = EvaluationDataset::create_sample();
         assert_eq!(dataset.name, "sample_evaluation_dataset");
         assert_eq!(dataset.examples.len(), 4);
-        
+
         let queries = dataset.get_queries();
         assert_eq!(queries.len(), 2);
         assert!(queries.contains(&"rust programming language".to_string()));
@@ -229,7 +228,7 @@ mod tests {
         let dataset = EvaluationDataset::create_sample();
         let rust_examples = dataset.get_examples_for_query("rust programming language");
         assert_eq!(rust_examples.len(), 2);
-        
+
         let programming_examples = dataset.get_examples_by_category("programming");
         assert_eq!(programming_examples.len(), 2);
     }
@@ -239,10 +238,10 @@ mod tests {
         let dataset = EvaluationDataset::create_sample();
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_str().unwrap();
-        
+
         dataset.to_json_file(path).unwrap();
         let loaded_dataset = EvaluationDataset::from_json_file(path).unwrap();
-        
+
         assert_eq!(dataset.name, loaded_dataset.name);
         assert_eq!(dataset.examples.len(), loaded_dataset.examples.len());
     }
@@ -253,7 +252,7 @@ mod tests {
         assert_eq!(RelevanceRating::from(1), RelevanceRating::SomewhatRelevant);
         assert_eq!(RelevanceRating::from(2), RelevanceRating::HighlyRelevant);
         assert_eq!(RelevanceRating::from(99), RelevanceRating::NotRelevant); // Default
-        
+
         assert_eq!(f64::from(RelevanceRating::NotRelevant), 0.0);
         assert_eq!(f64::from(RelevanceRating::SomewhatRelevant), 1.0);
         assert_eq!(f64::from(RelevanceRating::HighlyRelevant), 2.0);

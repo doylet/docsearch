@@ -159,14 +159,15 @@ impl TantivyAdapter {
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<BM25SearchResult>> {
         let searcher = self.reader.searcher();
 
-        let query_parser = QueryParser::for_index(&self.index, vec![self.fields.title, self.fields.content]);
-        let query = query_parser.parse_query(query).map_err(|e| {
-            ZeroLatencyError::search(format!("Failed to parse query: {}", e))
-        })?;
+        let query_parser =
+            QueryParser::for_index(&self.index, vec![self.fields.title, self.fields.content]);
+        let query = query_parser
+            .parse_query(query)
+            .map_err(|e| ZeroLatencyError::search(format!("Failed to parse query: {}", e)))?;
 
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit)).map_err(|e| {
-            ZeroLatencyError::search(format!("Search failed: {}", e))
-        })?;
+        let top_docs = searcher
+            .search(&query, &TopDocs::with_limit(limit))
+            .map_err(|e| ZeroLatencyError::search(format!("Search failed: {}", e)))?;
 
         let mut results = Vec::new();
 
@@ -210,7 +211,10 @@ impl TantivyAdapter {
             let section_path = if section_path_str.is_empty() {
                 Vec::new()
             } else {
-                section_path_str.split(" > ").map(|s| s.to_string()).collect()
+                section_path_str
+                    .split(" > ")
+                    .map(|s| s.to_string())
+                    .collect()
             };
 
             let collection = retrieved_doc
@@ -253,9 +257,9 @@ impl TantivyAdapter {
         let term = tantivy::Term::from_field_text(self.fields.doc_id, &doc_id.to_index_key());
         writer.delete_term(term);
 
-        writer.commit().map_err(|e| {
-            ZeroLatencyError::search(format!("Failed to commit delete: {}", e))
-        })?;
+        writer
+            .commit()
+            .map_err(|e| ZeroLatencyError::search(format!("Failed to commit delete: {}", e)))?;
 
         Ok(())
     }
@@ -275,19 +279,19 @@ impl TantivyAdapter {
 
     pub async fn search(&self, _query: &str, _limit: usize) -> Result<Vec<BM25SearchResult>> {
         Err(ZeroLatencyError::search(
-            "BM25 search requires tantivy feature to be enabled".to_string()
+            "BM25 search requires tantivy feature to be enabled".to_string(),
         ))
     }
 
     pub async fn index_document(&self, _result: &BM25SearchResult) -> Result<()> {
         Err(ZeroLatencyError::search(
-            "BM25 indexing requires tantivy feature to be enabled".to_string()
+            "BM25 indexing requires tantivy feature to be enabled".to_string(),
         ))
     }
 
     pub async fn delete_document(&self, _doc_id: &DocId) -> Result<()> {
         Err(ZeroLatencyError::search(
-            "BM25 deletion requires tantivy feature to be enabled".to_string()
+            "BM25 deletion requires tantivy feature to be enabled".to_string(),
         ))
     }
 }
@@ -350,7 +354,10 @@ impl SearchStep for BM25SearchStep {
             .search(query_text, context.request.limit)
             .await?;
 
-        tracing::info!("📊 BM25SearchStep: Found {} BM25 results", bm25_results.len());
+        tracing::info!(
+            "📊 BM25SearchStep: Found {} BM25 results",
+            bm25_results.len()
+        );
 
         // Convert to SearchResult format
         let search_results: Vec<SearchResult> = bm25_results

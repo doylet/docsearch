@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use crate::fusion::deduplication::{
+    DeduplicationConfig, DeduplicationMetrics, DuplicationStrategy, ResultDeduplicator,
+};
 use crate::models::SearchResult;
-use crate::fusion::deduplication::{ResultDeduplicator, DeduplicationConfig, DuplicationStrategy, DeduplicationMetrics};
+use std::collections::HashMap;
 use zero_latency_core::error::ZeroLatencyError;
 
 /// Configuration for result merging behavior
@@ -81,26 +83,30 @@ impl ResultMerger {
         let start_time = std::time::Instant::now();
 
         if variant_results.is_empty() {
-            return Ok((Vec::new(), MergeMetrics {
-                query_variants_processed: 0,
-                total_results_before_merge: 0,
-                total_results_after_merge: 0,
-                deduplication_metrics: DeduplicationMetrics {
-                    total_input_results: 0,
-                    duplicates_found: 0,
-                    duplicates_removed: 0,
-                    duplicates_merged: 0,
-                    final_result_count: 0,
-                    similarity_comparisons: 0,
+            return Ok((
+                Vec::new(),
+                MergeMetrics {
+                    query_variants_processed: 0,
+                    total_results_before_merge: 0,
+                    total_results_after_merge: 0,
+                    deduplication_metrics: DeduplicationMetrics {
+                        total_input_results: 0,
+                        duplicates_found: 0,
+                        duplicates_removed: 0,
+                        duplicates_merged: 0,
+                        final_result_count: 0,
+                        similarity_comparisons: 0,
+                        processing_time_ms: 0,
+                    },
                     processing_time_ms: 0,
+                    variant_contributions: HashMap::new(),
                 },
-                processing_time_ms: 0,
-                variant_contributions: HashMap::new(),
-            }));
+            ));
         }
 
         // Step 1: Collect and count all results
-        let (all_results, variant_contributions, total_before) = self.collect_all_results(&variant_results)?;
+        let (all_results, variant_contributions, total_before) =
+            self.collect_all_results(&variant_results)?;
 
         // Step 2: Deduplicate and merge results
         let (deduplicated_results, dedup_metrics) = self.deduplicator.deduplicate(all_results)?;
@@ -145,7 +151,10 @@ impl ResultMerger {
     }
 
     /// Apply final ranking and limit results
-    fn apply_final_ranking_and_limit(&self, mut results: Vec<SearchResult>) -> Result<Vec<SearchResult>, ZeroLatencyError> {
+    fn apply_final_ranking_and_limit(
+        &self,
+        mut results: Vec<SearchResult>,
+    ) -> Result<Vec<SearchResult>, ZeroLatencyError> {
         // Sort by fused score (descending) with stable tie-breaking
         results.sort_by(|a, b| {
             match b.scores.fused.partial_cmp(&a.scores.fused) {
@@ -173,8 +182,10 @@ impl ResultMerger {
     /// Update merger configuration
     pub fn update_config(&mut self, config: MergerConfig) {
         // Update deduplicator configuration
-        self.deduplicator.update_config(config.deduplication.clone());
-        self.deduplicator.update_strategy(config.duplication_strategy.clone());
+        self.deduplicator
+            .update_config(config.deduplication.clone());
+        self.deduplicator
+            .update_strategy(config.duplication_strategy.clone());
 
         self.config = config;
     }
@@ -207,9 +218,9 @@ impl ResultMerger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fusion::{FromSignals, ScoreBreakdown};
     use crate::models::SearchResult;
     use zero_latency_core::DocId;
-    use crate::fusion::{FromSignals, ScoreBreakdown};
 
     fn create_test_result(doc_id: &str, score: f32) -> SearchResult {
         let doc_id = DocId::new("test_collection", doc_id, 1);
@@ -285,7 +296,7 @@ mod tests {
 
         // Check that results are properly ranked
         for i in 1..merged.len() {
-            assert!(merged[i-1].scores.fused >= merged[i].scores.fused);
+            assert!(merged[i - 1].scores.fused >= merged[i].scores.fused);
         }
     }
 }

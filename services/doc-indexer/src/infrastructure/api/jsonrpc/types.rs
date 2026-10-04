@@ -141,14 +141,18 @@ pub struct ServiceCapabilities {
 
 // Error conversion utilities
 
-impl From<zero_latency_core::ZeroLatencyError> for crate::infrastructure::api::jsonrpc::JsonRpcError {
+impl From<zero_latency_core::ZeroLatencyError>
+    for crate::infrastructure::api::jsonrpc::JsonRpcError
+{
     fn from(err: zero_latency_core::ZeroLatencyError) -> Self {
         use crate::infrastructure::api::jsonrpc::error_codes;
         use zero_latency_core::ZeroLatencyError;
 
         match err {
             ZeroLatencyError::Validation { field, message } => {
-                crate::infrastructure::api::jsonrpc::JsonRpcError::validation_error(&field, &message)
+                crate::infrastructure::api::jsonrpc::JsonRpcError::validation_error(
+                    &field, &message,
+                )
             }
             ZeroLatencyError::NotFound { resource } => {
                 if resource.contains("document") {

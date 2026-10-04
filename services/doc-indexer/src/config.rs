@@ -4,8 +4,8 @@ use crate::infrastructure::ServerConfig;
 /// This module handles loading and validating configuration from various sources
 /// including environment variables, configuration files, and command line arguments.
 use serde::{Deserialize, Serialize};
-use zero_latency_core::{Result, ZeroLatencyError};
 use zero_latency_config::AppConfig;
+use zero_latency_core::{Result, ZeroLatencyError};
 
 // For simpler compilation, we'll include all config types but make implementations conditional
 // This allows configuration to be loaded regardless of features, but actual usage is gated
@@ -659,25 +659,25 @@ impl Config {
     /// Create Config from the centralized AppConfig
     pub fn from_app_config(app_config: AppConfig) -> Self {
         let mut config = Self::default();
-        
+
         // Map server configuration
         config.server.port = app_config.server.port;
         config.server.host = app_config.server.host;
-        
+
         // Map docs path if provided
         if let Some(docs_path) = app_config.server.docs_path {
             config.service.docs_path = std::path::PathBuf::from(docs_path);
         }
-        
+
         // Map collection name
         config.service.default_collection = app_config.server.collection_name;
-        
+
         // Map logging configuration
         config.logging.level = app_config.app.log_level;
-        
+
         // Map timeouts
         config.server.timeout_seconds = app_config.server.timeout_ms / 1000;
-        
+
         config
     }
 }

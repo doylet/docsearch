@@ -1,7 +1,7 @@
-use std::process::{Command, Stdio, Child};
+use reqwest::Client;
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use tokio::runtime::Runtime;
-use reqwest::Client;
 use zero_latency_config::TestConfigHelper;
 
 /// Test utilities for doc-indexer integration tests
@@ -35,7 +35,11 @@ impl TestUtils {
     }
 
     /// Start a doc-indexer server process for testing
-    pub fn start_test_server(&self, port: u16, docs_path: &str) -> Result<Child, Box<dyn std::error::Error>> {
+    pub fn start_test_server(
+        &self,
+        port: u16,
+        docs_path: &str,
+    ) -> Result<Child, Box<dyn std::error::Error>> {
         let binary_path = self.resolve_binary_path();
 
         let child = Command::new(&binary_path)
@@ -55,7 +59,11 @@ impl TestUtils {
     }
 
     /// Wait for a server to become healthy
-    pub async fn wait_for_health(&self, port: u16, timeout_seconds: u64) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn wait_for_health(
+        &self,
+        port: u16,
+        timeout_seconds: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let client = Client::new();
         let health_url = format!("http://localhost:{}/health", port);
 
@@ -68,11 +76,19 @@ impl TestUtils {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
-        Err(format!("Server at port {} did not become healthy within {} seconds", port, timeout_seconds).into())
+        Err(format!(
+            "Server at port {} did not become healthy within {} seconds",
+            port, timeout_seconds
+        )
+        .into())
     }
 
     /// Wait for a server to become healthy (blocking version for non-async tests)
-    pub fn wait_for_health_blocking(&self, port: u16, timeout_seconds: u64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn wait_for_health_blocking(
+        &self,
+        port: u16,
+        timeout_seconds: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let rt = Runtime::new()?;
         rt.block_on(self.wait_for_health(port, timeout_seconds))
     }
@@ -152,7 +168,10 @@ impl TestAssertions {
     pub fn assert_search_results_not_empty(response_body: &serde_json::Value, context: &str) {
         let results = response_body
             .get("results")
-            .expect(&format!("{}: Response should have 'results' field", context))
+            .expect(&format!(
+                "{}: Response should have 'results' field",
+                context
+            ))
             .as_array()
             .expect(&format!("{}: 'results' should be an array", context));
 
@@ -167,14 +186,20 @@ impl TestAssertions {
     pub fn assert_search_quality(response_body: &serde_json::Value, min_score: f64, context: &str) {
         let results = response_body
             .get("results")
-            .expect(&format!("{}: Response should have 'results' field", context))
+            .expect(&format!(
+                "{}: Response should have 'results' field",
+                context
+            ))
             .as_array()
             .expect(&format!("{}: 'results' should be an array", context));
 
         for (i, result) in results.iter().enumerate() {
             let score = result
                 .get("score")
-                .expect(&format!("{}: Result {} should have 'score' field", context, i))
+                .expect(&format!(
+                    "{}: Result {} should have 'score' field",
+                    context, i
+                ))
                 .as_f64()
                 .expect(&format!("{}: Score should be a number", context));
 
@@ -204,7 +229,11 @@ impl TestServerManager {
     }
 
     /// Start a server and register it for cleanup
-    pub fn start_managed_server(&mut self, test_utils: &TestUtils, config: &TestConfig) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn start_managed_server(
+        &mut self,
+        test_utils: &TestUtils,
+        config: &TestConfig,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let child = test_utils.start_test_server(config.port, &config.docs_path)?;
         self.servers.push(child);
         Ok(())

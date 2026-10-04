@@ -50,7 +50,8 @@ impl FromSignals {
             variants: vec![0], // Original query
             query_expansion: false,
         }
-    }    /// Create signals for specific query variant
+    }
+    /// Create signals for specific query variant
     pub fn from_variant(variant_index: usize, engine: SearchEngine) -> Self {
         match engine {
             SearchEngine::Vector => Self {
@@ -73,13 +74,13 @@ impl FromSignals {
             },
         }
     }
-    
+
     /// Merge signals from multiple sources
     pub fn merge(&mut self, other: &FromSignals) {
         self.bm25 |= other.bm25;
         self.vector |= other.vector;
         self.query_expansion |= other.query_expansion;
-        
+
         // Merge variant indices, keeping unique values
         for &variant in &other.variants {
             if !self.variants.contains(&variant) {
@@ -88,7 +89,7 @@ impl FromSignals {
         }
         self.variants.sort_unstable();
     }
-    
+
     /// Get primary search engine that contributed this result
     pub fn primary_engine(&self) -> SearchEngine {
         match (self.bm25, self.vector) {
@@ -130,9 +131,9 @@ mod tests {
     fn test_signal_merging() {
         let mut signals = FromSignals::vector_only();
         let bm25_signals = FromSignals::from_variant(1, SearchEngine::BM25);
-        
+
         signals.merge(&bm25_signals);
-        
+
         assert!(signals.bm25);
         assert!(signals.vector);
         assert_eq!(signals.variants, vec![0, 1]);

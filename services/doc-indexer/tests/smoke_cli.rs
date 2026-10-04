@@ -1,11 +1,11 @@
 mod test_utils;
 
-use std::process::{Command, Stdio};
-use std::time::Duration;
-use tokio::runtime::Runtime;
 use reqwest::Client;
 use serde_json::json;
-use test_utils::{ChildGuard, TestUtils, TestAssertions};
+use std::process::{Command, Stdio};
+use std::time::Duration;
+use test_utils::{ChildGuard, TestAssertions, TestUtils};
+use tokio::runtime::Runtime;
 
 #[test]
 #[ignore = "spawns doc-indexer against the shared local data store; search ignores collection scoping so results are order-dependent"]
@@ -13,25 +13,28 @@ fn smoke_test_advanced_query_enhancement_and_ranking() {
     let test_utils = TestUtils::new();
     let config = test_utils.create_test_config();
 
-    let _server = ChildGuard(Command::new(&config.binary_path)
-        .args([
-            "--docs-path",
-            &config.docs_path,
-            "--port",
-            &config.port.to_string(),
-            "--log-level",
-            "info",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start doc-indexer CLI for advanced search test"));
+    let _server = ChildGuard(
+        Command::new(&config.binary_path)
+            .args([
+                "--docs-path",
+                &config.docs_path,
+                "--port",
+                &config.port.to_string(),
+                "--log-level",
+                "info",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to start doc-indexer CLI for advanced search test"),
+    );
 
     let rt = Runtime::new().unwrap();
     let client = Client::new();
 
     // Wait for the server to be ready using test utilities
-    test_utils.wait_for_health_blocking(config.port, 30)
+    test_utils
+        .wait_for_health_blocking(config.port, 30)
         .expect("doc-indexer did not become healthy in time");
 
     // Index the test document using unique collection name
@@ -86,26 +89,29 @@ fn smoke_test_end_to_end_index_and_search() {
     let test_utils = TestUtils::new();
     let config = test_utils.create_test_config();
 
-    let _server = ChildGuard(Command::new(&config.binary_path)
-        .args([
-            "--docs-path",
-            &config.docs_path,
-            "--port",
-            &config.port.to_string(),
-            "--log-level",
-            "info",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start doc-indexer CLI for end-to-end test"));
+    let _server = ChildGuard(
+        Command::new(&config.binary_path)
+            .args([
+                "--docs-path",
+                &config.docs_path,
+                "--port",
+                &config.port.to_string(),
+                "--log-level",
+                "info",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to start doc-indexer CLI for end-to-end test"),
+    );
 
     // Use a tokio runtime for async HTTP
     let rt = Runtime::new().unwrap();
     let client = Client::new();
 
     // Wait for the server to be ready using test utilities
-    test_utils.wait_for_health_blocking(config.port, 30)
+    test_utils
+        .wait_for_health_blocking(config.port, 30)
         .expect("doc-indexer did not become healthy in time");
 
     // Index documents using unique collection name
@@ -144,7 +150,12 @@ fn smoke_test_end_to_end_index_and_search() {
         "limit": 5
     });
     let resp = rt
-        .block_on(client.post(&config.search_url()).json(&semantic_search_body).send())
+        .block_on(
+            client
+                .post(&config.search_url())
+                .json(&semantic_search_body)
+                .send(),
+        )
         .expect("Failed to POST semantic search");
     TestAssertions::assert_success_response(&resp, "Semantic search");
 
@@ -163,22 +174,25 @@ fn smoke_test_cli_runs_with_docs_path() {
     let config = test_utils.create_test_config();
 
     // Test that the CLI can start with custom docs path
-    let _server = ChildGuard(Command::new(&config.binary_path)
-        .args([
-            "--docs-path",
-            &config.docs_path,
-            "--port",
-            &config.port.to_string(),
-            "--log-level",
-            "debug",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start doc-indexer CLI with custom docs path"));
+    let _server = ChildGuard(
+        Command::new(&config.binary_path)
+            .args([
+                "--docs-path",
+                &config.docs_path,
+                "--port",
+                &config.port.to_string(),
+                "--log-level",
+                "debug",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to start doc-indexer CLI with custom docs path"),
+    );
 
     // Wait for server to start
-    test_utils.wait_for_health_blocking(config.port, 30)
+    test_utils
+        .wait_for_health_blocking(config.port, 30)
         .expect("doc-indexer with custom docs path did not become healthy");
 
     let rt = Runtime::new().unwrap();

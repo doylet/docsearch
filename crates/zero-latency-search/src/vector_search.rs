@@ -1,7 +1,7 @@
 use crate::{models::*, traits::*};
 use async_trait::async_trait;
 use std::sync::Arc;
-use zero_latency_core::{Result, DocId};
+use zero_latency_core::{DocId, Result};
 use zero_latency_vector::VectorRepository;
 
 /// Vector search step that queries the vector database
@@ -99,15 +99,15 @@ impl SearchStep for VectorSearchStep {
         let search_results: Vec<SearchResult> = vector_results
             .into_iter()
             .map(|result| {
-                use crate::fusion::{ScoreBreakdown, FromSignals, NormalizationMethod};
-                
+                use crate::fusion::{FromSignals, NormalizationMethod, ScoreBreakdown};
+
                 // Create a DocId from the result
                 let doc_id = DocId::new(
                     result.metadata.collection.as_deref().unwrap_or("default"),
                     &result.document_id.to_string(),
                     1,
                 );
-                
+
                 // Create score breakdown for vector-only search
                 let similarity_f32 = result.similarity.value();
                 let scores = ScoreBreakdown {
@@ -118,20 +118,20 @@ impl SearchStep for VectorSearchStep {
                     fused: similarity_f32,
                     normalization_method: NormalizationMethod::MinMax,
                 };
-                
+
                 // Create from_signals tracking
                 let from_signals = FromSignals::vector_only();
-                
+
                 let uri = result
                     .metadata
                     .custom
                     .get("path")
                     .cloned()
                     .unwrap_or_else(|| format!("doc:{}", result.document_id));
-                
+
                 let title = result.metadata.title.clone();
                 let content = result.metadata.content.clone();
-                
+
                 SearchResult {
                     doc_id,
                     chunk_id: uuid::Uuid::new_v4(),

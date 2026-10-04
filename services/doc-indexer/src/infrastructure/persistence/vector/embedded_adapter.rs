@@ -246,7 +246,8 @@ impl VectorRepository for EmbeddedVectorStore {
             }
 
             // Update cache with concurrent access
-            self.cache.insert(document.id.to_string(), document.embedding);
+            self.cache
+                .insert(document.id.to_string(), document.embedding);
         }
 
         Ok(())

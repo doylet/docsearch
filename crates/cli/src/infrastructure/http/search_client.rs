@@ -1,8 +1,8 @@
 use reqwest::Client;
 use std::time::Duration;
+use zero_latency_api::{SearchFilters, SearchRequest};
 use zero_latency_core::{values::SearchQuery, Result as ZeroLatencyResult, ZeroLatencyError};
 use zero_latency_search::SearchResponse;
-use zero_latency_api::{SearchRequest, SearchFilters};
 
 /// HTTP client for search operations against the Zero Latency API.
 ///
