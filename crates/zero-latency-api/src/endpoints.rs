@@ -24,14 +24,17 @@ pub mod endpoints {
     pub const REINDEX: &str = "/api/reindex";
     pub const BROWSE: &str = "/api/browse";
 
+    // Path parameters use axum 0.7 syntax (`:name`); `{name}` would only match
+    // that literal text.
+
     // Collection management endpoints
     pub const COLLECTIONS: &str = "/api/collections";
-    pub const COLLECTION_BY_NAME: &str = "/api/collections/{name}";
-    pub const COLLECTION_STATS: &str = "/api/collections/{name}/stats";
+    pub const COLLECTION_BY_NAME: &str = "/api/collections/:name";
+    pub const COLLECTION_STATS: &str = "/api/collections/:name/stats";
 
     // Document endpoints
     pub const DOCUMENTS: &str = "/api/documents";
-    pub const DOCUMENT_BY_ID: &str = "/api/documents/{id}";
+    pub const DOCUMENT_BY_ID: &str = "/api/documents/:id";
 
     // Server management
     pub const SERVER_START: &str = "/api/server/start";
@@ -44,15 +47,15 @@ pub mod endpoints {
 
     /// Helper functions for dynamic endpoints
     pub fn collection_by_name(name: &str) -> String {
-        COLLECTION_BY_NAME.replace("{name}", name)
+        COLLECTION_BY_NAME.replace(":name", name)
     }
 
     pub fn collection_stats(name: &str) -> String {
-        COLLECTION_STATS.replace("{name}", name)
+        COLLECTION_STATS.replace(":name", name)
     }
 
     pub fn document_by_id(id: &str) -> String {
-        DOCUMENT_BY_ID.replace("{id}", id)
+        DOCUMENT_BY_ID.replace(":id", id)
     }
 }
 

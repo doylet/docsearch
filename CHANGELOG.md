@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `reindex_required` on `GET /api/status` and in `mdx status`
 
 ### Fixed
+- **Collection routes**: `GET`/`DELETE /api/collections/{name}`, `GET /api/collections/{name}/stats` and `GET /api/documents/{id}` returned 404 for every name; the routes used axum 0.8 `{param}` syntax on axum 0.7
+- **Deleting a collection now deletes its documents**: `DELETE /api/collections/{name}` only dropped the name from an in-memory list, so the documents stayed searchable. The same bug made `POST /api/reindex` duplicate every chunk instead of replacing it
+- **Vector search embeds the query as written**: query expansion terms (e.g. "execute invoke launch start") were appended to the text sent to the embedding model, diluting its meaning. Expansion now applies only to keyword search
 - **Web UI collection picker**: searches now honour the selected collection (the frontend sent a `collection` field the API ignored), and "All Collections" searches every collection. `POST /api/search` without `filters.collection_name` now searches all collections, as JSON-RPC `document.search` already did; previously it searched only `zero_latency_docs`
 - **`tantivy` feature builds**: the Tantivy BM25 adapter is ported to tantivy 0.22, opens or creates its index in an empty directory, and makes documents searchable as soon as indexing returns
 - **`cloud` feature builds**: the OpenAI embedding provider now calls the OpenAI API (previously it returned placeholder vectors), and the Qdrant backend now stores, updates, deletes and counts vectors (previously only search worked), creating its collection on first insert
