@@ -1,9 +1,10 @@
 # Multi-stage Dockerfile for docsearch production deployment
 # Uses cargo-chef for intelligent dependency caching
-FROM rust:1.90-slim as chef
+# Keep the Rust version in step with CI (stable) and on bookworm to match the runtime image's glibc.
+FROM rust:1.99-slim-bookworm as chef
 
 # Install cargo-chef
-RUN cargo install cargo-chef
+RUN cargo install cargo-chef --locked
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
