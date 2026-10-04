@@ -30,7 +30,7 @@
 - [x] 5.3 `ci-cd.yml` build job: upload `target/release/doc-indexer` and `target/release/mdx`
 - [x] 5.4 `ci-cd.yml`: build the Docker image without pushing on pull requests; push and deploy jobs run only when `vars.DEPLOY_ENABLED == 'true'`
 - [x] 5.5 Add a `frontend` job: setup-node with npm cache, `npm ci`, then `tsc --noEmit`, `npm run build` and `npm audit --omit=dev --audit-level=high` in `apps/frontend` (ESLint open question: the flat config loads under eslint 9 but reports 8 errors, so lint stays out for now)
-- [ ] 5.6 Check the ONNX Runtime download works on the runner; add a cache for it if it's slow
+- [x] 5.6 Check the ONNX Runtime download works on the runner; add a cache for it if it's slow (works; Test Suite 172s and Build 280s on a cold cache, so no ORT-specific cache needed)
 - [x] 5.7 Resolve the open question on the `develop` and `sprint/**` triggers (resolved: dropped both, since the remote has only `main`; deploy-staging now runs on pushes to `main`)
 - [x] 5.8 Remove any remaining steps that swallow their own failure (`|| true`, `|| echo`) where the check should be able to fail, or document why they stay (schema-validation: removed the `|| echo`s; breaking-change detection stays warn-only by design, with a comment saying why)
 - [x] 5.9 Commit the workflow changes
@@ -43,5 +43,5 @@
 
 ## 7. Follow-ups
 
-- [ ] 7.1 Propose an OpenSpec change for dead-code removal (which ends with removing `-A dead_code` from CI)
-- [ ] 7.2 Propose an OpenSpec change to fix or delete the `tantivy` and `cloud` features
+- [x] 7.1 Propose an OpenSpec change for dead-code removal (which ends with removing `-A dead_code` from CI) (`remove-dead-code`)
+- [x] 7.2 Propose an OpenSpec change to fix or delete the `tantivy` and `cloud` features (`resolve-broken-features`)
