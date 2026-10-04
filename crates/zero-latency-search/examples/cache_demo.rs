@@ -3,13 +3,10 @@
 //! This binary demonstrates the comprehensive caching system for hybrid search.
 
 use std::sync::Arc;
-use tokio;
 
-use zero_latency_search::cache::{
-    CacheConfig, HybridSearchCacheManager,
-};
-use zero_latency_search::models::SearchRequest;
 use zero_latency_core::Result;
+use zero_latency_search::cache::{CacheConfig, HybridSearchCacheManager};
+use zero_latency_search::models::SearchRequest;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +16,7 @@ async fn main() -> Result<()> {
     // Initialize caching system
     let config = CacheConfig::default();
     let cache_manager = Arc::new(HybridSearchCacheManager::new(config));
-    
+
     println!("✅ Cache system initialized");
 
     // Run performance demonstration
@@ -50,7 +47,7 @@ async fn test_cache_operations(cache_manager: &Arc<HybridSearchCacheManager>) ->
     // Simulate cache operations
     for (i, query) in test_queries.iter().enumerate() {
         println!("   Processing query {}: {}", i + 1, query.query.raw);
-        
+
         // Simulate cache miss/hit patterns
         if i % 2 == 0 {
             cache_manager.record_cache_hit().await;
@@ -58,7 +55,7 @@ async fn test_cache_operations(cache_manager: &Arc<HybridSearchCacheManager>) ->
             cache_manager.record_cache_miss().await;
         }
     }
-    
+
     println!("   ✓ Cache operations completed");
     Ok(())
 }

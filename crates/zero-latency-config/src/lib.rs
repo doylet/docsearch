@@ -11,12 +11,17 @@ pub mod models;
 pub mod validation;
 
 // Re-export commonly used types
-pub use models::{
-    AppConfig, ServerConfig, ClientConfig, TestConfig, GlobalConfig, 
-    TestConfigHelper, Config // Legacy compatibility
-};
 pub use loader::{
-    ConfigLoader, ConfigResolver, ConfigError,
-    load_config, load_config_from_file, load_config_from_env
+    load_config, load_config_from_env, load_config_from_file, ConfigError, ConfigLoader,
+    ConfigResolver,
+};
+pub use models::{
+    AppConfig,
+    ClientConfig,
+    Config, // Legacy compatibility
+    GlobalConfig,
+    ServerConfig,
+    TestConfig,
+    TestConfigHelper,
 };
 pub use validation::*;

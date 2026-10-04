@@ -46,7 +46,7 @@ impl IndexApiClient {
             .map_err(|e| {
                 ZeroLatencyError::validation(
                     "path",
-                    &format!("Invalid path '{}': {}", request.path, e),
+                    format!("Invalid path '{}': {}", request.path, e),
                 )
             })?
             .to_string_lossy()

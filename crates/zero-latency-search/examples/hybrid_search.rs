@@ -3,11 +3,11 @@
 //! This example demonstrates how to use the hybrid search capabilities
 //! combining vector and BM25 search with result fusion.
 
+use zero_latency_core::{values::SearchQuery, Result};
 use zero_latency_search::{
-    models::{SearchRequest, SearchFilters, SearchOptions},
     fusion::FusionConfig,
+    models::{SearchFilters, SearchOptions, SearchRequest},
 };
-use zero_latency_core::{Result, values::SearchQuery};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,7 +26,10 @@ async fn main() -> Result<()> {
     println!("\n🔍 Example search configuration:");
     println!("Query: '{}'", search_request.query.raw);
     println!("Limit: {}", search_request.limit);
-    println!("Include snippets: {}", search_request.options.include_snippets);
+    println!(
+        "Include snippets: {}",
+        search_request.options.include_snippets
+    );
 
     // Demonstrate fusion configuration
     let fusion_config = FusionConfig::default();

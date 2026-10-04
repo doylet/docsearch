@@ -1,6 +1,6 @@
 use crate::models::*;
-use crate::traits::SearchStep;
 use crate::query_expansion::strategies::*;
+use crate::traits::SearchStep;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -87,7 +87,7 @@ pub struct QueryExpansionStep<T: SearchStep> {
 pub struct ExpansionStrategies {
     /// Synonym expansion strategy
     pub synonym: Box<dyn SynonymExpansion + Send + Sync>,
-    /// Morphological expansion strategy  
+    /// Morphological expansion strategy
     pub morphological: Box<dyn MorphologicalExpansion + Send + Sync>,
     /// Contextual expansion strategy
     pub contextual: Option<Box<dyn ContextualExpansion + Send + Sync>>,
@@ -108,24 +108,29 @@ impl<T: SearchStep> QueryExpansionStep<T> {
     }
 
     /// Generate expanded queries from the original query
-    pub async fn generate_expansions(
-        &self,
-        original_query: &str,
-    ) -> Result<Vec<ExpandedQuery>> {
+    pub async fn generate_expansions(&self, original_query: &str) -> Result<Vec<ExpandedQuery>> {
         let mut expansions = Vec::new();
-        
+
         // Always include the original query with full weight
         expansions.push(ExpandedQuery {
             query: original_query.to_string(),
             expansion_type: ExpansionType::Original,
             weight: self.config.original_query_weight,
-            source_terms: original_query.split_whitespace().map(|s| s.to_string()).collect(),
+            source_terms: original_query
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect(),
             added_terms: vec![],
         });
 
         // Generate synonym expansions
         if self.config.enable_synonyms {
-            match self.strategies.synonym.expand(original_query, &self.config).await {
+            match self
+                .strategies
+                .synonym
+                .expand(original_query, &self.config)
+                .await
+            {
                 Ok(mut synonym_expansions) => {
                     expansions.append(&mut synonym_expansions);
                 }
@@ -137,7 +142,12 @@ impl<T: SearchStep> QueryExpansionStep<T> {
 
         // Generate morphological expansions
         if self.config.enable_morphological {
-            match self.strategies.morphological.expand(original_query, &self.config).await {
+            match self
+                .strategies
+                .morphological
+                .expand(original_query, &self.config)
+                .await
+            {
                 Ok(mut morphological_expansions) => {
                     expansions.append(&mut morphological_expansions);
                 }
@@ -191,10 +201,10 @@ impl<T: SearchStep> QueryExpansionStep<T> {
 
             for mut result in results {
                 let doc_key = result.doc_id.to_string();
-                
+
                 // Apply expansion weight to the score
                 let weighted_score = result.scores.fused * expansion.weight;
-                
+
                 match combined_results.get_mut(&doc_key) {
                     Some(existing_result) => {
                         // Document already exists, combine scores
@@ -202,7 +212,8 @@ impl<T: SearchStep> QueryExpansionStep<T> {
                         let new_score = current_score + weighted_score;
                         doc_scores.insert(doc_key.clone(), new_score);
                         existing_result.scores.fused = new_score;
-                        existing_result.final_score = Score::new(new_score).unwrap_or_else(|_| Score::zero());
+                        existing_result.final_score =
+                            Score::new(new_score).unwrap_or_else(|_| Score::zero());
 
                         // Update from_signals for query expansion
                         existing_result.from_signals.query_expansion = true;
@@ -210,7 +221,8 @@ impl<T: SearchStep> QueryExpansionStep<T> {
                     None => {
                         // New document
                         result.scores.fused = weighted_score;
-                        result.final_score = Score::new(weighted_score).unwrap_or_else(|_| Score::zero());
+                        result.final_score =
+                            Score::new(weighted_score).unwrap_or_else(|_| Score::zero());
                         doc_scores.insert(doc_key.clone(), weighted_score);
 
                         // Add expansion information to from_signals
@@ -224,9 +236,17 @@ impl<T: SearchStep> QueryExpansionStep<T> {
 
         // Convert back to vector and sort by combined score
         let mut final_results: Vec<SearchResult> = combined_results.into_values().collect();
-        final_results.sort_by(|a, b| b.scores.fused.partial_cmp(&a.scores.fused).unwrap_or(std::cmp::Ordering::Equal));
+        final_results.sort_by(|a, b| {
+            b.scores
+                .fused
+                .partial_cmp(&a.scores.fused)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        info!("Combined expansion results: {} unique documents", final_results.len());
+        info!(
+            "Combined expansion results: {} unique documents",
+            final_results.len()
+        );
         final_results
     }
 }
@@ -239,20 +259,22 @@ impl<T: SearchStep> SearchStep for QueryExpansionStep<T> {
 
     async fn execute(&self, context: &mut SearchContext) -> Result<()> {
         let original_query = &context.request.query.raw;
-        
+
         // Generate expanded queries
-        let expansions = self.generate_expansions(original_query).await
+        let expansions = self
+            .generate_expansions(original_query)
+            .await
             .map_err(|e| ZeroLatencyError::internal(e.to_string()))?;
-        
+
         // Execute search for each expanded query
         let mut results_by_expansion = Vec::new();
-        
+
         for expansion in expansions {
             // Create modified context for this expansion
             let mut expanded_context = context.clone();
             expanded_context.request.query.raw = expansion.query.clone();
             expanded_context.raw_results.clear(); // Clear previous results
-            
+
             // Execute search with the inner search step
             match self.inner_search.execute(&mut expanded_context).await {
                 Ok(_) => {
@@ -264,30 +286,27 @@ impl<T: SearchStep> SearchStep for QueryExpansionStep<T> {
                     results_by_expansion.push((expansion, expanded_context.raw_results));
                 }
                 Err(e) => {
-                    warn!(
-                        "Search failed for expansion '{}': {}",
-                        expansion.query, e
-                    );
+                    warn!("Search failed for expansion '{}': {}", expansion.query, e);
                     // Continue with other expansions
                 }
             }
         }
-        
+
         // Combine and deduplicate results
         let combined_results = self.combine_expansion_results(results_by_expansion);
-        
+
         // Apply original limit and update context
         context.raw_results = combined_results
             .into_iter()
             .take(context.request.limit)
             .collect();
-            
+
         info!(
             "Query expansion completed: {} final results for query '{}'",
             context.raw_results.len(),
             original_query
         );
-        
+
         Ok(())
     }
 }

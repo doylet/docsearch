@@ -113,7 +113,7 @@ pub struct DetailedScores {
     /// Semantic similarity score
     pub semantic_score: f32,
 
-    /// Metadata relevance score  
+    /// Metadata relevance score
     pub metadata_score: f32,
 
     /// Recency score
@@ -582,19 +582,19 @@ impl EnhancedSearchService {
         };
 
         match filter {
-            MetadataFilter::Equals(expected) => value.as_str().map_or(false, |v| v == expected),
+            MetadataFilter::Equals(expected) => value.as_str().is_some_and(|v| v == expected),
             MetadataFilter::Contains(substring) => {
-                value.as_str().map_or(false, |v| v.contains(substring))
+                value.as_str().is_some_and(|v| v.contains(substring))
             }
             MetadataFilter::Range { min, max } => {
                 let num_value = value.as_f64().unwrap_or(0.0);
-                let min_ok = min.map_or(true, |min| num_value >= min);
-                let max_ok = max.map_or(true, |max| num_value <= max);
+                let min_ok = min.is_none_or(|min| num_value >= min);
+                let max_ok = max.is_none_or(|max| num_value <= max);
                 min_ok && max_ok
             }
             MetadataFilter::In(options) => value
                 .as_str()
-                .map_or(false, |v| options.contains(&v.to_string())),
+                .is_some_and(|v| options.contains(&v.to_string())),
             MetadataFilter::DateRange { start: _, end: _ } => {
                 // TODO: Implement date range filtering
                 true
@@ -621,7 +621,7 @@ impl EnhancedSearchService {
 
     fn apply_custom_ranking(
         &self,
-        results: &mut Vec<EnhancedSearchResult>,
+        results: &mut [EnhancedSearchResult],
         ranking_config: &RankingConfig,
     ) {
         // Apply custom ranking logic

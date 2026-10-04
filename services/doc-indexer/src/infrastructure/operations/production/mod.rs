@@ -137,15 +137,16 @@ impl ProductionDeployment {
 
         // Initialize startup validator
         if self.config.startup_validation_enabled {
-            let startup_config = crate::infrastructure::operations::production::startup::StartupConfig {
-                startup_timeout_seconds: self.config.startup_timeout.as_secs(),
-                continue_on_warnings: true, // or derive from ProductionConfig if available
-                enable_parallel_validation: true, // or derive from ProductionConfig if available
-                retry_attempts: 3,          // or derive from ProductionConfig if available
-                retry_delay_seconds: 5,     // or derive from ProductionConfig if available
-                save_startup_results: false, // or derive from ProductionConfig if available
-                results_file_path: "startup_results.json".to_string(), // or derive from ProductionConfig if available
-            };
+            let startup_config =
+                crate::infrastructure::operations::production::startup::StartupConfig {
+                    startup_timeout_seconds: self.config.startup_timeout.as_secs(),
+                    continue_on_warnings: true, // or derive from ProductionConfig if available
+                    enable_parallel_validation: true, // or derive from ProductionConfig if available
+                    retry_attempts: 3, // or derive from ProductionConfig if available
+                    retry_delay_seconds: 5, // or derive from ProductionConfig if available
+                    save_startup_results: false, // or derive from ProductionConfig if available
+                    results_file_path: "startup_results.json".to_string(), // or derive from ProductionConfig if available
+                };
             self.startup_validator = Some(StartupValidator::new(startup_config));
         }
 
@@ -179,14 +180,15 @@ impl ProductionDeployment {
 
         // Initialize graceful shutdown
         if self.config.shutdown_signal_handlers {
-            let shutdown_config = crate::infrastructure::operations::production::shutdown::ShutdownConfig {
-                grace_period_seconds: self.config.graceful_shutdown_timeout.as_secs(),
-                service_timeout_seconds: 30, // or derive from ProductionConfig if available
-                save_state_on_shutdown: false, // or derive from ProductionConfig if available
-                cleanup_timeout_seconds: 10, // or derive from ProductionConfig if available
-                enable_signal_handling: true, // or derive from ProductionConfig if available
-                shutdown_order: vec![],      // or derive from ProductionConfig if available
-            };
+            let shutdown_config =
+                crate::infrastructure::operations::production::shutdown::ShutdownConfig {
+                    grace_period_seconds: self.config.graceful_shutdown_timeout.as_secs(),
+                    service_timeout_seconds: 30, // or derive from ProductionConfig if available
+                    save_state_on_shutdown: false, // or derive from ProductionConfig if available
+                    cleanup_timeout_seconds: 10, // or derive from ProductionConfig if available
+                    enable_signal_handling: true, // or derive from ProductionConfig if available
+                    shutdown_order: vec![],      // or derive from ProductionConfig if available
+                };
             self.shutdown_handler = Some(GracefulShutdown::new(shutdown_config));
         }
 
@@ -257,11 +259,9 @@ impl ProductionDeployment {
 
     /// Get current system metrics
     pub async fn get_metrics(&self) -> Option<SystemMetrics> {
-        if let Some(monitor) = &self.monitor {
-            Some(monitor.get_system_metrics())
-        } else {
-            None
-        }
+        self.monitor
+            .as_ref()
+            .map(|monitor| monitor.get_system_metrics())
     }
 
     /// Initiate graceful shutdown

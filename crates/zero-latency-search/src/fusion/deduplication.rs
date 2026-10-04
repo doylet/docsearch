@@ -1,6 +1,6 @@
-use std::collections::HashSet;
-use std::cmp::Ordering;
 use crate::models::SearchResult;
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use zero_latency_core::error::ZeroLatencyError;
 
 /// Configuration for result deduplication behavior
@@ -70,7 +70,10 @@ impl ResultDeduplicator {
 
     /// Create deduplicator with default configuration
     pub fn with_default() -> Self {
-        Self::new(DeduplicationConfig::default(), DuplicationStrategy::MergeWithProvenance)
+        Self::new(
+            DeduplicationConfig::default(),
+            DuplicationStrategy::MergeWithProvenance,
+        )
     }
 
     /// Deduplicate a list of search results
@@ -82,15 +85,18 @@ impl ResultDeduplicator {
         let total_input = results.len();
 
         if results.is_empty() {
-            return Ok((results, DeduplicationMetrics {
-                total_input_results: 0,
-                duplicates_found: 0,
-                duplicates_removed: 0,
-                duplicates_merged: 0,
-                final_result_count: 0,
-                similarity_comparisons: 0,
-                processing_time_ms: 0,
-            }));
+            return Ok((
+                results,
+                DeduplicationMetrics {
+                    total_input_results: 0,
+                    duplicates_found: 0,
+                    duplicates_removed: 0,
+                    duplicates_merged: 0,
+                    final_result_count: 0,
+                    similarity_comparisons: 0,
+                    processing_time_ms: 0,
+                },
+            ));
         }
 
         // Simple deduplication by document ID
@@ -172,9 +178,9 @@ impl ResultDeduplicator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fusion::{FromSignals, ScoreBreakdown};
     use crate::models::SearchResult;
     use zero_latency_core::DocId;
-    use crate::fusion::{FromSignals, ScoreBreakdown};
 
     fn create_test_result(doc_id: &str, score: f32) -> SearchResult {
         let doc_id = DocId::new("test_collection", doc_id, 1);

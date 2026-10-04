@@ -8,6 +8,7 @@ license = "MIT"
 [features]
 default = []
 tantivy = ["dep:tantivy"]
+examples = []
 
 [dependencies]
 zero-latency-core = { path = "../zero-latency-core" }

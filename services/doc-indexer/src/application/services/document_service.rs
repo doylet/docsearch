@@ -399,7 +399,9 @@ impl DocumentIndexingService {
                     }
 
                     // Log progress every 100 files or every 10 seconds
-                    if files_scanned % 100 == 0 || start_time.elapsed().as_secs() % 10 == 0 {
+                    if files_scanned.is_multiple_of(100)
+                        || start_time.elapsed().as_secs().is_multiple_of(10)
+                    {
                         tracing::info!(
                             "Progress: {}/{} files scanned, {} documents indexed ({:.1}%)",
                             files_scanned,
@@ -437,9 +439,14 @@ impl DocumentIndexingService {
                                             last_modified: chrono::Utc::now(),
                                             size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
                                             metadata: {
-                                                let mut metadata = zero_latency_core::models::DocumentMetadata::default();
-                                                metadata.content_type =
-                                                    Some(format!("{:?}", content_type));
+                                                let mut metadata =
+                                                    zero_latency_core::models::DocumentMetadata {
+                                                        content_type: Some(format!(
+                                                            "{:?}",
+                                                            content_type
+                                                        )),
+                                                        ..Default::default()
+                                                    };
                                                 metadata.custom.insert(
                                                     "collection".to_string(),
                                                     collection_name.to_string(),

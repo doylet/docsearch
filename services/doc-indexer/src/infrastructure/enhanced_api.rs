@@ -907,7 +907,7 @@ mod tests {
 
     #[test]
     fn test_confidence_stats_calculation() {
-        let scores = vec![0.9, 0.8, 0.7, 0.6, 0.5];
+        let scores = [0.9, 0.8, 0.7, 0.6, 0.5];
         let sum: f32 = scores.iter().sum();
         let avg = sum / scores.len() as f32;
 

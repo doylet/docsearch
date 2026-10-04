@@ -7,12 +7,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration};
 
-use super::{
-    CacheConfig, LRUCache, QueryCacheKey,
-};
 use super::performance::CacheStatistics;
+use super::{CacheConfig, LRUCache, QueryCacheKey};
 use crate::models::{SearchRequest, SearchResult};
 use zero_latency_core::Result;
+
+type FusionCache = Arc<RwLock<LRUCache<String, Vec<(String, f64)>>>>;
 
 /// Multi-layer cache manager for hybrid search
 pub struct HybridSearchCacheManager {
@@ -23,7 +23,7 @@ pub struct HybridSearchCacheManager {
     /// BM25 score cache
     bm25_cache: Arc<RwLock<LRUCache<String, HashMap<String, f64>>>>,
     /// Fusion result cache
-    fusion_cache: Arc<RwLock<LRUCache<String, Vec<(String, f64)>>>>,
+    fusion_cache: FusionCache,
     /// Cache configuration
     config: CacheConfig,
     /// Global cache statistics
@@ -98,7 +98,11 @@ impl HybridSearchCacheManager {
     }
 
     /// Cache query results
-    pub async fn cache_query_results(&self, request: &SearchRequest, results: Vec<SearchResult>) -> Result<()> {
+    pub async fn cache_query_results(
+        &self,
+        request: &SearchRequest,
+        results: Vec<SearchResult>,
+    ) -> Result<()> {
         let key = QueryCacheKey::new(request);
         let size_bytes = self.estimate_results_size(&results);
 
@@ -147,8 +151,13 @@ impl HybridSearchCacheManager {
     }
 
     /// Cache BM25 scores
-    pub async fn cache_bm25_scores(&self, query_hash: &str, scores: HashMap<String, f64>) -> Result<()> {
-        let size_bytes = scores.len() * (std::mem::size_of::<String>() + std::mem::size_of::<f64>());
+    pub async fn cache_bm25_scores(
+        &self,
+        query_hash: &str,
+        scores: HashMap<String, f64>,
+    ) -> Result<()> {
+        let size_bytes =
+            scores.len() * (std::mem::size_of::<String>() + std::mem::size_of::<f64>());
 
         let mut cache = self.bm25_cache.write().await;
         cache.insert(query_hash.to_string(), scores, size_bytes);
@@ -171,8 +180,13 @@ impl HybridSearchCacheManager {
     }
 
     /// Cache fusion results
-    pub async fn cache_fusion_results(&self, fusion_key: &str, results: Vec<(String, f64)>) -> Result<()> {
-        let size_bytes = results.len() * (std::mem::size_of::<String>() + std::mem::size_of::<f64>());
+    pub async fn cache_fusion_results(
+        &self,
+        fusion_key: &str,
+        results: Vec<(String, f64)>,
+    ) -> Result<()> {
+        let size_bytes =
+            results.len() * (std::mem::size_of::<String>() + std::mem::size_of::<f64>());
 
         let mut cache = self.fusion_cache.write().await;
         cache.insert(fusion_key.to_string(), results, size_bytes);
@@ -213,10 +227,10 @@ impl HybridSearchCacheManager {
                 size: fusion_cache.size(),
                 memory_usage: fusion_cache.memory_usage(),
             },
-            total_memory_usage: query_cache.memory_usage() +
-                              embedding_cache.memory_usage() +
-                              bm25_cache.memory_usage() +
-                              fusion_cache.memory_usage(),
+            total_memory_usage: query_cache.memory_usage()
+                + embedding_cache.memory_usage()
+                + bm25_cache.memory_usage()
+                + fusion_cache.memory_usage(),
         }
     }
 
@@ -299,17 +313,23 @@ impl HybridSearchCacheManager {
     }
 
     fn estimate_results_size(&self, results: &[SearchResult]) -> usize {
-        results.iter().map(|r| {
-            std::mem::size_of::<SearchResult>() +
-            r.uri.len() +
-            r.content.len() +
-            r.custom_metadata.iter().map(|(k, v)| k.len() + v.len()).sum::<usize>()
-        }).sum()
+        results
+            .iter()
+            .map(|r| {
+                std::mem::size_of::<SearchResult>()
+                    + r.uri.len()
+                    + r.content.len()
+                    + r.custom_metadata
+                        .iter()
+                        .map(|(k, v)| k.len() + v.len())
+                        .sum::<usize>()
+            })
+            .sum()
     }
 }
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Cache layer statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]

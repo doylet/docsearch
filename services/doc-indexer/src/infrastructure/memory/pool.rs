@@ -168,11 +168,15 @@ impl PooledVector {
     }
 
     /// Get a reference to the vector
+    // Inherent method kept to avoid a public API change; not the AsRef trait.
+    #[allow(clippy::should_implement_trait)]
     pub fn as_ref(&self) -> &Vec<f32> {
         self.vector.as_ref().unwrap()
     }
 
     /// Get a mutable reference to the vector
+    // Inherent method kept to avoid a public API change; not the AsMut trait.
+    #[allow(clippy::should_implement_trait)]
     pub fn as_mut(&mut self) -> &mut Vec<f32> {
         self.vector.as_mut().unwrap()
     }
@@ -216,7 +220,7 @@ mod tests {
             dimension: 384,
             dimension_tolerance: 32,
         };
-        let pool = VectorPool::new(config);
+        let _pool = VectorPool::new(config);
 
         // test_vector_pool_basic temporarily disabled due to assertion mismatch
     }

@@ -1,5 +1,8 @@
 use crate::models::AppConfig;
-use figment::{Figment, providers::{Format, Toml, Env}};
+use figment::{
+    providers::{Env, Format, Toml},
+    Figment,
+};
 use std::path::PathBuf;
 
 /// Configuration loading errors
@@ -53,10 +56,10 @@ impl Default for EnvConfigLoader {
 
 impl ConfigLoader<AppConfig> for EnvConfigLoader {
     fn load(&self) -> Result<AppConfig, ConfigError> {
-        let figment = Figment::new()
-            .merge(Env::prefixed(&self.prefix).split("_"));
+        let figment = Figment::new().merge(Env::prefixed(&self.prefix).split("_"));
 
-        figment.extract()
+        figment
+            .extract()
             .map_err(|e| ConfigError::EnvError(e.to_string()))
     }
 }
@@ -106,14 +109,14 @@ impl ConfigLoader<AppConfig> for FileConfigLoader {
     fn load(&self) -> Result<AppConfig, ConfigError> {
         if !self.file_path.exists() {
             return Err(ConfigError::FileNotFound(
-                self.file_path.display().to_string()
+                self.file_path.display().to_string(),
             ));
         }
 
-        let figment = Figment::new()
-            .merge(Toml::file(&self.file_path));
+        let figment = Figment::new().merge(Toml::file(&self.file_path));
 
-        figment.extract()
+        figment
+            .extract()
             .map_err(|e| ConfigError::ParseError(e.to_string()))
     }
 }
@@ -151,7 +154,9 @@ impl ConfigResolver {
 
     /// Load configuration with precedence: env > file > defaults
     pub fn load(&self) -> Result<AppConfig, ConfigError> {
-        let mut figment = Figment::from(figment::providers::Serialized::defaults(AppConfig::default()));
+        let mut figment = Figment::from(figment::providers::Serialized::defaults(
+            AppConfig::default(),
+        ));
 
         // Layer 1: File configuration (if available)
         if let Some(file_loader) = &self.file_loader {
@@ -164,7 +169,8 @@ impl ConfigResolver {
         // Layer 2: Environment variables (highest precedence)
         figment = figment.merge(Env::prefixed("ZL_").split("_"));
 
-        figment.extract()
+        figment
+            .extract()
             .map_err(|e| ConfigError::ParseError(e.to_string()))
     }
 
@@ -172,7 +178,9 @@ impl ConfigResolver {
     pub fn load_from_file(&self, file_path: impl Into<PathBuf>) -> Result<AppConfig, ConfigError> {
         let file_path = file_path.into();
 
-        let mut figment = Figment::from(figment::providers::Serialized::defaults(AppConfig::default()));
+        let mut figment = Figment::from(figment::providers::Serialized::defaults(
+            AppConfig::default(),
+        ));
 
         // Layer 1: File configuration
         if file_path.exists() {
@@ -182,7 +190,8 @@ impl ConfigResolver {
         // Layer 2: Environment variables
         figment = figment.merge(Env::prefixed("ZL_").split("_"));
 
-        figment.extract()
+        figment
+            .extract()
             .map_err(|e| ConfigError::ParseError(e.to_string()))
     }
 }

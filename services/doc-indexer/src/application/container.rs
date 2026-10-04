@@ -68,7 +68,9 @@ impl ServiceContainer {
     }
 
     /// Get the analytics service
-    pub fn analytics(&self) -> Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics> {
+    pub fn analytics(
+        &self,
+    ) -> Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics> {
         self.analytics.clone()
     }
 

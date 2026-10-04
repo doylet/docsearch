@@ -1,10 +1,10 @@
 //! Sprint 005: Comprehensive Search Filtering Rust Integration Tests
 //! Tests for collection filtering functionality across all interfaces
 
+use reqwest::Client;
+use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::time::timeout;
-use serde_json::{json, Value};
-use reqwest::Client;
 
 /// Test configuration
 const BASE_URL: &str = "http://localhost:8081";
@@ -26,10 +26,12 @@ async fn test_rest_api_collection_filtering() -> Result<(), Box<dyn std::error::
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/api/search", BASE_URL))
+        client
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     assert_eq!(response.status(), 200);
 
@@ -44,7 +46,10 @@ async fn test_rest_api_collection_filtering() -> Result<(), Box<dyn std::error::
         }
     }
 
-    println!("✅ REST API collection filtering test passed: {} results", results.len());
+    println!(
+        "✅ REST API collection filtering test passed: {} results",
+        results.len()
+    );
     Ok(())
 }
 
@@ -60,10 +65,12 @@ async fn test_rest_api_default_search() -> Result<(), Box<dyn std::error::Error>
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/api/search", BASE_URL))
+        client
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     assert_eq!(response.status(), 200);
 
@@ -71,7 +78,10 @@ async fn test_rest_api_default_search() -> Result<(), Box<dyn std::error::Error>
     let default_results = vec![];
     let results = data["results"].as_array().unwrap_or(&default_results);
 
-    println!("✅ REST API default search test passed: {} results", results.len());
+    println!(
+        "✅ REST API default search test passed: {} results",
+        results.len()
+    );
     Ok(())
 }
 
@@ -94,10 +104,12 @@ async fn test_jsonrpc_collection_filtering() -> Result<(), Box<dyn std::error::E
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/jsonrpc", BASE_URL))
+        client
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     assert_eq!(response.status(), 200);
 
@@ -121,7 +133,10 @@ async fn test_jsonrpc_collection_filtering() -> Result<(), Box<dyn std::error::E
             }
         }
 
-        println!("✅ JSON-RPC collection filtering test passed: {} results", results.len());
+        println!(
+            "✅ JSON-RPC collection filtering test passed: {} results",
+            results.len()
+        );
     }
 
     Ok(())
@@ -143,10 +158,12 @@ async fn test_jsonrpc_default_search() -> Result<(), Box<dyn std::error::Error>>
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/jsonrpc", BASE_URL))
+        client
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     assert_eq!(response.status(), 200);
 
@@ -160,7 +177,10 @@ async fn test_jsonrpc_default_search() -> Result<(), Box<dyn std::error::Error>>
     if let Some(result) = data.get("result") {
         let default_results = vec![];
         let results = result["results"].as_array().unwrap_or(&default_results);
-        println!("✅ JSON-RPC default search test passed: {} results", results.len());
+        println!(
+            "✅ JSON-RPC default search test passed: {} results",
+            results.len()
+        );
     }
 
     Ok(())
@@ -181,10 +201,12 @@ async fn test_invalid_collection_handling() -> Result<(), Box<dyn std::error::Er
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/api/search", BASE_URL))
+        client
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     assert_eq!(response.status(), 200);
 
@@ -213,15 +235,20 @@ async fn test_empty_query_handling() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/api/search", BASE_URL))
+        client
+            .post(format!("{}/api/search", BASE_URL))
             .json(&payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     // Should handle gracefully (either 200 with empty results or 400)
     assert!(response.status() == 200 || response.status() == 400);
 
-    println!("✅ Empty query handling test passed: status {}", response.status());
+    println!(
+        "✅ Empty query handling test passed: status {}",
+        response.status()
+    );
     Ok(())
 }
 
@@ -243,14 +270,18 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
 
     let rest_response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/api/search", BASE_URL))
+        client
+            .post(format!("{}/api/search", BASE_URL))
             .json(&rest_payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     let rest_data: Value = rest_response.json().await?;
     let default_rest_results = vec![];
-    let rest_results = rest_data["results"].as_array().unwrap_or(&default_rest_results);
+    let rest_results = rest_data["results"]
+        .as_array()
+        .unwrap_or(&default_rest_results);
 
     // Get JSON-RPC results
     let jsonrpc_payload = json!({
@@ -267,15 +298,19 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
 
     let jsonrpc_response = timeout(
         TIMEOUT_DURATION,
-        client.post(&format!("{}/jsonrpc", BASE_URL))
+        client
+            .post(format!("{}/jsonrpc", BASE_URL))
             .json(&jsonrpc_payload)
-            .send()
-    ).await??;
+            .send(),
+    )
+    .await??;
 
     let jsonrpc_data: Value = jsonrpc_response.json().await?;
     let default_jsonrpc_results = vec![];
     let jsonrpc_results = if let Some(result) = jsonrpc_data.get("result") {
-        result["results"].as_array().unwrap_or(&default_jsonrpc_results)
+        result["results"]
+            .as_array()
+            .unwrap_or(&default_jsonrpc_results)
     } else {
         &default_jsonrpc_results
     };
@@ -284,15 +319,19 @@ async fn test_cross_interface_consistency() -> Result<(), Box<dyn std::error::Er
     let rest_count = rest_results.len();
     let jsonrpc_count = jsonrpc_results.len();
 
-    let diff = if rest_count > jsonrpc_count {
-        rest_count - jsonrpc_count
-    } else {
-        jsonrpc_count - rest_count
-    };
+    let diff = rest_count.abs_diff(jsonrpc_count);
 
-    assert!(diff <= 2, "Large difference in result counts: REST={}, JSON-RPC={}", rest_count, jsonrpc_count);
+    assert!(
+        diff <= 2,
+        "Large difference in result counts: REST={}, JSON-RPC={}",
+        rest_count,
+        jsonrpc_count
+    );
 
-    println!("✅ Cross-interface consistency test passed: REST={}, JSON-RPC={}", rest_count, jsonrpc_count);
+    println!(
+        "✅ Cross-interface consistency test passed: REST={}, JSON-RPC={}",
+        rest_count, jsonrpc_count
+    );
     Ok(())
 }
 
@@ -319,10 +358,12 @@ async fn test_collection_parameter_validation() -> Result<(), Box<dyn std::error
 
         let response = timeout(
             TIMEOUT_DURATION,
-            client.post(&format!("{}/api/search", BASE_URL))
+            client
+                .post(format!("{}/api/search", BASE_URL))
                 .json(&payload)
-                .send()
-        ).await??;
+                .send(),
+        )
+        .await??;
 
         assert_eq!(response.status(), 200);
 
@@ -335,7 +376,12 @@ async fn test_collection_parameter_validation() -> Result<(), Box<dyn std::error
             println!("Collection '{}': {} results", collection, results.len());
         } else {
             // For invalid collections, should have no results
-            assert_eq!(results.len(), 0, "Expected no results for collection '{}'", collection);
+            assert_eq!(
+                results.len(),
+                0,
+                "Expected no results for collection '{}'",
+                collection
+            );
             println!("Collection '{}': correctly returned no results", collection);
         }
     }
@@ -354,8 +400,10 @@ mod test_helpers {
 
         match timeout(
             Duration::from_secs(5),
-            client.get(&format!("{}/health", BASE_URL)).send()
-        ).await {
+            client.get(format!("{}/health", BASE_URL)).send(),
+        )
+        .await
+        {
             Ok(Ok(response)) => response.status().is_success(),
             _ => false,
         }

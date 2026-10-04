@@ -65,7 +65,8 @@ impl TableFormatter {
                     }
                 }
             }
-            "table" | _ => {
+            // "table" and any unrecognised format
+            _ => {
                 if response.results.is_empty() {
                     println!("{}", "No results found.".yellow());
                 } else {
@@ -75,13 +76,12 @@ impl TableFormatter {
                     for (index, result) in response.results.iter().enumerate() {
                         // Format the score to 3 decimal places
                         let score = format!("{:.3}", result.final_score.value());
-                        let source = if !result.title.is_empty()
-                            && result.title != result.document_path
-                        {
-                            format!("{} ({})", result.title, result.document_path)
-                        } else {
-                            result.document_path.clone()
-                        };
+                        let source =
+                            if !result.title.is_empty() && result.title != result.document_path {
+                                format!("{} ({})", result.title, result.document_path)
+                            } else {
+                                result.document_path.clone()
+                            };
 
                         table.add_row(vec![
                             (index + 1).to_string(),
@@ -160,7 +160,8 @@ impl TableFormatter {
                     response.total_count, response.index_size_bytes
                 );
             }
-            "table" | _ => {
+            // "table" and any unrecognised format
+            _ => {
                 println!(
                     "{}",
                     format!(
@@ -247,7 +248,8 @@ impl TableFormatter {
                     println!("{}", "No metadata available".yellow());
                 }
             }
-            "content" | _ => {
+            // "content" and any unrecognised format
+            _ => {
                 println!("{}", format!("Document {}", response.id).green().bold());
                 if let Some(content) = &response.content {
                     println!("{}", content);

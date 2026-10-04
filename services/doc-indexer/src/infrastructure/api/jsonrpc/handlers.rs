@@ -30,7 +30,7 @@ pub async fn handle_tools_list(
                             "description": "Search query text"
                         },
                         "limit": {
-                            "type": "integer", 
+                            "type": "integer",
                             "description": "Maximum number of results",
                             "default": 10
                         },
@@ -87,7 +87,7 @@ pub async fn handle_tools_list(
             }
         ]
     });
-    
+
     JsonRpcResponse::success(id, tools)
 }
 
@@ -105,7 +105,12 @@ pub async fn handle_tools_call(
 
     let tool_name = match params.get("name").and_then(|v| v.as_str()) {
         Some(name) => name,
-        None => return JsonRpcResponse::error(id, JsonRpcError::invalid_params(Some("Missing 'name' parameter".to_string()))),
+        None => {
+            return JsonRpcResponse::error(
+                id,
+                JsonRpcError::invalid_params(Some("Missing 'name' parameter".to_string())),
+            )
+        }
     };
 
     let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
@@ -331,9 +336,9 @@ pub async fn handle_search_documents(
                             state
                                 .document_service
                                 .search_documents_in_collection(
-                                    &params.query, 
-                                    collection_name, 
-                                    params.limit.unwrap_or(10)
+                                    &params.query,
+                                    collection_name,
+                                    params.limit.unwrap_or(10),
                                 )
                                 .await
                         } else {
@@ -363,7 +368,7 @@ pub async fn handle_search_documents(
                                     if let Some(collection) = result.collection {
                                         metadata.insert("collection".to_string(), collection);
                                     }
-                                    
+
                                     SearchResultItem {
                                         id: result.document_id.to_string(),
                                         content: if params.include_content.unwrap_or(true) {

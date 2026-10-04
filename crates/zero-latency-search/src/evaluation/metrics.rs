@@ -98,8 +98,8 @@ impl MetricsCalculator {
 
         // Calculate DCG@K
         let mut dcg = 0.0;
-        for i in 0..k {
-            let relevance = f64::from(ground_truth[i]);
+        for (i, &rating) in ground_truth.iter().enumerate().take(k) {
+            let relevance = f64::from(rating);
             if i == 0 {
                 dcg += relevance;
             } else {
@@ -112,8 +112,7 @@ impl MetricsCalculator {
         sorted_relevance.sort_by(|a, b| b.partial_cmp(a).unwrap());
 
         let mut idcg = 0.0;
-        for i in 0..k.min(sorted_relevance.len()) {
-            let relevance = sorted_relevance[i];
+        for (i, &relevance) in sorted_relevance.iter().enumerate().take(k) {
             if i == 0 {
                 idcg += relevance;
             } else {
@@ -129,31 +128,26 @@ impl MetricsCalculator {
     }
 
     /// Calculate Hit@K - did we find any relevant document in top K?
-    pub fn calculate_hit_at_k(
-        &self,
-        ground_truth: &[RelevanceRating],
-        k: usize,
-    ) -> f64 {
+    pub fn calculate_hit_at_k(&self, ground_truth: &[RelevanceRating], k: usize) -> f64 {
         if ground_truth.is_empty() {
             return 0.0;
         }
 
         let k = k.min(ground_truth.len());
 
-        for i in 0..k {
-            if ground_truth[i] != RelevanceRating::NotRelevant {
-                return 1.0;
-            }
+        if ground_truth
+            .iter()
+            .take(k)
+            .any(|&rating| rating != RelevanceRating::NotRelevant)
+        {
+            1.0
+        } else {
+            0.0
         }
-        0.0
     }
 
     /// Calculate Precision@K
-    pub fn calculate_precision_at_k(
-        &self,
-        ground_truth: &[RelevanceRating],
-        k: usize,
-    ) -> f64 {
+    pub fn calculate_precision_at_k(&self, ground_truth: &[RelevanceRating], k: usize) -> f64 {
         if ground_truth.is_empty() {
             return 0.0;
         }
@@ -260,7 +254,10 @@ impl MetricsCalculator {
             ndcg_at_k.insert(k, self.calculate_ndcg_at_k(results, &ground_truth, k));
             hit_at_k.insert(k, self.calculate_hit_at_k(&ground_truth, k));
             precision_at_k.insert(k, self.calculate_precision_at_k(&ground_truth, k));
-            recall_at_k.insert(k, self.calculate_recall_at_k(&ground_truth, total_relevant, k));
+            recall_at_k.insert(
+                k,
+                self.calculate_recall_at_k(&ground_truth, total_relevant, k),
+            );
         }
 
         let mrr = self.calculate_mrr(&ground_truth);
@@ -427,10 +424,9 @@ impl RegressionCheckResult {
 mod tests {
     use super::*;
 
+    use crate::{FromSignals, ScoreBreakdown};
     use zero_latency_core::DocId;
-    use zero_latency_core::{Uuid, values::Score};
-    use crate::{ScoreBreakdown, FromSignals};
-
+    use zero_latency_core::{values::Score, Uuid};
 
     #[test]
     fn test_ndcg_calculation() {
@@ -578,7 +574,7 @@ mod tests {
         ];
 
         let precision_at_3 = calculator.calculate_precision_at_k(&relevance, 3);
-        assert!((precision_at_3 - 2.0/3.0).abs() < 1e-6); // 2 relevant out of 3
+        assert!((precision_at_3 - 2.0 / 3.0).abs() < 1e-6); // 2 relevant out of 3
 
         let recall_at_3 = calculator.calculate_recall_at_k(&relevance, 2, 3);
         assert!((recall_at_3 - 1.0).abs() < 1e-6); // Found all 2 relevant docs

@@ -32,6 +32,12 @@ pub struct SimpleQueryEnhancer {
     pattern_expansions: HashMap<String, Vec<String>>,
 }
 
+impl Default for SimpleQueryEnhancer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimpleQueryEnhancer {
     pub fn new() -> Self {
         let mut technical_terms = HashMap::new();
@@ -387,7 +393,7 @@ impl SimpleQueryEnhancer {
     fn analyze_query_context(&self, query: &str) -> QueryContext {
         let query_lower = query.to_lowercase();
 
-        let context = QueryContext {
+        QueryContext {
             is_question: query.contains("?")
                 || query_lower.starts_with("how")
                 || query_lower.starts_with("what")
@@ -403,9 +409,7 @@ impl SimpleQueryEnhancer {
                 || query_lower.contains("install")
                 || query_lower.contains("configure"),
             complexity_score: self.calculate_complexity_score(query),
-        };
-
-        context
+        }
     }
 
     /// Calculate complexity score for query
@@ -554,6 +558,12 @@ pub struct MultiFactorResultRanker {
     keyword_density_threshold: f32,
 }
 
+impl Default for MultiFactorResultRanker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MultiFactorResultRanker {
     pub fn new() -> Self {
         Self {
@@ -638,7 +648,7 @@ impl ResultRanker for MultiFactorResultRanker {
         });
 
         // Log ranking details for top 3 results
-        for (i, (result, signals)) in scored_results.iter().take(3).enumerate() {
+        for (i, (_result, signals)) in scored_results.iter().take(3).enumerate() {
             tracing::debug!(
                 "[AdvancedSearch] Rank #{}: Score {:.3} (Vector: {:.3}, Content: {:.3}, Title: {:.3}, Recency: {:.3}, Metadata: {:.3})",
                 i + 1,

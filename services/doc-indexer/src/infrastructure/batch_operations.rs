@@ -505,7 +505,7 @@ impl BatchProcessor {
             format!(
                 "batch_{}_{}",
                 chrono::Utc::now().timestamp(),
-                uuid::Uuid::new_v4().to_string()[..8].to_string()
+                &uuid::Uuid::new_v4().to_string()[..8]
             )
         });
 

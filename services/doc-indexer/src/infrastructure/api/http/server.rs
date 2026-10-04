@@ -53,8 +53,9 @@ impl HttpServer {
     /// Build the complete router with middleware
     pub fn build_router(&self) -> Router {
         // Use the dual protocol router that includes both REST and JSON-RPC endpoints
-        let router =
-            crate::infrastructure::api::jsonrpc::create_dual_protocol_router(self.app_state.clone());
+        let router = crate::infrastructure::api::jsonrpc::create_dual_protocol_router(
+            self.app_state.clone(),
+        );
 
         // Build middleware stack
         let middleware_stack = ServiceBuilder::new()
@@ -83,11 +84,8 @@ impl HttpServer {
         } else {
             self.config.host.clone()
         };
-        
-        let addr = SocketAddr::from((
-            host_ip.parse::<std::net::IpAddr>()?,
-            self.config.port,
-        ));
+
+        let addr = SocketAddr::from((host_ip.parse::<std::net::IpAddr>()?, self.config.port));
 
         let app = self.build_router();
 

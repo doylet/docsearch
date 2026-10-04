@@ -45,6 +45,8 @@ impl IndexingService {
     /// Create a new service with injected dependencies
     ///
     /// This constructor follows DIP by accepting abstractions rather than concretions
+    // IndexingServiceBuilder is the ergonomic alternative; Changing this would alter a public signature.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         vector_storage: Arc<dyn VectorStorage>,
         embedding_service: Arc<dyn EmbeddingService>,
@@ -64,7 +66,7 @@ impl IndexingService {
             collection_manager,
             indexing_strategy: indexing_strategy
                 .unwrap_or_else(|| Arc::new(StandardIndexingStrategy::new())),
-            content_processor: content_processor.unwrap_or_else(ContentProcessor::new),
+            content_processor: content_processor.unwrap_or_default(),
         }
     }
 
@@ -237,6 +239,12 @@ pub struct IndexingServiceBuilder {
     collection_manager: Option<Arc<dyn CollectionManager>>,
     indexing_strategy: Option<Arc<dyn IndexingStrategy>>,
     content_processor: Option<ContentProcessor>,
+}
+
+impl Default for IndexingServiceBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IndexingServiceBuilder {

@@ -38,13 +38,19 @@ pub struct CacheStatistics {
     pub last_updated: u64,
 }
 
+impl Default for CacheStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CacheStatistics {
     pub fn new() -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-            
+
         Self {
             query_cache_hits: 0,
             query_cache_misses: 0,
@@ -72,12 +78,16 @@ impl CacheStatistics {
     }
 
     pub fn overall_hit_rate(&self) -> f64 {
-        let total_hits = self.query_cache_hits + self.embedding_cache_hits + 
-                        self.bm25_cache_hits + self.fusion_cache_hits;
-        let total_requests = total_hits + self.query_cache_misses + 
-                           self.embedding_cache_misses + self.bm25_cache_misses + 
-                           self.fusion_cache_misses;
-        
+        let total_hits = self.query_cache_hits
+            + self.embedding_cache_hits
+            + self.bm25_cache_hits
+            + self.fusion_cache_hits;
+        let total_requests = total_hits
+            + self.query_cache_misses
+            + self.embedding_cache_misses
+            + self.bm25_cache_misses
+            + self.fusion_cache_misses;
+
         if total_requests == 0 {
             0.0
         } else {

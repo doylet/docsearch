@@ -105,6 +105,12 @@ impl SearchService for SearchServiceAdapter {
 /// Implementation of FileSystemService using standard library
 pub struct StandardFileSystemService;
 
+impl Default for StandardFileSystemService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StandardFileSystemService {
     pub fn new() -> Self {
         Self
@@ -116,7 +122,7 @@ impl FileSystemService for StandardFileSystemService {
     async fn read_file_content(&self, path: &Path) -> Result<String> {
         use tokio::fs;
         fs::read_to_string(path).await.map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(&format!("Failed to read file: {}", e))
+            zero_latency_core::ZeroLatencyError::internal(format!("Failed to read file: {}", e))
         })
     }
 
@@ -131,14 +137,14 @@ impl FileSystemService for StandardFileSystemService {
     async fn list_directory(&self, path: &Path) -> Result<Vec<std::path::PathBuf>> {
         use tokio::fs;
         let mut entries = fs::read_dir(path).await.map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(&format!(
+            zero_latency_core::ZeroLatencyError::internal(format!(
                 "Failed to read directory: {}",
                 e
             ))
         })?;
         let mut paths = Vec::new();
         while let Some(entry) = entries.next_entry().await.map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(&format!(
+            zero_latency_core::ZeroLatencyError::internal(format!(
                 "Failed to read directory entry: {}",
                 e
             ))
@@ -151,14 +157,11 @@ impl FileSystemService for StandardFileSystemService {
     async fn get_file_metadata(&self, path: &Path) -> Result<FileMetadata> {
         use tokio::fs;
         let metadata = fs::metadata(path).await.map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(&format!(
-                "Failed to read metadata: {}",
-                e
-            ))
+            zero_latency_core::ZeroLatencyError::internal(format!("Failed to read metadata: {}", e))
         })?;
 
         let modified = metadata.modified().map_err(|e| {
-            zero_latency_core::ZeroLatencyError::internal(&format!(
+            zero_latency_core::ZeroLatencyError::internal(format!(
                 "Failed to read modified time: {}",
                 e
             ))
@@ -177,6 +180,12 @@ impl FileSystemService for StandardFileSystemService {
 pub struct InMemoryProgressTracker {
     stats: tokio::sync::RwLock<ProgressStats>,
     start_time: std::time::Instant,
+}
+
+impl Default for InMemoryProgressTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InMemoryProgressTracker {
@@ -268,6 +277,12 @@ impl FilteringService for FilteringServiceAdapter {
 
 /// Placeholder collection manager implementation
 pub struct SimpleCollectionManager;
+
+impl Default for SimpleCollectionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SimpleCollectionManager {
     pub fn new() -> Self {

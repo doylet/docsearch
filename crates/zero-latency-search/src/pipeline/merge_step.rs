@@ -1,5 +1,5 @@
+use crate::fusion::result_merger::{MergeMetrics, MergerConfig, QueryVariantResults, ResultMerger};
 use crate::models::SearchResult;
-use crate::fusion::result_merger::{ResultMerger, MergerConfig, QueryVariantResults, MergeMetrics};
 use zero_latency_core::error::ZeroLatencyError;
 
 /// Configuration for the merge step
@@ -37,7 +37,7 @@ impl MergeStep {
     /// Create a new merge step with specified configuration
     pub fn new(config: MergeStepConfig) -> Self {
         let merger = ResultMerger::new(config.merger_config.clone());
-        
+
         Self {
             config,
             merger,
@@ -53,7 +53,7 @@ impl MergeStep {
     /// Create merge step with custom name
     pub fn with_name(config: MergeStepConfig, name: String) -> Self {
         let merger = ResultMerger::new(config.merger_config.clone());
-        
+
         Self {
             config,
             merger,
@@ -75,16 +75,20 @@ impl MergeStep {
             // If merge step is disabled, just combine all results
             let mut all_results = Vec::new();
             let mut total_before = 0;
-            
+
             for variant in &variant_results {
                 total_before += variant.results.len();
                 all_results.extend(variant.results.clone());
             }
-            
+
             // Sort by score and return
-            all_results.sort_by(|a, b| b.scores.fused.partial_cmp(&a.scores.fused)
-                .unwrap_or(std::cmp::Ordering::Equal));
-            
+            all_results.sort_by(|a, b| {
+                b.scores
+                    .fused
+                    .partial_cmp(&a.scores.fused)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
             let metrics = MergeMetrics {
                 query_variants_processed: variant_results.len(),
                 total_results_before_merge: total_before,
@@ -101,13 +105,16 @@ impl MergeStep {
                 processing_time_ms: 0,
                 variant_contributions: std::collections::HashMap::new(),
             };
-            
+
             return Ok((all_results, metrics));
         }
 
         // Limit number of variants if configured
         let limited_variants = if variant_results.len() > self.config.max_variants {
-            variant_results.into_iter().take(self.config.max_variants).collect()
+            variant_results
+                .into_iter()
+                .take(self.config.max_variants)
+                .collect()
         } else {
             variant_results
         };
@@ -181,7 +188,8 @@ impl MergeStepPresets {
     pub fn for_query_expansion() -> MergeStep {
         let config = MergeStepConfig {
             merger_config: MergerConfig {
-                duplication_strategy: crate::fusion::deduplication::DuplicationStrategy::MergeWithProvenance,
+                duplication_strategy:
+                    crate::fusion::deduplication::DuplicationStrategy::MergeWithProvenance,
                 max_results: 50,
                 preserve_variant_provenance: true,
                 ..Default::default()
@@ -189,7 +197,7 @@ impl MergeStepPresets {
             enabled: true,
             max_variants: 5,
         };
-        
+
         MergeStep::with_name(config, "query_expansion_merge".to_string())
     }
 
@@ -197,7 +205,8 @@ impl MergeStepPresets {
     pub fn for_multi_collection() -> MergeStep {
         let config = MergeStepConfig {
             merger_config: MergerConfig {
-                duplication_strategy: crate::fusion::deduplication::DuplicationStrategy::RemoveKeepBest,
+                duplication_strategy:
+                    crate::fusion::deduplication::DuplicationStrategy::RemoveKeepBest,
                 max_results: 100,
                 preserve_variant_provenance: false,
                 ..Default::default()
@@ -205,7 +214,7 @@ impl MergeStepPresets {
             enabled: true,
             max_variants: 10,
         };
-        
+
         MergeStep::with_name(config, "multi_collection_merge".to_string())
     }
 
@@ -213,7 +222,8 @@ impl MergeStepPresets {
     pub fn simple_deduplication() -> MergeStep {
         let config = MergeStepConfig {
             merger_config: MergerConfig {
-                duplication_strategy: crate::fusion::deduplication::DuplicationStrategy::RemoveKeepFirst,
+                duplication_strategy:
+                    crate::fusion::deduplication::DuplicationStrategy::RemoveKeepFirst,
                 max_results: 200,
                 preserve_variant_provenance: false,
                 ..Default::default()
@@ -221,7 +231,7 @@ impl MergeStepPresets {
             enabled: true,
             max_variants: 20,
         };
-        
+
         MergeStep::with_name(config, "simple_deduplication".to_string())
     }
 }
@@ -229,9 +239,9 @@ impl MergeStepPresets {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fusion::{FromSignals, ScoreBreakdown};
     use crate::models::SearchResult;
     use zero_latency_core::DocId;
-    use crate::fusion::{FromSignals, ScoreBreakdown};
 
     fn create_test_result(doc_id: &str, score: f32) -> SearchResult {
         let doc_id = DocId::new("test_collection", doc_id, 1);
@@ -243,7 +253,7 @@ mod tests {
             fused: score,
             normalization_method: crate::fusion::score_fusion::NormalizationMethod::MinMax,
         };
-        
+
         SearchResult::new(
             doc_id.clone(),
             format!("uri/{}", doc_id),
@@ -257,7 +267,7 @@ mod tests {
     #[test]
     fn test_merge_step_basic_functionality() {
         let merge_step = MergeStep::with_default();
-        
+
         let variant_results = vec![
             QueryVariantResults {
                 variant_id: "variant1".to_string(),
@@ -280,7 +290,7 @@ mod tests {
         ];
 
         let (merged_results, metrics) = merge_step.merge_variant_results(variant_results).unwrap();
-        
+
         assert_eq!(metrics.query_variants_processed, 2);
         assert!(merged_results.len() <= 3);
     }
@@ -292,18 +302,16 @@ mod tests {
             ..Default::default()
         };
         let merge_step = MergeStep::new(config);
-        
-        let variant_results = vec![
-            QueryVariantResults {
-                variant_id: "variant1".to_string(),
-                original_query: "test".to_string(),
-                results: vec![create_test_result("doc1", 0.9)],
-                variant_metadata: None,
-            },
-        ];
+
+        let variant_results = vec![QueryVariantResults {
+            variant_id: "variant1".to_string(),
+            original_query: "test".to_string(),
+            results: vec![create_test_result("doc1", 0.9)],
+            variant_metadata: None,
+        }];
 
         let (results, metrics) = merge_step.merge_variant_results(variant_results).unwrap();
-        
+
         assert_eq!(results.len(), 1);
         assert_eq!(metrics.deduplication_metrics.duplicates_found, 0);
     }
@@ -315,7 +323,7 @@ mod tests {
             .max_variants(5)
             .name("custom_merge".to_string())
             .build();
-        
+
         assert_eq!(merge_step.name(), "custom_merge");
         assert!(merge_step.config.enabled);
         assert_eq!(merge_step.config.max_variants, 5);
@@ -325,10 +333,10 @@ mod tests {
     fn test_preset_configurations() {
         let query_expansion_merge = MergeStepPresets::for_query_expansion();
         assert_eq!(query_expansion_merge.name(), "query_expansion_merge");
-        
+
         let multi_collection_merge = MergeStepPresets::for_multi_collection();
         assert_eq!(multi_collection_merge.name(), "multi_collection_merge");
-        
+
         let simple_dedup = MergeStepPresets::simple_deduplication();
         assert_eq!(simple_dedup.name(), "simple_deduplication");
     }
@@ -340,7 +348,7 @@ mod tests {
             ..Default::default()
         };
         let merge_step = MergeStep::new(config);
-        
+
         let variant_results = vec![
             QueryVariantResults {
                 variant_id: "v1".to_string(),
@@ -363,7 +371,7 @@ mod tests {
         ];
 
         let (_, metrics) = merge_step.merge_variant_results(variant_results).unwrap();
-        
+
         // Should only process first 2 variants due to max_variants limit
         assert_eq!(metrics.query_variants_processed, 2);
     }

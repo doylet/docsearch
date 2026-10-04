@@ -373,7 +373,7 @@ impl GracefulShutdown {
     /// Force stop a specific service
     async fn force_stop_service(
         &self,
-        service_name: &str,
+        _service_name: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // TODO: Implement actual force stopping
         Ok(())

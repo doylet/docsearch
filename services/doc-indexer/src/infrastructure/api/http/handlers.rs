@@ -1,4 +1,6 @@
-use crate::infrastructure::api::jsonrpc::types::{HealthCheckResult, LivenessResult, ReadinessResult};
+use crate::infrastructure::api::jsonrpc::types::{
+    HealthCheckResult, LivenessResult, ReadinessResult,
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -29,7 +31,8 @@ pub struct AppState {
     pub document_service: DocumentIndexingService,
     pub health_service: HealthService,
     pub collection_service: CollectionService,
-    pub analytics_service: Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
+    pub analytics_service:
+        Arc<crate::infrastructure::operations::analytics::ProductionSearchAnalytics>,
     pub start_time: Instant,
 }
 
@@ -276,14 +279,17 @@ async fn search_documents(
     Json(request): Json<zero_latency_api::SearchRequest>,
 ) -> Result<Json<zero_latency_search::SearchResponse>, AppError> {
     let default_collection = &state.container.config().service.default_collection;
-    
+
     // Extract collection from filters or use default
     let collection_name = if let Some(filters) = &request.filters {
-        filters.collection_name.as_deref().unwrap_or(default_collection)
+        filters
+            .collection_name
+            .as_deref()
+            .unwrap_or(default_collection)
     } else {
         default_collection
     };
-    
+
     let limit = request.limit.unwrap_or(10) as usize;
 
     let search_response = state

@@ -51,6 +51,8 @@ impl ScoreNormalizer {
     }
 
     /// Normalize scores using z-score method with clamping
+    // max/min maps NaN to 0.0; clamp would propagate NaN, so keep the manual form.
+    #[allow(clippy::manual_clamp)]
     pub fn z_score_normalize(scores: &[f32]) -> Vec<f32> {
         if scores.is_empty() {
             return Vec::new();
@@ -61,10 +63,8 @@ impl ScoreNormalizer {
         }
 
         let mean = scores.iter().sum::<f32>() / scores.len() as f32;
-        let variance = scores
-            .iter()
-            .map(|&x| (x - mean).powi(2))
-            .sum::<f32>() / scores.len() as f32;
+        let variance =
+            scores.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / scores.len() as f32;
         let std_dev = variance.sqrt();
 
         if std_dev < f32::EPSILON {
@@ -142,13 +142,6 @@ impl ScoreFusion {
         Ok(Self { config })
     }
 
-    /// Create with default configuration
-    pub fn default() -> Self {
-        Self {
-            config: FusionConfig::default(),
-        }
-    }
-
     /// Fuse BM25 and vector scores according to configuration
     pub fn fuse_scores(
         &self,
@@ -194,9 +187,9 @@ impl ScoreFusion {
                 (Some(bm25), Some(vector)) => {
                     self.config.bm25_weight * bm25 + self.config.vector_weight * vector
                 }
-                (Some(bm25), None) => bm25, // Only BM25 available
+                (Some(bm25), None) => bm25,     // Only BM25 available
                 (None, Some(vector)) => vector, // Only vector available
-                (None, None) => 0.0, // No scores available
+                (None, None) => 0.0,            // No scores available
             };
 
             results.push(ScoreBreakdown {
@@ -213,9 +206,12 @@ impl ScoreFusion {
     }
 
     /// Fuse search results by combining duplicate documents and applying score fusion
-    pub fn fuse_results(&self, results: Vec<crate::models::SearchResult>) -> Result<Vec<crate::models::SearchResult>, String> {
-        use std::collections::HashMap;
+    pub fn fuse_results(
+        &self,
+        results: Vec<crate::models::SearchResult>,
+    ) -> Result<Vec<crate::models::SearchResult>, String> {
         use crate::models::SearchResult;
+        use std::collections::HashMap;
 
         if results.is_empty() {
             return Ok(Vec::new());
@@ -226,7 +222,7 @@ impl ScoreFusion {
 
         for result in results {
             let doc_key = result.doc_id.to_index_key();
-            doc_groups.entry(doc_key).or_insert_with(Vec::new).push(result);
+            doc_groups.entry(doc_key).or_default().push(result);
         }
 
         let mut fused_results = Vec::new();
@@ -237,10 +233,12 @@ impl ScoreFusion {
                 fused_results.push(doc_results.into_iter().next().unwrap());
             } else {
                 // Multiple results for same document, need to fuse scores
-                let bm25_scores: Vec<f32> = doc_results.iter()
+                let bm25_scores: Vec<f32> = doc_results
+                    .iter()
                     .filter_map(|r| r.scores.bm25_raw)
                     .collect();
-                let vector_scores: Vec<f32> = doc_results.iter()
+                let vector_scores: Vec<f32> = doc_results
+                    .iter()
                     .filter_map(|r| r.scores.vector_raw)
                     .collect();
 
@@ -249,16 +247,25 @@ impl ScoreFusion {
 
                 // Calculate new score breakdown
                 let fused_scores = self.fuse_scores(
-                    if bm25_scores.is_empty() { &[0.0] } else { &bm25_scores },
-                    if vector_scores.is_empty() { &[0.0] } else { &vector_scores }
+                    if bm25_scores.is_empty() {
+                        &[0.0]
+                    } else {
+                        &bm25_scores
+                    },
+                    if vector_scores.is_empty() {
+                        &[0.0]
+                    } else {
+                        &vector_scores
+                    },
                 )?;
 
                 if let Some(new_scores) = fused_scores.into_iter().next() {
                     fused_result.scores = new_scores;
 
                     // Update final score for legacy compatibility
-                    fused_result.final_score = zero_latency_core::values::Score::new(fused_result.scores.fused)
-                        .unwrap_or_else(|_| zero_latency_core::values::Score::zero());
+                    fused_result.final_score =
+                        zero_latency_core::values::Score::new(fused_result.scores.fused)
+                            .unwrap_or_else(|_| zero_latency_core::values::Score::zero());
 
                     // Merge from_signals to reflect both engines contributed
                     let has_bm25 = fused_result.scores.bm25_raw.is_some();
@@ -279,10 +286,22 @@ impl ScoreFusion {
 
         // Sort by fused score (descending)
         fused_results.sort_by(|a, b| {
-            b.scores.fused.partial_cmp(&a.scores.fused).unwrap_or(std::cmp::Ordering::Equal)
+            b.scores
+                .fused
+                .partial_cmp(&a.scores.fused)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(fused_results)
+    }
+}
+
+impl Default for ScoreFusion {
+    /// Create with default configuration
+    fn default() -> Self {
+        Self {
+            config: FusionConfig::default(),
+        }
     }
 }
 
@@ -295,8 +314,8 @@ mod tests {
         let scores = vec![1.0, 3.0, 5.0, 2.0, 4.0];
         let normalized = ScoreNormalizer::min_max_normalize(&scores);
 
-        assert_eq!(normalized[0], 0.0);  // min -> 0
-        assert_eq!(normalized[2], 1.0);  // max -> 1
+        assert_eq!(normalized[0], 0.0); // min -> 0
+        assert_eq!(normalized[2], 1.0); // max -> 1
         assert!((normalized[1] - 0.5).abs() < f32::EPSILON); // middle
     }
 
@@ -307,7 +326,7 @@ mod tests {
 
         // All normalized values should be in [0,1]
         for &score in &normalized {
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
     }
 

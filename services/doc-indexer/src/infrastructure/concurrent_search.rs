@@ -1,9 +1,9 @@
+use crate::infrastructure::operations::analytics::ProductionSearchAnalytics;
+use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use dashmap::DashMap;
 use zero_latency_core::Result;
 use zero_latency_search::{SearchOrchestrator, SearchRequest, SearchResponse};
-use crate::infrastructure::operations::analytics::ProductionSearchAnalytics;
 
 /// Concurrent search service that prevents blocking between indexing and search operations
 ///
@@ -57,13 +57,16 @@ impl ConcurrentSearchService {
         let operation_id = uuid::Uuid::new_v4().to_string();
 
         // Acquire read permit - this won't block on indexing operations
-        let _permit = self.read_semaphore.acquire().await
-            .map_err(|_| zero_latency_core::ZeroLatencyError::search("Failed to acquire read permit".to_string()))?;
+        let _permit = self.read_semaphore.acquire().await.map_err(|_| {
+            zero_latency_core::ZeroLatencyError::search("Failed to acquire read permit".to_string())
+        })?;
 
         // Track this operation
         self.active_operations.insert(
             operation_id.clone(),
-            OperationType::Search { query: request.query.raw.clone() }
+            OperationType::Search {
+                query: request.query.raw.clone(),
+            },
         );
 
         // Execute the search
@@ -88,13 +91,18 @@ impl ConcurrentSearchService {
         let operation_id = uuid::Uuid::new_v4().to_string();
 
         // Acquire write permit - limits concurrent indexing operations
-        let _permit = self.write_semaphore.acquire().await
-            .map_err(|_| zero_latency_core::ZeroLatencyError::search("Failed to acquire write permit".to_string()))?;
+        let _permit = self.write_semaphore.acquire().await.map_err(|_| {
+            zero_latency_core::ZeroLatencyError::search(
+                "Failed to acquire write permit".to_string(),
+            )
+        })?;
 
         // Track this operation
         self.active_operations.insert(
             operation_id.clone(),
-            OperationType::Index { collection: collection.clone() }
+            OperationType::Index {
+                collection: collection.clone(),
+            },
         );
 
         // Execute the indexing operation

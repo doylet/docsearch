@@ -299,7 +299,7 @@ impl StartupValidator {
 
         loop {
             attempts += 1;
-            let start_time = std::time::Instant::now();
+            let _start_time = std::time::Instant::now();
 
             // Run validation with timeout
             let timeout_duration = Duration::from_secs(step.timeout_seconds);

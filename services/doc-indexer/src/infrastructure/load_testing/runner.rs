@@ -16,6 +16,13 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
+type RequestFuture = Pin<
+    Box<
+        dyn Future<Output = Result<ScenarioResponse, Box<dyn std::error::Error + Send + Sync>>>
+            + Send,
+    >,
+>;
+
 /// Results from a complete load test execution
 #[derive(Debug)]
 pub struct LoadTestResult {
@@ -69,7 +76,7 @@ impl LoadTestRunner {
             .await;
 
         // Run load test scenarios
-        let scenario_results = self
+        let _scenario_results = self
             .run_scenarios(&mut metrics_collector, semaphore.clone(), start_time)
             .await?;
 
@@ -111,7 +118,7 @@ impl LoadTestRunner {
         start_time: Instant,
     ) -> Result<Vec<ScenarioExecutionResult>, Box<dyn std::error::Error + Send + Sync>> {
         let mut handles = Vec::new();
-        let mut request_count = 0u64;
+        let mut _request_count = 0u64;
 
         // Generate requests according to scenario weights
         let total_weight: f32 = self.scenarios.iter().map(|s| s.config().weight).sum();
@@ -154,7 +161,7 @@ impl LoadTestRunner {
                     });
 
                     handles.push(handle);
-                    request_count += 1;
+                    _request_count += 1;
 
                     // Apply rate limiting if configured
                     if let Some(rate_limit) = self.config.rate_limit {
@@ -191,17 +198,15 @@ impl LoadTestRunner {
         Ok(results)
     }
 
+    // `timeout` is threaded through but never applied: a latent bug in this unused
+    // load-testing code, left for the dead-code cleanup.
+    #[allow(clippy::only_used_in_recursion)]
     fn execute_request(
         request: ScenarioRequest,
         embedding_service: Arc<dyn EmbeddingService>,
         search_service: Arc<dyn SearchService>,
         timeout: Duration,
-    ) -> Pin<
-        Box<
-            dyn Future<Output = Result<ScenarioResponse, Box<dyn std::error::Error + Send + Sync>>>
-                + Send,
-        >,
-    > {
+    ) -> RequestFuture {
         Box::pin(async move {
             match request {
                 ScenarioRequest::Embedding(input) => {

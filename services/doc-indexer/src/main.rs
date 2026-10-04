@@ -6,7 +6,7 @@ use clap::Parser;
 /// a clean architecture with shared domain crates.
 use std::sync::Arc;
 use tracing::{error, info};
-use zero_latency_config::{load_config_from_file, load_config, AppConfig, validate_config};
+use zero_latency_config::{load_config, load_config_from_file, validate_config, AppConfig};
 
 mod application;
 mod config;
@@ -188,14 +188,12 @@ async fn load_effective_config(cli: &Cli) -> Result<AppConfig> {
     // Load base configuration
     let mut app_config = if let Some(config_file) = &cli.config {
         info!("Loading configuration from file: {}", config_file);
-        load_config_from_file(config_file).map_err(|e| {
-            anyhow::Error::msg(format!("Failed to load config file: {}", e))
-        })?
+        load_config_from_file(config_file)
+            .map_err(|e| anyhow::Error::msg(format!("Failed to load config file: {}", e)))?
     } else {
         info!("Loading configuration from environment and defaults");
-        load_config().map_err(|e| {
-            anyhow::Error::msg(format!("Failed to load configuration: {}", e))
-        })?
+        load_config()
+            .map_err(|e| anyhow::Error::msg(format!("Failed to load configuration: {}", e)))?
     };
 
     // Apply CLI argument overrides
@@ -212,10 +210,9 @@ async fn load_effective_config(cli: &Cli) -> Result<AppConfig> {
     // Override log level from CLI
     app_config.app.log_level = cli.log_level.clone();
 
-    info!("Configuration: server={}:{}, docs_path={:?}", 
-        app_config.server.host, 
-        app_config.server.port,
-        app_config.server.docs_path
+    info!(
+        "Configuration: server={}:{}, docs_path={:?}",
+        app_config.server.host, app_config.server.port, app_config.server.docs_path
     );
 
     Ok(app_config)
