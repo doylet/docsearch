@@ -1,5 +1,4 @@
 // Sprint 009 Kickoff - Production Readiness & Enhancement
-use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Sprint009Status {
@@ -241,11 +240,11 @@ fn main() {
     println!("📋 EPIC BREAKDOWN");
     println!("─────────────────");
     for (idx, epic) in sprint.epics.iter().enumerate() {
-        println!("{}. {} ({} SP) - Priority: {} [{}]", 
+        println!("{}. {} ({} SP) - Priority: {} [{}]",
                  idx + 1, epic.name, epic.story_points, epic.priority, epic.status);
-        
+
         for task in &epic.tasks {
-            println!("   • {} - {} ({} SP) [{}]", 
+            println!("   • {} - {} ({} SP) [{}]",
                      task.id, task.name, task.story_points, task.status);
             println!("     Description: {}", task.description);
         }

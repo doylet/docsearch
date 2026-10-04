@@ -16,28 +16,28 @@ impl TestUtils {
             config_helper: TestConfigHelper::new(),
         }
     }
-    
+
     /// Get a unique port for testing
     pub fn get_unique_port(&self) -> u16 {
         self.config_helper.get_unique_port()
     }
-    
+
     /// Get a unique collection name for testing
     pub fn get_unique_collection_name(&self) -> String {
         self.config_helper.get_unique_collection_name()
     }
-    
+
     /// Resolve the doc-indexer binary path
     pub fn resolve_binary_path(&self) -> String {
         self.config_helper
             .resolve_binary_path()
             .unwrap_or_else(|| "../../target/debug/doc-indexer".to_string())
     }
-    
+
     /// Start a doc-indexer server process for testing
     pub fn start_test_server(&self, port: u16, docs_path: &str) -> Result<Child, Box<dyn std::error::Error>> {
         let binary_path = self.resolve_binary_path();
-        
+
         let child = Command::new(&binary_path)
             .args([
                 "--docs-path",
@@ -50,15 +50,15 @@ impl TestUtils {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
-            
+
         Ok(child)
     }
-    
+
     /// Wait for a server to become healthy
     pub async fn wait_for_health(&self, port: u16, timeout_seconds: u64) -> Result<(), Box<dyn std::error::Error>> {
         let client = Client::new();
         let health_url = format!("http://localhost:{}/health", port);
-        
+
         for _ in 0..(timeout_seconds * 2) {
             if let Ok(resp) = client.get(&health_url).send().await {
                 if resp.status().is_success() {
@@ -67,16 +67,16 @@ impl TestUtils {
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
-        
+
         Err(format!("Server at port {} did not become healthy within {} seconds", port, timeout_seconds).into())
     }
-    
+
     /// Wait for a server to become healthy (blocking version for non-async tests)
     pub fn wait_for_health_blocking(&self, port: u16, timeout_seconds: u64) -> Result<(), Box<dyn std::error::Error>> {
         let rt = Runtime::new()?;
         rt.block_on(self.wait_for_health(port, timeout_seconds))
     }
-    
+
     /// Create a test configuration for a specific test
     pub fn create_test_config(&self) -> TestConfig {
         TestConfig {
@@ -86,7 +86,7 @@ impl TestUtils {
             docs_path: self.resolve_fixtures_path(),
         }
     }
-    
+
     /// Resolve the test fixtures path
     fn resolve_fixtures_path(&self) -> String {
         std::fs::canonicalize("tests/fixtures")
@@ -117,17 +117,17 @@ impl TestConfig {
     pub fn base_url(&self) -> String {
         format!("http://localhost:{}", self.port)
     }
-    
+
     /// Get the health check URL
     pub fn health_url(&self) -> String {
         format!("{}/health", self.base_url())
     }
-    
+
     /// Get the index API URL
     pub fn index_url(&self) -> String {
         format!("{}/api/index", self.base_url())
     }
-    
+
     /// Get the search API URL
     pub fn search_url(&self) -> String {
         format!("{}/api/search", self.base_url())
@@ -147,7 +147,7 @@ impl TestAssertions {
             response.status()
         );
     }
-    
+
     /// Assert that a search response contains expected results
     pub fn assert_search_results_not_empty(response_body: &serde_json::Value, context: &str) {
         let results = response_body
@@ -155,14 +155,14 @@ impl TestAssertions {
             .expect(&format!("{}: Response should have 'results' field", context))
             .as_array()
             .expect(&format!("{}: 'results' should be an array", context));
-            
+
         assert!(
             !results.is_empty(),
             "{}: Search should return at least one result",
             context
         );
     }
-    
+
     /// Assert that search results meet quality thresholds
     pub fn assert_search_quality(response_body: &serde_json::Value, min_score: f64, context: &str) {
         let results = response_body
@@ -170,14 +170,14 @@ impl TestAssertions {
             .expect(&format!("{}: Response should have 'results' field", context))
             .as_array()
             .expect(&format!("{}: 'results' should be an array", context));
-            
+
         for (i, result) in results.iter().enumerate() {
             let score = result
                 .get("score")
                 .expect(&format!("{}: Result {} should have 'score' field", context, i))
                 .as_f64()
                 .expect(&format!("{}: Score should be a number", context));
-                
+
             assert!(
                 score >= min_score,
                 "{}: Result {} score {} is below minimum threshold {}",
@@ -202,14 +202,14 @@ impl TestServerManager {
             servers: Vec::new(),
         }
     }
-    
+
     /// Start a server and register it for cleanup
     pub fn start_managed_server(&mut self, test_utils: &TestUtils, config: &TestConfig) -> Result<(), Box<dyn std::error::Error>> {
         let child = test_utils.start_test_server(config.port, &config.docs_path)?;
         self.servers.push(child);
         Ok(())
     }
-    
+
     /// Stop all managed servers
     pub fn stop_all(&mut self) {
         for mut server in self.servers.drain(..) {
@@ -225,23 +225,33 @@ impl Drop for TestServerManager {
     }
 }
 
+/// Kills a spawned server when dropped, so a panicking test never leaks the process
+pub struct ChildGuard(pub Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_utils_creates_unique_values() {
         let utils = TestUtils::new();
-        
+
         let port1 = utils.get_unique_port();
         let port2 = utils.get_unique_port();
         assert_ne!(port1, port2);
-        
+
         let collection1 = utils.get_unique_collection_name();
         let collection2 = utils.get_unique_collection_name();
         assert_ne!(collection1, collection2);
     }
-    
+
     #[test]
     fn test_config_urls() {
         let config = TestConfig {
@@ -250,7 +260,7 @@ mod tests {
             binary_path: "test_binary".to_string(),
             docs_path: "test_docs".to_string(),
         };
-        
+
         assert_eq!(config.base_url(), "http://localhost:9999");
         assert_eq!(config.health_url(), "http://localhost:9999/health");
         assert_eq!(config.index_url(), "http://localhost:9999/api/index");

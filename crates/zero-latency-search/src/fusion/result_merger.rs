@@ -208,7 +208,7 @@ impl ResultMerger {
 mod tests {
     use super::*;
     use crate::models::SearchResult;
-    use zero_latency_core::{DocId, Uuid};
+    use zero_latency_core::DocId;
     use crate::fusion::{FromSignals, ScoreBreakdown};
 
     fn create_test_result(doc_id: &str, score: f32) -> SearchResult {

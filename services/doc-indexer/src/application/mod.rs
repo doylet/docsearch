@@ -20,7 +20,6 @@ pub use content_processing::ContentProcessor;
 
 // Re-export all services and container for easy access
 pub use container::ServiceContainer;
-pub use concurrent_container::ConcurrentServiceContainer;
 pub use services::{
     collection_service::CollectionService, document_service::DocumentIndexingService,
     health_service::HealthService,

@@ -9,7 +9,7 @@ use zero_latency_search::{
 };
 use zero_latency_vector::{EmbeddingGenerator, VectorRepository};
 
-use crate::config::{Config, VectorBackend, EmbeddingProvider};
+use crate::config::{Config, EmbeddingProvider};
 use crate::infrastructure::search_enhancement::{MultiFactorResultRanker, SimpleQueryEnhancer};
 use crate::infrastructure::concurrent_search::ConcurrentSearchService;
 
