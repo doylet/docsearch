@@ -197,7 +197,7 @@ impl ProductionSearchAnalytics {
                 .map(|(query, stats)| (query.clone(), stats.last_executed))
                 .collect();
 
-            queries_with_time.sort_by(|a, b| a.1.cmp(&b.1));
+            queries_with_time.sort_by_key(|a| a.1);
 
             let to_remove = queries_with_time.len() - self.config.max_tracked_queries;
             for (query, _) in queries_with_time.into_iter().take(to_remove) {
@@ -372,7 +372,7 @@ impl SearchAnalytics for ProductionSearchAnalytics {
             .collect();
 
         // Sort by popularity (count)
-        popular_queries.sort_by(|a, b| b.count.cmp(&a.count));
+        popular_queries.sort_by_key(|q| std::cmp::Reverse(q.count));
         popular_queries.truncate(limit);
 
         Ok(popular_queries)

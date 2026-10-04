@@ -376,6 +376,8 @@ pub struct ApiErrorResponse {
     pub request_id: Option<String>,
 }
 
+// Boxing ApiErrorResponse would change these public signatures.
+#[allow(clippy::result_large_err)]
 impl EnhancedApiService {
     pub fn new(
         search_service: Arc<EnhancedSearchService>,

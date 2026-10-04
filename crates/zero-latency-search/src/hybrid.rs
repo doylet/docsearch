@@ -91,9 +91,10 @@ pub struct AdvancedHybridSearchStep {
     execution_mode: HybridExecutionMode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum HybridExecutionMode {
     /// Execute both searches in parallel (default)
+    #[default]
     Parallel,
     /// Execute vector search first, then BM25 for refinement
     Sequential {
@@ -105,12 +106,6 @@ pub enum HybridExecutionMode {
         /// Number of top BM25 results to rerank with vector search
         rerank_count: usize,
     },
-}
-
-impl Default for HybridExecutionMode {
-    fn default() -> Self {
-        Self::Parallel
-    }
 }
 
 impl AdvancedHybridSearchStep {

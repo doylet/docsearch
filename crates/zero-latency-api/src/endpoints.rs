@@ -64,7 +64,7 @@ pub mod urls {
         format!(
             "{}{}",
             base_url.trim_end_matches('/'),
-            &endpoints::collection_by_name(name)
+            endpoints::collection_by_name(name)
         )
     }
 
@@ -73,7 +73,7 @@ pub mod urls {
         format!(
             "{}{}",
             base_url.trim_end_matches('/'),
-            &endpoints::collection_stats(name)
+            endpoints::collection_stats(name)
         )
     }
 
@@ -82,7 +82,7 @@ pub mod urls {
         format!(
             "{}{}",
             base_url.trim_end_matches('/'),
-            &endpoints::document_by_id(id)
+            endpoints::document_by_id(id)
         )
     }
 

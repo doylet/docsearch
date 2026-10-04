@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
 async fn test_cache_operations(cache_manager: &Arc<HybridSearchCacheManager>) -> Result<()> {
     // Test query caching
-    let test_queries = vec![
+    let test_queries = [
         SearchRequest::new("rust programming").with_limit(10),
         SearchRequest::new("API documentation").with_limit(5),
         SearchRequest::new("configuration guide").with_limit(15),

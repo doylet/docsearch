@@ -87,18 +87,13 @@ impl Display for Score {
 }
 
 /// Response format specification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum ResponseFormat {
+    #[default]
     Json,
     JsonCompact,
     Text,
     Csv,
-}
-
-impl Default for ResponseFormat {
-    fn default() -> Self {
-        Self::Json
-    }
 }
 
 /// Service version information
